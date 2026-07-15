@@ -230,7 +230,9 @@ public class AuthService {
         String refresh = jwtUtil.generateRefreshToken(
                 user.getId(), user.getEmail(), ctx.roleName(), ctx.tenantId(), ctx.tenantSchema());
         String displayRole = ROLE_DISPLAY.getOrDefault(ctx.roleName(), ctx.roleName().replace('_', ' '));
-        return new TokenResponse(access, refresh, jwtUtil.getAccessExpirySeconds(), toDto(user, displayRole, ctx.roleName()));
+        UserDto dto = toDto(user, displayRole, ctx.roleName());
+        dto.setRoleAssignments(getRoleAssignmentDtos(user.getId()));
+        return new TokenResponse(access, refresh, jwtUtil.getAccessExpirySeconds(), dto);
     }
 
     /**
