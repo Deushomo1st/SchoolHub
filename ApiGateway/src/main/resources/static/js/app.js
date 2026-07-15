@@ -81,7 +81,7 @@ function initTheme() {
     island.id = 'dynamicIsland';
     island.className = 'dynamic-island';
     island.innerHTML = '<span class="di-badge">SchoolHub</span>';
-    island.onclick = function() { location.href = '/app.html'; };
+    island.onclick = function() { location.reload(true); };
     document.body.appendChild(island);
   }
 })();
@@ -159,6 +159,17 @@ function initTheme() {
         if (typeof window.dismissDrawer === 'function') window.dismissDrawer();
       }
     }
+  });
+})();
+
+// ---- Hero blur on scroll (app page only) ----
+(function() {
+  if (location.pathname.indexOf('app.html') === -1) return;
+  var hero = document.querySelector('.hero');
+  if (!hero) return;
+  window.addEventListener('scroll', function() {
+    if (window.scrollY > 50) hero.classList.add('scrolled');
+    else hero.classList.remove('scrolled');
   });
 })();
 

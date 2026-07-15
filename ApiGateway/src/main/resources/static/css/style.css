@@ -184,7 +184,8 @@ a:hover { text-decoration: none; }
 h1 { font-size: 26px; margin: 0 0 6px; }
 h2 { font-size: 18px; margin: 0 0 14px; }
 .muted { color: var(--muted); }
-.hero { padding: 64px 28px 40px; text-align: center; }
+.hero { padding: 64px 28px 40px; text-align: center; transition: backdrop-filter .3s; }
+.hero.scrolled { backdrop-filter: blur(12px); }
 .hero h1 { font-size: 34px; }
 .hero-role { font-size: 14px; color: var(--muted); margin-top: 2px; font-weight: 400; }
 
@@ -345,7 +346,7 @@ h2 { font-size: 18px; margin: 0 0 14px; }
   border: 1px solid rgba(255,255,255,.18);
   border-top: none;
   border-radius: 0 0 22px 22px;
-  padding: 8px 28px 10px;
+  padding: 2px 60px 3px;
   transition: all .25s cubic-bezier(.4,0,.2,1);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.1),
