@@ -2,6 +2,7 @@ package com.schoolhub.schoolservice.controller;
 
 import com.schoolhub.schoolservice.dto.Requests.*;
 import com.schoolhub.schoolservice.service.AcademicService;
+import com.schoolhub.schoolservice.service.PerspectiveService;
 import com.schoolhub.schoolservice.service.WorkflowService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -15,10 +16,12 @@ public class AcademicController {
 
     private final AcademicService academic;
     private final WorkflowService workflow;
+    private final PerspectiveService perspectives;
 
-    public AcademicController(AcademicService academic, WorkflowService workflow) {
+    public AcademicController(AcademicService academic, WorkflowService workflow, PerspectiveService perspectives) {
         this.academic = academic;
         this.workflow = workflow;
+        this.perspectives = perspectives;
     }
 
     // ---- Subjects ----
@@ -144,6 +147,13 @@ public class AcademicController {
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','BURSAR')")
     public ResponseEntity<?> attendance(@RequestParam Long studentId) {
         return ResponseEntity.ok(academic.listAttendance(studentId));
+    }
+
+    // ---- Student progress (admin view of one student) ----
+    @GetMapping("/students/{id}/progress")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','BURSAR')")
+    public ResponseEntity<?> studentProgress(@PathVariable Long id) {
+        return ResponseEntity.ok(perspectives.studentProgress(id));
     }
 
     @PostMapping("/attendance")

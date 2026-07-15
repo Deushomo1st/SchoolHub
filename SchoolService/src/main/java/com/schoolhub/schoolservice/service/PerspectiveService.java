@@ -108,6 +108,20 @@ public class PerspectiveService {
         return m;
     }
 
+    // ---- Admin view of a single student's progress (reuses same assembly) ----
+    public Map<String, Object> studentProgress(Long studentId) {
+        Student s = studentRepo.findById(studentId)
+                .orElseThrow(() -> new EntityNotFoundException("Student not found"));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("profile", s);
+        m.put("className", resolveClassName(s));
+        m.put("subjects", subjectsForClass(s.getClassId()));
+        m.put("results", resultRows(s.getId()));
+        m.put("attendance", attendanceSummary(s.getId()));
+        m.put("fees", feeService.invoicesForStudent(s.getId()));
+        return m;
+    }
+
     // ---- Guardian (parent) - track each child's performance ----
     public Map<String, Object> guardianDashboard(Long userId) {
         Guardian g = guardianRepo.findByUserId(userId)

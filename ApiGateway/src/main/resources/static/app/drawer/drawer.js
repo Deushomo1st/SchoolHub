@@ -91,5 +91,5 @@ window.rebuildDrawer = function(items) {
     colIcons.appendChild(div);
   });
   if (typeof window.dismissDrawer === 'function') window.dismissDrawer();
-  if (window.lucide) lucide.createIcons({ root: colIcons });
+  if (window.lucide) lucide.createIcons();
 };
