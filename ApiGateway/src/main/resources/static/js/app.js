@@ -162,9 +162,8 @@ function initTheme() {
   });
 })();
 
-// ---- Hero blur on scroll (app page only) ----
+// ---- Hero blur on scroll ----
 (function() {
-  if (location.pathname.indexOf('app.html') === -1) return;
   var hero = document.querySelector('.hero');
   if (!hero) return;
   window.addEventListener('scroll', function() {
