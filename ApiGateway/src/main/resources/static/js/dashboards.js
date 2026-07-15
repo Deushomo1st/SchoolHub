@@ -16,6 +16,53 @@ async function payInvoice(id, label) {
   catch (e) { alert(e.message); }
 }
 
+// ---------------- Shared drawer navigation ----------------
+function confirmLogout() {
+  var modal = document.createElement('div');
+  modal.className = 'confirm-modal';
+  modal.innerHTML = '<div class="confirm-glass">'
+    + '<p>Are you sure you want to sign out?</p>'
+    + '<div class="confirm-actions">'
+    + '<button class="btn cancel">Cancel</button>'
+    + '<button class="btn danger">Sign out</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+  modal.querySelector('.cancel').onclick = function() { modal.remove(); };
+  modal.querySelector('.danger').onclick = function() {
+    localStorage.removeItem('shToken');
+    localStorage.removeItem('shUser');
+    location.replace('/login.html');
+  };
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+}
+
+function wireDrawerNav(navMap) {
+  document.querySelectorAll('.drawer-item[data-nav]').forEach(function(item) {
+    item.onclick = function() {
+      var nav = item.dataset.nav;
+      var fn = navMap[nav];
+      if (!fn) return;
+      if (nav === 'logout') { confirmLogout(); return; }
+      document.querySelectorAll('.drawer-item').forEach(function(i) { i.classList.remove('active'); });
+      item.classList.add('active');
+      fn(document.getElementById('view'));
+    };
+  });
+}
+
+function roleAccountPane(pane) {
+  var u = getUser();
+  pane.innerHTML = '<div class="card">'
+    + '<h2>Account</h2>'
+    + '<p><strong>' + esc(u?.firstName || '') + ' ' + esc(u?.lastName || '') + '</strong></p>'
+    + '<p class="muted">' + esc(u?.email || '') + '</p>'
+    + '<p class="muted">' + esc((u?.role || '').replace(/_/g, ' ')) + '</p>'
+    + (u?.username ? '<p class="muted">@' + esc(u.username) + '</p>' : '')
+    + '<button class="btn secondary" style="margin-top:12px" onclick="openPwd()">Change password</button>'
+    + '<button class="btn danger" style="margin-top:12px" onclick="logout()">Sign out</button>'
+    + '</div>';
+}
+
 // ---------------- Calendar (shared agenda) ----------------
 async function renderCalendar(container, canCreate) {
   container.innerHTML = `
@@ -61,38 +108,23 @@ async function renderCalendar(container, canCreate) {
 // ---------------- Platform owner / moderator ----------------
 async function renderPlatform(view, me) {
   const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
-  // Wire drawer navigation
-  document.querySelectorAll('.drawer-item[data-nav]').forEach(item => {
-    item.onclick = () => {
-      const nav = item.dataset.nav;
-      const map = { overview: platformOverview, schools: platformSchools, account: platformAccount, moderators: platformModerators, plans: p => platformPlans(p, isOwner), designs: platformDesigns, logout: () => {
-        const modal = document.createElement('div');
-        modal.className = 'confirm-modal';
-        modal.innerHTML = `<div class="confirm-glass">
-          <p>Are you sure you want to sign out?</p>
-          <div class="confirm-actions">
-            <button class="btn cancel">Cancel</button>
-            <button class="btn danger">Sign out</button>
-          </div>
-        </div>`;
-        document.body.appendChild(modal);
-        modal.querySelector('.cancel').onclick = () => modal.remove();
-        modal.querySelector('.danger').onclick = () => {
-          localStorage.removeItem('shToken');
-          localStorage.removeItem('shUser');
-          location.replace('/login.html');
-        };
-        modal.onclick = e => { if (e.target === modal) modal.remove(); };
-      } };
-      const fn = map[nav];
-      if (fn) {
-        document.querySelectorAll('.drawer-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        fn(view);
-      }
-    };
+  rebuildDrawer([
+    { id: 'overview', icon: 'trending-up', label: 'Overview' },
+    { id: 'schools', icon: 'school', label: 'Schools' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
+    { id: 'moderators', icon: 'users-round', label: 'Moderators' },
+    { id: 'plans', icon: 'banknote', label: 'Plans & Pricing' },
+    { id: 'designs', icon: 'pen-line', label: 'Designs' },
+  ]);
+  wireDrawerNav({
+    overview: platformOverview,
+    schools: platformSchools,
+    account: roleAccountPane,
+    moderators: platformModerators,
+    plans: pane => platformPlans(pane, isOwner),
+    designs: platformDesigns,
+    logout: confirmLogout,
   });
-
   // Start with Overview
   await platformOverview(view);
 }
@@ -189,18 +221,7 @@ function platformDesigns(pane) {
   pane.innerHTML = `<div class="card"><h2>Designs</h2><p class="muted">UI/UX design tools and theme management.</p></div>`;
 }
 
-// ---- Account tab ----
-function platformAccount(pane) {
-  const u = getUser();
-  pane.innerHTML = `<div class="card">
-    <h2>Account</h2>
-    <p><strong>${esc(u?.firstName || '')} ${esc(u?.lastName || '')}</strong></p>
-    <p class="muted">${esc(u?.email || '')}</p>
-    <p class="muted">${esc((u?.role || '').replace(/_/g, ' '))}</p>
-    <button class="btn secondary" style="margin-top:12px" onclick="openPwd()">Change password</button>
-    <button class="btn danger" style="margin-top:12px" onclick="logout()">Sign out</button>
-  </div>`;
-}
+
 
 // ---------------- Tab helper ----------------
 var _tabsIconsDone = false;
@@ -236,16 +257,28 @@ function goToSection(tabIndex, sectionId) {
   }, 950);
 }
 
-// ---------------- School owner (ADMIN) ----------------
+// ---------------- School owner (ADMIN / PRINCIPAL) ----------------
 async function renderAdmin(view, me) {
-  tabs(view, [
-    { label: 'Overview', render: adminOverview },
-    { label: 'People', render: adminPeople },
-    { label: 'Academics', render: adminAcademics },
-    { label: 'Payments', render: p => renderResourcePoint(wrapCard(p), true) },
-    { label: 'Governance', render: renderGovernance },
-    { label: 'Calendar', render: p => renderCalendar(wrapCard(p), true) },
+  rebuildDrawer([
+    { id: 'overview', icon: 'trending-up', label: 'Overview' },
+    { id: 'people', icon: 'users', label: 'People' },
+    { id: 'academics', icon: 'graduation-cap', label: 'Academics' },
+    { id: 'payments', icon: 'banknote', label: 'Payments' },
+    { id: 'governance', icon: 'scale', label: 'Governance' },
+    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
   ]);
+  wireDrawerNav({
+    overview: adminOverview,
+    people: adminPeople,
+    academics: adminAcademics,
+    payments: pane => renderResourcePoint(wrapCard(pane), true),
+    governance: renderGovernance,
+    calendar: pane => renderCalendar(wrapCard(pane), true),
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await adminOverview(view);
 }
 
 // ---------------- Governance (propose/confirm/protest) ----------------
@@ -422,8 +455,9 @@ async function adminPeople(pane) {
     const s = await api('/api/v1/students');
     document.getElementById('sl').innerHTML = s.length ? s.map(x =>
       `<tr><td>${esc(x.admissionNo)}</td><td>${esc(x.lastName)}, ${esc(x.firstName)}</td>
-       <td>${esc(classNameById(x.classId))}</td><td><span class="pill">${esc(x.status)}</span></td></tr>`).join('')
-      : '<tr><td colspan="4" class="muted">No students yet.</td></tr>';
+       <td>${esc(classNameById(x.classId))}</td><td><span class="pill">${esc(x.status)}</span></td>
+       <td class="right"><button class="btn secondary" style="padding:3px 10px;font-size:11px" onclick="openStudentProgress(${x.id})">View progress</button></td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">No students yet.</td></tr>';
     document.getElementById('gchild').innerHTML = opts(s, 'id', x => x.lastName + ', ' + x.firstName, 'No child yet');
   }
   async function loadGuardians() {
@@ -544,41 +578,28 @@ async function adminAcademics(pane) {
 }
 
 // ---------------- Teacher ----------------
-async function renderTeacher(view, me) {
-  const d = await api('/api/v1/me/teacher');
-  view.innerHTML = `
+var _teacherData = null;
+async function teacherDashboard(pane) {
+  if (!_teacherData) _teacherData = await api('/api/v1/me/teacher');
+  const d = _teacherData;
+  const me = getUser();
+  pane.innerHTML = `
     <div class="card"><h1>Welcome, ${esc(me.firstName)}</h1>
       <p class="muted">Staff no. ${esc(d.profile.staffNo)} · ${d.assignments.length} subject assignment(s)</p></div>
     <div class="card"><h2>My teaching</h2>
       ${d.assignments.length ? `<table><thead><tr><th>Class</th><th>Subject</th></tr></thead><tbody>${
         d.assignments.map(a => `<tr><td>${esc(a.className || '-')}</td><td>${esc(a.subjectName || '-')}</td></tr>`).join('')
-      }</tbody></table>` : '<p class="muted">No classes assigned yet - ask your admin.</p>'}</div>
+      }</tbody></table>` : '<p class="muted">No classes assigned yet - ask your admin.</p>'}</div>`;
+}
 
-    <div class="card"><h2>Mark attendance</h2><div id="atm" class="msg"></div>
+async function teacherAttendance(pane) {
+  pane.innerHTML = `<div class="card"><h2>Mark attendance</h2><div id="atm" class="msg"></div>
       <div class="inline-form"><div><label>Class</label><select id="atclass"></select></div>
         <div><label>Date</label><input id="atdate" type="date"></div>
         <div style="flex:0"><button class="btn" id="atload">Load students</button></div></div>
-      <div id="atbody"></div></div>
-
-    <div class="card"><h2>Record results</h2><div id="rsm" class="msg"></div>
-      <div class="inline-form">
-        <div><label>Class</label><select id="rsclass"></select></div>
-        <div><label>Subject</label><select id="rssubj"></select></div>
-        <div><label>Assessment</label><input id="rstitle" placeholder="First CA"></div>
-        <div><label>Out of</label><input id="rsmax" type="number" value="100" style="max-width:90px"></div>
-        <div style="flex:0"><button class="btn" id="rsload">Load students</button></div></div>
-      <div id="rsbody"></div></div>
-
-    <div class="card" id="cal"></div>`;
-
+      <div id="atbody"></div></div>`;
   const classes = await api('/api/v1/classes');
-  const subjects = await api('/api/v1/subjects');
-  const clsOpts = opts(classes, 'id', c => c.name);
-  document.getElementById('atclass').innerHTML = clsOpts;
-  document.getElementById('rsclass').innerHTML = clsOpts;
-  document.getElementById('rssubj').innerHTML = opts(subjects, 'id', s => s.name);
-
-  // attendance
+  document.getElementById('atclass').innerHTML = opts(classes, 'id', c => c.name);
   document.getElementById('atload').onclick = async () => {
     const classId = num(document.getElementById('atclass').value);
     if (!classId) return;
@@ -601,8 +622,23 @@ async function renderTeacher(view, me) {
       } catch (e) { showMsg(m, e.message, 'err'); }
     };
   };
+}
 
-  // results
+async function teacherResults(pane) {
+  pane.innerHTML = `<div class="card"><h2>Record results</h2><div id="rsm" class="msg"></div>
+      <div class="inline-form">
+        <div><label>Class</label><select id="rsclass"></select></div>
+        <div><label>Subject</label><select id="rssubj"></select></div>
+        <div><label>Assessment</label><input id="rstitle" placeholder="First CA"></div>
+        <div><label>Out of</label><input id="rsmax" type="number" value="100" style="max-width:90px"></div>
+        <div style="flex:0"><button class="btn" id="rsload">Load students</button></div></div>
+      <div id="rsbody"></div></div>`;
+  if (!_teacherData) _teacherData = await api('/api/v1/me/teacher');
+  const d = _teacherData;
+  const classes = await api('/api/v1/classes');
+  const subjects = await api('/api/v1/subjects');
+  document.getElementById('rsclass').innerHTML = opts(classes, 'id', c => c.name);
+  document.getElementById('rssubj').innerHTML = opts(subjects, 'id', s => s.name);
   document.getElementById('rsload').onclick = async () => {
     const classId = num(document.getElementById('rsclass').value);
     const subjectId = num(document.getElementById('rssubj').value);
@@ -620,7 +656,6 @@ async function renderTeacher(view, me) {
       const max = num(document.getElementById('rsmax').value) || 100;
       if (!title) { showMsg(m, 'Give the assessment a title first.', 'err'); return; }
       try {
-        // find/create the class-subject link, then the assessment, then post scores
         let link = (await api('/api/v1/class-subjects?classId=' + classId)).find(cs => cs.subjectId === subjectId);
         if (!link) link = await api('/api/v1/class-subjects', { method: 'POST', body: JSON.stringify({ classId, subjectId, teacherId: d.profile.id }) });
         const asm = await api('/api/v1/assessments', { method: 'POST', body: JSON.stringify({ classSubjectId: link.id, title, maxScore: max }) });
@@ -633,15 +668,36 @@ async function renderTeacher(view, me) {
       } catch (e) { showMsg(m, e.message, 'err'); }
     };
   };
+}
 
-  await renderCalendar(document.getElementById('cal'), true);
+async function renderTeacher(view, me) {
+  _teacherData = null;
+  rebuildDrawer([
+    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+    { id: 'attendance', icon: 'clipboard-check', label: 'Attendance' },
+    { id: 'results', icon: 'file-bar-chart', label: 'Results' },
+    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
+  ]);
+  wireDrawerNav({
+    dashboard: teacherDashboard,
+    attendance: teacherAttendance,
+    results: teacherResults,
+    calendar: pane => renderCalendar(wrapCard(pane), true),
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await teacherDashboard(view);
 }
 
 // ---------------- Student ----------------
-async function renderStudent(view, me) {
-  const d = await api('/api/v1/me/student');
+var _studentData = null;
+async function studentDashboard(pane) {
+  if (!_studentData) _studentData = await api('/api/v1/me/student');
+  const d = _studentData;
+  const me = getUser();
   const a = d.attendance || { total: 0, present: 0, absent: 0, late: 0 };
-  view.innerHTML = `
+  pane.innerHTML = `
     <div class="card"><h1>Hi, ${esc(me.firstName)}</h1>
       <p class="muted">Class: <strong>${esc(d.className || 'Not assigned')}</strong> · Admission ${esc(d.profile.admissionNo)}</p></div>
     <div class="card"><h2>Attendance</h2><div class="stats">
@@ -654,25 +710,66 @@ async function renderStudent(view, me) {
       ${(d.results || []).length ? `<table><thead><tr><th>Subject</th><th>Assessment</th><th>Term</th><th>Score</th></tr></thead><tbody>${
         d.results.map(r => `<tr><td>${esc(r.subject || '-')}</td><td>${esc(r.assessment || '-')}</td><td>${esc(r.term || '-')}</td>
           <td><strong>${r.score}</strong> / ${r.maxScore}</td></tr>`).join('')
-      }</tbody></table>` : '<p class="muted">No results recorded yet.</p>'}</div>
-    <div class="card" id="foryou"><p class="muted">Loading...</p></div>
-    <div class="card" id="cal"></div>`;
+      }</tbody></table>` : '<p class="muted">No results recorded yet.</p>'}</div>`;
+}
+
+async function studentForYou(pane) {
+  pane.innerHTML = '<div class="card" id="foryou"><p class="muted">Loading...</p></div>';
   await renderForYou(document.getElementById('foryou'));
-  await renderCalendar(document.getElementById('cal'), false);
+}
+
+async function renderStudent(view, me) {
+  _studentData = null;
+  rebuildDrawer([
+    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+    { id: 'foryou', icon: 'wallet', label: 'For You' },
+    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
+  ]);
+  wireDrawerNav({
+    dashboard: studentDashboard,
+    foryou: studentForYou,
+    calendar: pane => renderCalendar(wrapCard(pane), false),
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await studentDashboard(view);
 }
 
 // ---------------- Guardian (parent) ----------------
-async function renderGuardian(view, me) {
-  const d = await api('/api/v1/me/guardian');
-  view.innerHTML = `
+var _guardianData = null;
+async function guardianDashboard(pane) {
+  if (!_guardianData) _guardianData = await api('/api/v1/me/guardian');
+  const d = _guardianData;
+  const me = getUser();
+  pane.innerHTML = `
     <div class="card"><h1>Hello, ${esc(me.firstName)}</h1>
       <p class="muted">Tracking ${d.children.length} child${d.children.length === 1 ? '' : 'ren'}.</p></div>
-    <div class="card" id="foryou"><p class="muted">Loading...</p></div>
     ${d.children.length ? d.children.map(c => childCard(c)).join('') :
-      '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>'}
-    <div class="card" id="cal"></div>`;
+      '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>'}`;
+}
+
+async function guardianForYou(pane) {
+  pane.innerHTML = '<div class="card" id="foryou"><p class="muted">Loading...</p></div>';
   await renderForYou(document.getElementById('foryou'));
-  await renderCalendar(document.getElementById('cal'), false);
+}
+
+async function renderGuardian(view, me) {
+  _guardianData = null;
+  rebuildDrawer([
+    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+    { id: 'foryou', icon: 'wallet', label: 'For You' },
+    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
+  ]);
+  wireDrawerNav({
+    dashboard: guardianDashboard,
+    foryou: guardianForYou,
+    calendar: pane => renderCalendar(wrapCard(pane), false),
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await guardianDashboard(view);
 }
 
 function childCard(c) {
@@ -690,8 +787,8 @@ function childCard(c) {
 }
 
 // ---------------- Bursar (fees) ----------------
-async function renderBursar(view, me) {
-  view.innerHTML = `
+async function bursarInvoices(pane) {
+  pane.innerHTML = `
     <div class="card"><h1>Fees</h1><p class="muted">Invoices and payments for the school.</p><div class="stats" id="fstats"></div></div>
     <div class="card"><h2>Issue an invoice</h2><div id="invm" class="msg"></div>
       <form id="invf" class="inline-form">
@@ -703,8 +800,7 @@ async function renderBursar(view, me) {
         <div style="flex:0"><button class="btn">Issue</button></div></form></div>
     <div class="card"><h2>Invoices</h2><div id="paym" class="msg"></div>
       <table><thead><tr><th>Student</th><th>Title</th><th>Term</th><th>Amount</th><th>Paid</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
-      <tbody id="invrows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>
-    <div class="card" id="resource"><p class="muted">Loading...</p></div>`;
+      <tbody id="invrows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>`;
 
   const students = await api('/api/v1/students');
   document.getElementById('invstudent').innerHTML = opts(students, 'id', s => s.lastName + ', ' + s.firstName);
@@ -746,7 +842,26 @@ async function renderBursar(view, me) {
 
   wireForm('invf', 'invm', '/api/v1/invoices', b => { b.studentId = num(b.studentId); b.amountNaira = num(b.amountNaira); }, () => { loadInvoices(); loadSummary(); });
   await loadSummary(); await loadInvoices();
+}
+
+async function bursarResourcePoint(pane) {
+  pane.innerHTML = '<div class="card" id="resource"><p class="muted">Loading...</p></div>';
   await renderResourcePoint(document.getElementById('resource'), false);
+}
+
+async function renderBursar(view, me) {
+  rebuildDrawer([
+    { id: 'invoices', icon: 'receipt', label: 'Invoices' },
+    { id: 'resource', icon: 'store', label: 'Resource Point' },
+    { id: 'account', icon: 'circle-user', label: 'Account' },
+  ]);
+  wireDrawerNav({
+    invoices: bursarInvoices,
+    resource: bursarResourcePoint,
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await bursarInvoices(view);
 }
 
 // ---------------- For You (student / guardian payment obligations) ----------------
@@ -1047,4 +1162,84 @@ function wireForm(formId, msgId, url, transform, after) {
     try { await api(url, { method: 'POST', body: JSON.stringify(b) }); f.reset(); showMsg(m, 'Saved.', 'ok'); if (after) await after(); }
     catch (e) { showMsg(m, e.message, 'err'); }
   });
+}
+
+// ---- Student progress modal ----
+async function openStudentProgress(studentId) {
+  const modal = document.createElement('div');
+  modal.className = 'confirm-modal';
+  modal.innerHTML = `<div class="confirm-glass" style="max-width:700px;width:90vw;max-height:85vh;overflow-y:auto;text-align:left">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0">Student progress</h2>
+      <button class="btn secondary" onclick="this.closest('.confirm-modal').remove()" style="padding:4px 12px">✕</button>
+    </div>
+    <div id="spContent"><p class="muted">Loading…</p></div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+
+  try {
+    const d = await api('/api/v1/students/' + studentId + '/progress');
+    const p = d.profile;
+    const a = d.attendance || { total: 0, present: 0, absent: 0, late: 0 };
+    const results = d.results || [];
+    const subjects = d.subjects || [];
+
+    // Attendance %
+    const attPct = a.total > 0 ? Math.round((a.present / a.total) * 100) : 0;
+    const attColor = attPct >= 75 ? 'var(--ok)' : attPct >= 50 ? 'var(--amber)' : 'var(--danger)';
+
+    // Group results by subject
+    const bySubject = {};
+    results.forEach(r => {
+      if (!r.subject) return;
+      if (!bySubject[r.subject]) bySubject[r.subject] = [];
+      bySubject[r.subject].push(r);
+    });
+
+    // Subject cards with average score
+    const subjectCards = Object.keys(bySubject).length ? Object.entries(bySubject).map(([subj, rows]) => {
+      const avg = rows.length ? Math.round(rows.reduce((s, r) => s + (r.score / r.maxScore * 100), 0) / rows.length) : 0;
+      const color = avg >= 70 ? 'var(--ok)' : avg >= 50 ? 'var(--amber)' : 'var(--danger)';
+      return `<div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <strong>${esc(subj)}</strong>
+          <span style="font-size:13px;color:${color};font-weight:700">${avg}%</span>
+        </div>
+        <div style="background:rgba(255,255,255,.1);border-radius:6px;height:8px;overflow:hidden">
+          <div style="width:${avg}%;height:100%;background:${color};border-radius:6px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${rows.length} assessment${rows.length === 1 ? '' : 's'}</div>
+      </div>`;
+    }).join('') : '<p class="muted">No results recorded yet.</p>';
+
+    document.getElementById('spContent').innerHTML = `
+      <div style="margin-bottom:20px">
+        <h3 style="margin:0 0 4px">${esc(p.firstName)} ${esc(p.lastName)}</h3>
+        <div class="muted" style="font-size:13px">Admission: ${esc(p.admissionNo)} · Class: ${esc(d.className || 'Not assigned')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px">
+        <div style="text-align:center;padding:12px;background:rgba(255,255,255,.05);border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:${attColor}">${attPct}%</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Attendance</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:rgba(255,255,255,.05);border-radius:8px">
+          <div style="font-size:24px;font-weight:700">${a.present}</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Present</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:rgba(255,255,255,.05);border-radius:8px">
+          <div style="font-size:24px;font-weight:700">${a.absent}</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Absent</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:rgba(255,255,255,.05);border-radius:8px">
+          <div style="font-size:24px;font-weight:700">${Object.keys(bySubject).length}</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Subjects</div>
+        </div>
+      </div>
+      <h3 style="margin:0 0 12px">Academic performance</h3>
+      ${subjectCards}
+    `;
+  } catch (e) {
+    document.getElementById('spContent').innerHTML = `<p style="color:var(--danger)">Error: ${esc(e.message)}</p>`;
+  }
 }

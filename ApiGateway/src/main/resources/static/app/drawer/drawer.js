@@ -77,3 +77,19 @@
   });
   obs.observe(drawer, { attributes: true, attributeFilter: ['class'] });
 })();
+
+// ---- Public API: rebuild drawer items for any role ----
+window.rebuildDrawer = function(items) {
+  var colIcons = document.querySelector('.drawer-body .col-icons');
+  if (!colIcons) return;
+  colIcons.innerHTML = '';
+  items.forEach(function(item) {
+    var div = document.createElement('div');
+    div.className = 'drawer-item';
+    div.dataset.nav = item.id;
+    div.innerHTML = '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span>';
+    colIcons.appendChild(div);
+  });
+  if (typeof window.dismissDrawer === 'function') window.dismissDrawer();
+  if (window.lucide) lucide.createIcons({ root: colIcons });
+};
