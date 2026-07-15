@@ -11,4 +11,4 @@
 - Dynamic island styled: iPhone-style black pill, top-center, silver blade edges
 - Theme toggle styled: black pill bottom-right with sun/moon icon
 - Activity monitor: removed transparent glass wrapper, time scales moved vertical on right side, title at top of chart
-- Git initialised, .gitignore added
+- Added CLAUDE.md with agent rules, conventions, and git-based context recovery strategy
