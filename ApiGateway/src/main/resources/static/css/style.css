@@ -184,8 +184,9 @@ a:hover { text-decoration: none; }
 h1 { font-size: 26px; margin: 0 0 6px; }
 h2 { font-size: 18px; margin: 0 0 14px; }
 .muted { color: var(--muted); }
-.hero { padding: 64px 28px 40px; text-align: center; transition: backdrop-filter .3s; }
-.hero.scrolled { backdrop-filter: blur(12px); }
+.hero { padding: 64px 28px 40px; text-align: center; position: sticky; top: 0; z-index: 5; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: transparent; transition: background .3s; }
+.hero.scrolled { background: rgba(243, 248, 251, .45); }
+:root[data-theme="dusk"] .hero.scrolled { background: rgba(10, 10, 13, .55); }
 .hero h1 { font-size: 34px; }
 .hero-role { font-size: 14px; color: var(--muted); margin-top: 2px; font-weight: 400; }
 
@@ -856,7 +857,8 @@ a.stat:hover .l { color: var(--brand); }
 .card.flash { animation: flash-ring 1.3s ease-out; }
 
 /* modal */
-.modal-bg { position: fixed; inset: 0; background: rgba(2, 48, 71, .5); display: none; align-items: center; justify-content: center; z-index: 50; }
+.modal-bg { position: fixed; inset: 0; background: rgba(2, 48, 71, .3); display: none; align-items: center; justify-content: center; z-index: 50; }
+:root[data-theme="dusk"] .modal-bg { background: rgba(0, 0, 0, .4); }
 .modal-bg.show { display: flex; }
 .modal { background: var(--card); border-radius: var(--radius); padding: 24px; min-width: 340px; max-width: 520px; width: auto; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(2, 48, 71, .28); }
 .modal h2 { margin-top: 0; }

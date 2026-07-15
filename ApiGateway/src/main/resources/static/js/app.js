@@ -172,4 +172,16 @@ function initTheme() {
   });
 })();
 
+// ---- Progressive backdrop blur while modal is open ----
+(function() {
+  var maxBlur = 24, maxScroll = 600;
+  window.addEventListener('scroll', function() {
+    var m = document.querySelector('.modal-bg.show');
+    if (!m) return;
+    var blur = Math.min(maxBlur, (window.scrollY / maxScroll) * maxBlur);
+    m.style.backdropFilter = 'blur(' + blur + 'px)';
+    m.style.webkitBackdropFilter = 'blur(' + blur + 'px)';
+  });
+})();
+
 initTheme();
