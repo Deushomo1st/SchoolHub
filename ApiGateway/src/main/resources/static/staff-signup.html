@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SchoolHub - join your school</title>
+  <link rel="stylesheet" href="/css/style.css?v=18">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
+</head>
+<body>
+  <div class="top-actions"><a class="btn secondary" href="/login.html">Log in</a></div>
+
+  <div class="container narrow" style="margin-top:48px">
+    <div class="card">
+      <h1>Join your school</h1>
+      <p class="muted">Teachers and bursars: enter the staff code your school gave you. Your account waits for an
+        administrator to approve it, then you can sign in with your username or email.</p>
+      <div id="msg" class="msg"></div>
+      <form id="staffForm">
+        <label>Staff code</label>
+        <input name="code" required style="text-transform:uppercase;letter-spacing:2px">
+        <label>Role</label>
+        <select name="role">
+          <option value="TEACHER">Teacher</option>
+          <option value="BURSAR">Bursar</option>
+        </select>
+        <label>First name</label>
+        <input name="firstName" required>
+        <label>Last name</label>
+        <input name="lastName" required>
+        <label>Email</label>
+        <input name="email" type="email" required>
+        <label>Password</label>
+        <input name="password" type="password" minlength="8" required>
+        <div style="margin-top:18px">
+          <button class="btn" type="submit" id="submitBtn">Submit request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=6"></script>
+  <script>
+    const msg = document.getElementById('msg');
+    document.getElementById('staffForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      hideMsg(msg);
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      const body = Object.fromEntries(new FormData(ev.target).entries());
+      body.code = (body.code || '').trim().toUpperCase();
+      try {
+        const data = await api('/api/v1/tenants/staff-signup', { method: 'POST', body: JSON.stringify(body) });
+        ev.target.style.display = 'none';
+        showMsg(msg, data.message + ' (' + data.school + ')', 'ok');
+      } catch (e) {
+        showMsg(msg, e.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

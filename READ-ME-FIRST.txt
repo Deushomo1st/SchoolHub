@@ -1,0 +1,186 @@
+==============================================================
+  SCHOOLHUB — READ ME FIRST
+==============================================================
+
+A multi-tenant school management platform. A school signs up on
+the portal and gets its own private, isolated data space. Built
+as 4 Spring Boot services behind one gateway with schema-per-
+tenant isolation.
+
+Everything is managed through ONE launcher: SchoolHub-Manager.cmd
+
+==============================================================
+  WHAT YOU NEED FIRST
+==============================================================
+
+1. PostgreSQL 14 or newer
+   https://www.postgresql.org/download/windows/
+   Set the postgres user password to: postgres
+   (The launcher prompts for a different password if needed.)
+
+2. Java 21 LTS (JDK)
+   https://adoptium.net/
+   Maven is NOT needed — bundled via mvnw in each service.
+
+==============================================================
+  FIRST LAUNCH (new laptop, fresh clone)
+==============================================================
+
+Double-click:   SchoolHub-Manager.cmd
+
+Pick option 7 — "New laptop setup." This walks you through
+6 steps with checkpoints:
+
+  Step 1 — Finds PostgreSQL on your machine.
+  Step 2 — Connects (asks for the postgres password once).
+  Step 3 — Creates a database (default: "schoolhub").
+  Step 4 — Applies the platform schema (db/00_platform.sql).
+  Step 5 — Generates a JWT secret (.schoolhub_secrets.txt).
+  Step 6 — Creates the platform owner account.
+
+Each step that's already done on a re-run shows [EXISTS] and
+skips. After setup it offers to compile + launch + seed demo
+data. First run: ~2-3 minutes. Later launches: ~30 seconds.
+
+==============================================================
+  DAILY USE
+==============================================================
+
+Once you're set up, the menu you'll use every day:
+
+  1) Start services
+     • Reads your active database from active-db.properties.
+     • Runs a 5-second pre-flight (Postgres? DB there? JWT ok?
+       ports free? Java on PATH?). If anything fails it tells
+       you what's wrong before you waste time launching.
+     • Asks: "Compile? (y/n)" — skip if nothing changed.
+     • Asks: "Seed demo data? (y/n)" — skip if you're using
+       real data.
+     • Launches 4 service windows (Auth 9001, Tenant 9002,
+       School 9003, Gateway 9000). Waits for health checks.
+     • Portal opens at http://localhost:9000
+
+  2) Stop services
+     • Finds running SchoolHub java processes and kills them.
+     • Also available as a force-kill under Debug (option 6→8).
+
+  3) Switch database
+     • Lists every database on your Postgres server.
+     • Pick one → writes active-db.properties.
+     • Next time you Start (option 1), it uses that database.
+     • Also checks whether the schema is applied and warns if
+       not — so you know whether to run setup (option 7) first.
+
+==============================================================
+  MANAGING DATABASES (option 4)
+==============================================================
+
+  4→1  Create a new database (optional: apply schema, make active)
+  4→2  Delete a database (confirms by typing the name, disconnects
+       active connections first)
+  4→3  Rename a database (same confirmation, updates active-db if
+       the renamed DB was the active one)
+
+All database operations work directly via psql — no running
+services needed.
+
+==============================================================
+  MANAGING SUPER-ADMINS (option 5)
+==============================================================
+
+  5→1  List all super-admins in the active database.
+  5→2  Create a super-admin — asks email, name, password.
+       Uses PostgreSQL's pgcrypto so it works with zero Java
+       involved. The account is immediately usable.
+  5→3  Delete a super-admin — requires you to type THAT admin's
+       password (proof of ownership, not just a typed name).
+       Refuses to delete the last one (lockout protection).
+
+==============================================================
+  WHEN SOMETHING BREAKS (option 6)
+==============================================================
+
+The Debug menu has 8 tools:
+
+  6→1  Full diagnostic scan — runs everything below in one
+       pass and prints a pass/fail report with specific fixes.
+
+  6→2  Postgres connection test — is localhost:5432 reachable?
+
+  6→3  DB exists + schema check — is your active database there
+       and does it have the platform.app_user table?
+
+  6→4  JWT secret check — is .schoolhub_secrets.txt present,
+       valid base64, 32+ bytes, and matching the env var?
+
+  6→5  Port conflict scan — anything already on 9000-9003?
+       If yes, use 6→8 to kill it.
+
+  6→6  Java / Maven check — is java on PATH? mvnw.cmd present?
+
+  6→7  Regenerate JWT secret — nukes the old one and creates a
+       new one. WARNING: invalidates ALL existing login tokens.
+       Everyone must log in again. Asks "yes" to confirm.
+
+  6→8  Kill stale services — force-kills orphaned java processes
+       that have SchoolHub in their command line. Use when ports
+       are blocked or you have zombie service windows.
+
+==============================================================
+  TRY MULTI-TENANCY
+==============================================================
+
+Portal:  http://localhost:9000
+
+Default platform owner:
+    owner@schoolhub.local  /  Owner123!
+
+If you seeded demo data, these also work:
+    admin@demo.school      /  Demo12345!   (school admin)
+    teacher@demo.school    /  Teach12345!   (teacher)
+    student@demo.school    /  Stud12345!    (student)
+    parent@demo.school     /  Paren12345!   (guardian)
+    bursar@demo.school     /  Burs12345!    (bursar)
+    mod@schoolhub.local    /  Mod12345!     (moderator)
+
+To see isolation in action:
+  1. Log in as owner@schoolhub.local.
+  2. Go to the portal home, click "Sign up a school," create
+     one with code "greenfield."
+  3. Log in as the admin email you chose for that school.
+  4. Add students. Create a second school the same way.
+  5. Confirm each school sees only its own students — they
+     live in separate Postgres schemas.
+
+==============================================================
+  STOP / RESET
+==============================================================
+
+Stop:   Option 2 in the launcher, or close the 4 cmd windows.
+        Use 6→8 if processes survive.
+
+Wipe:   Option 4→2 to drop the database. Delete
+        .schoolhub_secrets.txt. Then run option 7 to re-create
+        everything from scratch.
+
+Switch: Use option 3 to point at a different database without
+        destroying the old one. Keep multiple DBs for different
+        branches, experiments, or demo configurations.
+
+==============================================================
+  PROJECT FILES
+==============================================================
+
+  SchoolHub-Manager.cmd       — THE launcher (double-click this)
+  setup/SchoolHub-Manager.ps1 — launcher implementation
+
+  active-db.properties        — which database the services use
+  .schoolhub_secrets.txt      — JWT signing secret (auto-generated)
+
+  db/00_platform.sql          — shared registry + auth tables
+  db/tenant_template.sql      — per-school schema template
+
+  AuthService    (port 9001)  — login, JWT, super-admin bootstrap
+  TenantService  (port 9002)  — school signup, schema provisioning
+  SchoolService  (port 9003)  — domain data (students, grades, fees)
+  ApiGateway     (port 9000)  — reverse proxy + static portal

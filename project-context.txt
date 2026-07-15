@@ -1,0 +1,103 @@
+================================================================================
+SCHOOLHUB - PROJECT CONTEXT
+================================================================================
+
+Multi-tenant school management SaaS. A school self-registers on the public portal,
+is given its OWN private Postgres schema, and manages its students/staff/etc. fully
+isolated from every other school. NIIT final-semester project.
+
+Built on the same Spring Boot toolset as the sibling platforms on this machine
+(HouseManagementPlatform, InventoryProper): microservices behind an ApiGateway,
+one Postgres DB, plain-HTML portal, JWT auth, one-click PowerShell launcher.
+
+This is the FIRST vertical slice (4 of an eventual ~8 services). It proves the
+schema-per-tenant engine end to end; the remaining domain services clone the
+StudentService pattern.
+
+================================================================================
+SERVICES AND PORTS
+================================================================================
+
+Port | Service        | Binds to        | Responsibility
+-----|----------------|-----------------|------------------------------------------
+9000 | ApiGateway     | (none)          | Reverse proxy + static portal. Forwards
+     |                |                 | /api/v1/{resource} to the owning service.
+9001 | AuthService    | platform schema | Login, JWT issuance, platform-owner
+     |                |                 | bootstrap. JWT carries tenant_id + tenant_schema.
+9002 | TenantService  | platform schema | Public school signup. CREATEs the school's
+     |                | + provisions    | schema and builds its tables from
+     |                |   tenant schemas| tenant_template.sql. Template + plan catalog.
+9003 | StudentService | per-tenant      | Students, isolated per school via Hibernate
+     |                |   schemas       | SCHEMA multi-tenancy (routed from the JWT).
+
+================================================================================
+MULTI-TENANCY MODEL (the core decision)
+================================================================================
+
+One database (schoolhub). Two kinds of schema:
+
+  platform        - shared, static. Holds the cross-tenant registry + auth:
+                    role, subscription_plan, tenant, app_user, token_blacklist.
+  <school code>   - one per school, created at signup (e.g. greenfield.student,
+                    unity_high.student). Same tables, fully isolated.
+
+How a request reaches the right school's data:
+  1. AuthService login looks up the user's tenant and puts tenant_schema in the JWT.
+  2. StudentService's JwtAuthFilter reads tenant_schema and stores it in a
+     per-request ThreadLocal (TenantContext).
+  3. Hibernate's CurrentTenantIdentifierResolver returns that schema; the
+     SchemaMultiTenantConnectionProvider runs `SET search_path` to it on the
+     connection. Every query in that request hits only that school's schema.
+  4. search_path is reset on connection release so pooled connections never leak.
+
+Provisioning at signup (TenantService) is one transaction: insert the tenant +
+first ADMIN into platform, then CREATE SCHEMA + run tenant_template.sql. Postgres
+DDL is transactional, so a failure rolls the whole signup back. The school code is
+validated against a strict allow-list (SchemaNames) before it is ever used as an
+identifier - that is the SQL-injection trust boundary.
+
+================================================================================
+TECH STACK
+================================================================================
+
+  - Java 17 (compiles on JDK 25), Spring Boot 3.5.14
+  - Spring Security, stateless JWT (JJWT 0.12.6), BCrypt
+  - Spring Data JPA + Hibernate 6 (SCHEMA multi-tenancy on StudentService)
+  - PostgreSQL (one DB, platform schema + one schema per school)
+  - Plain HTML/CSS/JS portal, sessionStorage tokens, no build step
+  - SCHOOLHUB_JWT_SECRET shared across services (env var, never in source)
+
+================================================================================
+ROLES (six personas)
+================================================================================
+
+  PLATFORM_OWNER - runs SchoolHub itself; not tied to a school (tenant_id null).
+  ADMIN          - runs one school (created at signup).
+  TEACHER        - attendance, grades, their classes.
+  STUDENT        - own results, timetable, fees.
+  PARENT         - children's progress, pays fees.
+  BURSAR         - finance (fees + payroll).
+
+Only PLATFORM_OWNER and ADMIN are exercised in this slice; the rest are seeded
+and ready for the User/Academic/Fee services.
+
+================================================================================
+RUN IT
+================================================================================
+
+Double-click Start-SchoolHub.cmd (needs PostgreSQL + Java 17). It creates the
+`schoolhub` DB, applies db/00_platform.sql, compiles + launches the 4 services,
+bootstraps the platform owner, and opens http://localhost:9000.
+
+  Platform owner:  owner@schoolhub.local / Owner123!
+  Try it: portal -> "Sign up a school" -> log in as that school's admin -> add students.
+
+================================================================================
+WHAT'S NEXT (deferred, not built)
+================================================================================
+
+  - User/Academic/Attendance/Fee/Notification services (clone StudentService).
+  - Template-specific seeding (terms, grading scale, class names) at signup.
+  - Plan caps (max_students) enforcement.
+  - Paystack fees, parent portal, reporting.
+  - Per-tenant credential isolation (currently auth is shared in platform.app_user).

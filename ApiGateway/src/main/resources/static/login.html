@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SchoolHub - log in</title>
+  <link rel="stylesheet" href="/css/style.css?v=18">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
+  <style>
+    #googleBtn { transition: color .2s, text-shadow .2s; }
+    :root[data-theme="light"] #googleBtn:hover,
+    :root:not([data-theme="dusk"]) #googleBtn:hover { color: #16a34a; text-shadow: 0 0 8px rgba(22,163,74,.55); }
+    :root[data-theme="dusk"] #googleBtn:hover { color: #a3e635; text-shadow: 0 0 10px rgba(163,230,53,.7); }
+
+    /* ---- Side padlock (behind card's right edge, slides right when left accent clicked) ---- */
+    .login-card { position: relative; overflow: visible; }
+    .side-lock {
+      position: absolute; right: 2px; top: 50%; z-index: 4;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--card, #fff);
+      border: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center;
+      transform: translateY(-50%) translateX(52px);
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, box-shadow .35s;
+    }
+    .side-lock.show {
+      opacity: 1; pointer-events: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,.18);
+      cursor: pointer;
+    }
+    .side-lock.show:hover { box-shadow: 0 6px 28px rgba(0,0,0,.28); }
+    :root[data-theme="dusk"] .side-lock {
+      background: rgba(20,22,30,.9);
+      border-color: rgba(255,255,255,.12);
+    }
+    :root[data-theme="dusk"] .side-lock.show:hover { box-shadow: 0 6px 28px rgba(0,0,0,.5), 0 0 16px rgba(255,144,0,.15); }
+    .side-lock i { width: 18px; height: 18px; stroke-width: 2; }
+
+    /* Google text turns red when backdoor is active */
+    #googleBtn.backdoor { color: #ef4444 !important; text-shadow: 0 0 10px rgba(239,68,68,.65) !important; }
+    :root[data-theme="dusk"] #googleBtn.backdoor { color: #f87171 !important; text-shadow: 0 0 14px rgba(248,113,113,.7) !important; }
+  </style>
+  <script>
+    // Activity tracking — every click pings the server
+    window.__activity = JSON.parse(sessionStorage.getItem('shActivity')||'[]');
+    function _save(){ try{sessionStorage.setItem('shActivity',JSON.stringify(window.__activity))}catch(e){} }
+    function _ping(a,s){ fetch('/api/v1/activity/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a,size:s,userId:null})}).catch(()=>{}) }
+    document.addEventListener('click',function(e){
+      var el=e.target.closest('button, a, [role="button"], input[type="submit"]');
+      if(el){var l=el.textContent.trim().slice(0,20)||el.tagName;window.__activity.push({ts:Date.now(),type:'click: '+l,size:5});_save();_ping('click: '+l,5)}
+    },true);
+  </script>
+</head>
+<body class="landing">
+  <div class="left-accent" id="edgeLine"></div>
+  <div class="top-actions"><a class="btn secondary" href="/index.html">Sign up a school</a></div>
+
+  <div class="hero">
+    <h1>Welcome back</h1>
+    <p class="muted">Sign in to your school's dashboard. Use your email or username.</p>
+  </div>
+
+  <div class="container narrow" id="step1">
+    <div class="card login-card">
+      <div class="side-lock" id="sideLock"><i data-lucide="lock"></i></div>
+      <div id="msg" class="msg"></div>
+      <form id="loginForm">
+        <label>Username or email</label>
+        <input name="email" type="text" autocomplete="username" required>
+        <label>Password</label>
+        <input name="password" type="password" required>
+        <div style="margin-top:18px;display:flex;align-items:center;justify-content:space-between">
+          <button class="btn" type="submit" id="submitBtn">Log in</button>
+          <a href="#" id="googleBtn" class="muted" style="font-weight:600">Google</a>
+        </div>
+        <div id="emailHint" class="inline-hint" style="display:none;margin-top:6px;font-size:12px"></div>
+      </form>
+      <p class="muted" style="margin-top:18px">Joining as staff with a code? <a href="/staff-signup.html">Sign up here</a>.</p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="/js/app.js?v=10"></script>
+  <script>
+    const msg = document.getElementById('msg');
+    const emailHint = document.getElementById('emailHint');
+
+    // ---- Edge line reveals padlock, padlock toggles backdoor ----
+    var edgeLine = document.getElementById('edgeLine');
+    var sideLock = document.getElementById('sideLock');
+    var googleBtn = document.getElementById('googleBtn');
+    edgeLine.addEventListener('click', function(e) {
+      e.stopPropagation();
+      edgeLine.classList.toggle('active');
+      sideLock.classList.toggle('show');
+      if (sideLock.classList.contains('show')) {
+        lucide.createIcons({ root: sideLock });
+      }
+    });
+    // Click padlock → toggle backdoor (Google turns red)
+    sideLock.addEventListener('click', function(e) {
+      e.stopPropagation();
+      googleBtn.classList.toggle('backdoor');
+    });
+    // Click anywhere else → dismiss lock only, backdoor state persists
+    document.addEventListener('click', function(e) {
+      if (!sideLock.classList.contains('show')) return;
+      if (!sideLock.contains(e.target) && !edgeLine.contains(e.target)) {
+        edgeLine.classList.remove('active');
+        sideLock.classList.remove('show');
+      }
+    });
+
+    // ---- Email existence check on blur ----
+    const emailInput = document.querySelector('input[name="email"]');
+    emailInput.addEventListener('blur', async () => {
+      const val = emailInput.value.trim();
+      if (!val || !val.includes('@')) { emailHint.style.display = 'none'; return; }
+      try {
+        const res = await fetch('/api/v1/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: val })
+        });
+        const data = await res.json();
+        if (data.exists) {
+          emailHint.style.display = 'block';
+          emailHint.style.color = 'var(--ok, #16a34a)';
+          emailHint.textContent = '✓ Account found';
+        } else {
+          emailHint.style.display = 'block';
+          emailHint.style.color = 'var(--danger, #ef4444)';
+          emailHint.innerHTML = 'No account with this email. <a href="/index.html">Sign up a school?</a>';
+        }
+      } catch (e) { emailHint.style.display = 'none'; }
+    });
+
+    // ---- Login form ----
+    document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      hideMsg(msg);
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      const body = Object.fromEntries(new FormData(ev.target).entries());
+      try {
+        const data = await api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) });
+        saveSession(data);
+        maybeShowRolePicker(data.user);
+      } catch (e) {
+        showMsg(msg, e.message, 'err');
+        btn.disabled = false;
+      }
+    });
+
+    // ---- Google sign-in ----
+    var googleReady = false;
+    function initGoogle() {
+      if (googleReady) return true;
+      if (!window.google || !google.accounts || !google.accounts.id) return false;
+      google.accounts.id.initialize({
+        client_id: '756001532243-io5srs96js86euebruv1f0jsjnt2u63j.apps.googleusercontent.com',
+        callback: handleGoogleResponse,
+        auto_select: false
+      });
+      googleReady = true;
+      console.log('Google Identity Services initialized');
+      return true;
+    }
+    window.onGoogleLibraryLoad = initGoogle;
+
+    function handleGoogleResponse(response) {
+      var btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      fetch('/api/v1/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: response.credential })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { showMsg(msg, data.message || data.error, 'err'); btn.disabled = false; return; }
+        saveSession(data);
+        maybeShowRolePicker(data.user);
+      }).catch(function(e) {
+        showMsg(msg, 'Google sign-in failed. Try password instead.', 'err');
+        btn.disabled = false;
+      });
+    }
+
+    document.getElementById('googleBtn').addEventListener('click', function(e) {
+      e.preventDefault();
+      hideMsg(msg);
+      if (initGoogle()) {
+        google.accounts.id.prompt();
+      } else {
+        showMsg(msg, 'Google sign-in is loading… try again in a moment.', 'err');
+      }
+    });
+
+    // ---- Role picker (if user has multiple role assignments) ----
+    function maybeShowRolePicker(user) {
+      const assignments = user.roleAssignments;
+      if (!assignments || assignments.length <= 1) {
+        location.replace('/app.html');
+        return;
+      }
+      // More than one role — show the picker
+      document.getElementById('step1').innerHTML = rolePickerHTML(user, assignments);
+    }
+
+    function rolePickerHTML(user, assignments) {
+      let cards = assignments.map(a => `
+        <div class="role-card" data-id="${a.id}" style="cursor:pointer">
+          <strong>${a.roleName.replace(/_/g, ' ')}</strong>
+          <span class="muted">${a.tenantName || 'Platform'}</span>
+        </div>`).join('');
+      return `
+        <div class="card" style="text-align:center">
+          <h2 style="margin-bottom:4px">Choose your role</h2>
+          <p class="muted" style="margin-bottom:18px">${user.firstName}, you have access to multiple schools or roles.</p>
+          <div style="display:flex;flex-direction:column;gap:8px" id="roleList">${cards}</div>
+        </div>`;
+    }
+
+    // Role card click — switch context
+    document.getElementById('step1').addEventListener('click', async (e) => {
+      const card = e.target.closest('.role-card');
+      if (!card) return;
+      const raId = card.dataset.id;
+      try {
+        const data = await api('/api/v1/auth/switch-context', {
+          method: 'POST',
+          body: JSON.stringify({ roleAssignmentId: parseInt(raId) })
+        });
+        saveSession(data);
+        location.replace('/app.html');
+      } catch (e) {
+        showMsg(msg, e.message, 'err');
+      }
+    });
+  </script>
+</body>
+</html>

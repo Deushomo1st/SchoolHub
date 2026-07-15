@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SchoolHub - Users</title>
+  <link rel="stylesheet" href="/css/style.css?v=18">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
+</head>
+<body>
+  <div class="top-actions">
+    <a class="btn secondary" href="/app.html">Back to dashboard</a>
+    <button class="btn secondary" onclick="logout()">Log out</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h1>Users on SchoolHub</h1>
+      <p class="muted">Search and filter every login across the platform.</p>
+
+      <div class="inline-form">
+        <div style="flex:2"><label>Search name or email</label><input id="q" placeholder="Type to search..."></div>
+        <div><label>Category</label><select id="fcat"></select></div>
+        <div><label>Role</label><select id="frole"></select></div>
+        <div><label>School</label><select id="fschool"></select></div>
+        <div><label>Status</label><select id="fstatus"></select></div>
+      </div>
+
+      <p class="subtle" id="count"></p>
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Category</th><th>School</th><th>Status</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="muted">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=6"></script>
+  <script>
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function roleLabel(r) { return r ? r.charAt(0) + r.slice(1).toLowerCase().replaceAll('_', ' ') : '-'; }
+
+    requireAuth();
+    let users = [];
+    const q = document.getElementById('q');
+    const fcat = document.getElementById('fcat'), frole = document.getElementById('frole');
+    const fschool = document.getElementById('fschool'), fstatus = document.getElementById('fstatus');
+    const rows = document.getElementById('rows'), count = document.getElementById('count');
+
+    function fillSelect(sel, values, allLabel) {
+      sel.innerHTML = `<option value="">${allLabel}</option>` +
+        [...new Set(values)].filter(Boolean).sort().map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    }
+
+    function render() {
+      const term = q.value.trim().toLowerCase();
+      const cat = fcat.value, role = frole.value, school = fschool.value, status = fstatus.value;
+      const list = users.filter(u =>
+        (!term || u.name.toLowerCase().includes(term) || (u.email || '').toLowerCase().includes(term)) &&
+        (!cat || u.category === cat) &&
+        (!role || u.role === role) &&
+        (!school || u.school === school) &&
+        (!status || u.status === status));
+      count.textContent = list.length + ' user' + (list.length === 1 ? '' : 's');
+      rows.innerHTML = list.length ? list.map(u => `<tr>
+        <td>${esc(u.name)}</td><td>${esc(u.email || '-')}</td><td>${esc(roleLabel(u.role))}</td>
+        <td>${esc(u.category)}</td><td>${esc(u.school)}</td>
+        <td><span class="pill" style="${u.status === 'active' ? '' : 'background:var(--danger-soft);color:var(--danger)'}">${esc(u.status)}</span></td>
+      </tr>`).join('') : '<tr><td colspan="6" class="muted">No users match these filters.</td></tr>';
+    }
+
+    (async function () {
+      let me;
+      try { me = await api('/api/v1/auth/me'); } catch (e) { location.href = '/login.html'; return; }
+      if (me.role !== 'PLATFORM_OWNER' && me.role !== 'MODERATOR') { location.href = '/app.html'; return; }
+
+      let data;
+      try { data = await api('/api/v1/tenants/users'); }
+      catch (e) { rows.innerHTML = '<tr><td colspan="6" class="msg show err">' + esc(e.message) + '</td></tr>'; return; }
+      users = data.users;
+
+      fillSelect(fcat, Object.keys(data.categories), 'All categories');
+      // role option value is the raw role; label is prettified
+      frole.innerHTML = `<option value="">All roles</option>` +
+        [...new Set(users.map(u => u.role))].filter(Boolean).sort()
+          .map(v => `<option value="${esc(v)}">${esc(roleLabel(v))}</option>`).join('');
+      fillSelect(fschool, users.map(u => u.school), 'All schools');
+      fillSelect(fstatus, users.map(u => u.status), 'All statuses');
+
+      // pre-apply ?category= from the dashboard card click
+      const pre = new URLSearchParams(location.search).get('category');
+      if (pre && [...fcat.options].some(o => o.value === pre)) fcat.value = pre;
+
+      [q, fcat, frole, fschool, fstatus].forEach(el => el.addEventListener('input', render));
+      render();
+    })();
+  </script>
+</body>
+</html>

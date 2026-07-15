@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SchoolHub</title>
+  <link rel="stylesheet" href="/css/style.css?v=34">
+  <link rel="stylesheet" href="/app/drawer/drawer.css?v=2">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
+</head>
+<body class="landing">
+
+  <div class="notifications" id="notifications">
+    <button class="notif-bell" id="notifBell" aria-label="Notifications">
+      <i data-lucide="bell-ring"></i>
+      <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+    </button>
+
+    <!-- Top-hanging action button (redesigned as macOS drawer) -->
+    <div class="drawer-container" id="floatingDrawer">
+      <div class="drawer-trigger" id="drawerTrigger">
+        <i data-lucide="layers"></i>
+      </div>
+      <div class="drawer-body">
+        <div class="col-icons">
+          <div class="drawer-item" data-nav="overview"><i data-lucide="trending-up"></i><span>Overview</span></div>
+          <div class="drawer-item" data-nav="schools"><i data-lucide="school"></i><span>Schools</span></div>
+          <div class="drawer-item" data-nav="account"><i data-lucide="circle-user"></i><span>Account</span></div>
+          <div class="drawer-item" data-nav="moderators"><i data-lucide="users-round"></i><span>Moderators</span></div>
+          <div class="drawer-item" data-nav="plans"><i data-lucide="banknote"></i><span>Plans & Pricing</span></div>
+          <div class="drawer-item" data-nav="designs"><i data-lucide="pen-line"></i><span>Designs</span></div>
+        </div>
+        <div class="drawer-footer">
+          <div class="drawer-item" data-nav="logout"><i data-lucide="circle-power"></i><span>Sign out</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notif-dropdown" id="notifDropdown">
+      <div class="notif-glass">
+        <div class="notif-toolbar">
+          <strong>Notifications</strong>
+          <div class="notif-actions">
+            <button class="notif-icon" id="notifSearchBtn" title="Search"><i data-lucide="search"></i></button>
+            <button class="notif-icon" id="notifDateBtn" title="Filter by date"><i data-lucide="calendar-days"></i></button>
+          </div>
+        </div>
+        <div class="notif-search" id="notifSearch" style="display:none">
+          <input placeholder="Search notifications…" id="notifSearchInput">
+        </div>
+        <div class="notif-filter-badge" id="notifFilterBadge" style="display:none"></div>
+        <div class="notif-dates" id="notifDates" style="display:none">
+          <input type="date" id="notifDateFrom"> <span class="muted">to</span> <input type="date" id="notifDateTo">
+          <button class="btn" id="notifDateApply" style="padding:4px 10px;font-size:12px">Apply</button>
+        </div>
+        <div class="notif-list" id="notifList"><p class="muted">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date-range picker modal -->
+  <div class="notif-dropdown" id="dateModal">
+    <div class="notif-glass date-glass">
+      <div class="cal-header">
+        <button class="cal-nav" id="calPrevL">&lsaquo;</button>
+        <span class="cal-month" id="calLeftTitle"></span>
+        <button class="cal-nav" id="calNextL">&rsaquo;</button>
+        <span class="cal-spacer"></span>
+        <button class="cal-nav" id="calPrevR">&lsaquo;</button>
+        <span class="cal-month" id="calRightTitle"></span>
+        <button class="cal-nav" id="calNextR">&rsaquo;</button>
+      </div>
+      <div class="cal-link"><div class="cal-line"></div></div>
+      <div class="cal-body">
+        <div class="cal-month-grid" id="calLeft"></div>
+        <div class="cal-month-grid" id="calRight"></div>
+      </div>
+      <div class="cal-footer">
+        <span class="muted" style="font-size:12px" id="calInfo">Select a date range</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn danger" id="calCancel" style="padding:6px 14px;font-size:12px">Cancel</button>
+          <button class="btn secondary" id="calClear" style="padding:6px 14px;font-size:12px">Clear</button>
+          <button class="btn" id="calApply" style="padding:6px 14px;font-size:12px">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1 id="greeting">Welcome</h1>
+    <p class="hero-role" id="roleSub"></p>
+  </div>
+
+  <!-- Left accent line — thick, hovering near the screen edge -->
+  <div class="left-accent"></div>
+
+  <main id="view" class="container">
+    <p class="muted">Loading your dashboard…</p>
+  </main>
+
+  <div class="modal-bg" id="pwdModal">
+    <div class="modal">
+      <h2>Change password</h2>
+      <p class="subtle">You signed in with a temp password set by your school. Set your own here.</p>
+      <div id="pwdMsg" class="msg"></div>
+      <form id="pwdForm">
+        <label>Current password</label><input name="currentPassword" type="password" required>
+        <label>New password (min 8)</label><input name="newPassword" type="password" minlength="8" required>
+        <label>Confirm new password</label><input name="confirm" type="password" minlength="8" required>
+        <div style="margin-top:18px;display:flex;gap:10px">
+          <button class="btn" type="submit">Update</button>
+          <button class="btn secondary" type="button" onclick="closePwd()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="/js/app.js?v=15"></script>
+  <script src="/app/drawer/drawer.js?v=2"></script>
+  <script src="/js/dashboards.js?v=7"></script>
+  <script>
+    requireAuth();
+    (async function () {
+      let me;
+      try { me = await api('/api/v1/auth/me'); }
+      catch (e) { document.getElementById('view').innerHTML = '<div class="card msg show err">' + e.message + '</div>'; return; }
+
+      document.getElementById('greeting').textContent = 'Welcome\u00A0' + me.firstName;
+      document.getElementById('roleSub').textContent = (me.role || me.roleCode || '').replace(/_/g, ' ');
+
+      const view = document.getElementById('view');
+      const r = me.roleCode || me.role;
+      try {
+        if (r === 'PLATFORM_OWNER' || r === 'MODERATOR') await renderPlatform(view, me);
+        else if (r === 'ADMIN' || r === 'PRINCIPAL') await renderAdmin(view, me);
+        else if (r === 'TEACHER') await renderTeacher(view, me);
+        else if (r === 'STUDENT') await renderStudent(view, me);
+        else if (r === 'PARENT')  await renderGuardian(view, me);
+        else if (r === 'BURSAR')  await renderBursar(view, me);
+        else view.innerHTML = '<div class="card"><h1>Welcome</h1><p class="muted">No dashboard is configured for the ' + me.role + ' role yet.</p></div>';
+      } catch (e) {
+        view.innerHTML = '<div class="card msg show err">' + esc(e.message) + '</div>';
+      }
+    })();
+  </script>
+  <script>
+    function openPwd() { document.getElementById('pwdModal').classList.add('show'); }
+    function closePwd() {
+      document.getElementById('pwdModal').classList.remove('show');
+      hideMsg(document.getElementById('pwdMsg'));
+      document.getElementById('pwdForm').reset();
+    }
+    document.getElementById('pwdForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const m = document.getElementById('pwdMsg'); hideMsg(m);
+      const b = Object.fromEntries(new FormData(ev.target));
+      if (b.newPassword !== b.confirm) { showMsg(m, 'New passwords do not match.', 'err'); return; }
+      try {
+        await api('/api/v1/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: b.currentPassword, newPassword: b.newPassword }) });
+        showMsg(m, 'Password updated. Use it next time you log in.', 'ok');
+        ev.target.reset();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    });
+  </script>
+</body>
+</html>

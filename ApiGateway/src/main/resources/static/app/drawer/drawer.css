@@ -1,0 +1,91 @@
+/* ---- macOS-style floating drawer ---- */
+.drawer-container {
+  position: fixed; top: 0; left: 96px; z-index: 50;
+  width: 48px; height: 44px;
+  overflow: hidden;
+  transition: width .28s cubic-bezier(.25,.1,.25,1), height .28s cubic-bezier(.25,.1,.25,1);
+  background: linear-gradient(180deg,
+    rgba(90,90,90,.95) 0%, rgba(61,61,61,.92) 15%,
+    rgba(42,42,42,.9) 50%, rgba(26,26,26,.92) 85%,
+    rgba(17,17,17,.95) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.12); border-top: none; border-radius: 0 0 14px 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    inset 0 -1px 0 rgba(0,0,0,.3),
+    0 8px 32px rgba(0,0,0,.35);
+}
+/* Glossy top reflection */
+.drawer-container::before {
+  content: ""; position: absolute; top: 0; left: 2px; right: 2px; height: 30%;
+  background: linear-gradient(180deg, rgba(255,255,255,.1), transparent);
+  border-radius: 14px 14px 0 0; pointer-events: none; z-index: 5;
+}
+.drawer-trigger {
+  width: 48px; height: 44px; display: grid; place-items: center; cursor: pointer;
+  background: none; border: none; border-radius: 0;
+  box-shadow: none;
+  position: relative; z-index: 6; flex-shrink: 0;
+}
+.drawer-trigger svg { width: 20px; height: 20px; color: rgba(255,255,255,.85); }
+.drawer-body {
+  background: none;
+  backdrop-filter: none;
+  border: none; border-radius: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  height: 0; opacity: 0;
+  border-top: 1px solid var(--line);
+  transition: height .28s cubic-bezier(.25,.1,.25,1), opacity .22s;
+}
+/* Stage 1: hover = drop icons */
+.drawer-container.stage1 { height: 350px; }
+.drawer-container.stage1 .drawer-body { height: 306px; opacity: 1; }
+/* Stage 2: clicked = expand right */
+.drawer-container.stage2 { height: 350px; }
+.drawer-container.stage2 .drawer-body { height: 306px; opacity: 1; }
+.col-icons {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 4px 8px; min-width: 48px;
+}
+.drawer-item {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  margin: 0;
+  transition: background .15s;
+}
+.drawer-item:hover {
+  background: rgba(255,255,255,.08);
+  outline: 1px solid rgba(255,255,255,.15);
+}
+.drawer-item.active {
+  background: rgba(255,255,255,.12);
+  outline: 1px solid rgba(255,255,255,.25);
+}
+.drawer-item svg { width: 20px; height: 20px; color: rgba(255,255,255,.65); flex-shrink: 0; transition: color .2s; }
+.drawer-item:hover svg { color: rgba(255,255,255,.95); }
+.drawer-item span {
+  font-size: 13px; color: rgba(255,255,255,.75); white-space: nowrap;
+  opacity: 0; width: 0; overflow: hidden;
+  transition: opacity .2s .1s, width 0s .4s;
+}
+/* Stage 1: icons only, text hidden */
+.drawer-container.stage1 .drawer-item span { opacity: 0; width: 0; overflow: hidden; }
+/* Drawer footer */
+.drawer-footer {
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding: 4px 0 0; margin: 4px 4px 0;
+}
+.drawer-footer .drawer-item {
+  padding: 8px 10px;
+}
+.drawer-footer .drawer-item svg { color: #ff4d4d; opacity: .7; }
+.drawer-footer .drawer-item span { color: #ff4d4d; }
+.drawer-footer .drawer-item:hover svg { color: #ff4d4d; opacity: 1; }
+.drawer-footer .drawer-item:hover span { color: #ff6666; }
+/* Stage 2: text revealed */
+.drawer-container.stage2 .drawer-item span {
+  opacity: 1; width: auto; overflow: visible;
+  transition: opacity .2s .25s, width 0s 0s;
+}
+:root[data-theme="dusk"] .drawer-item:hover svg { color: var(--teal); }
