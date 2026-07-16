@@ -1014,18 +1014,31 @@ async function renderResourcePoint(container, canApprove) {
   const wrap = canvas.parentElement;
   const ctx = canvas.getContext('2d');
 
+  // span = the real time window the whole graph shows for that filter.
   const SCALES = [
-  { id:'1s', l:'1s', hz:3, sp:0.08, amp:0.9, w:6 },
-  { id:'1m', l:'1m', hz:1.5, sp:0.05, amp:0.8, w:10 },
-  { id:'5m', l:'5m', hz:0.8, sp:0.03, amp:0.7, w:14 },
-  { id:'1h', l:'1h', hz:0.3, sp:0.015, amp:0.6, w:20 },
-  { id:'4h', l:'4h', hz:0.12, sp:0.008, amp:0.5, w:28 },
-  { id:'1D', l:'1D', hz:0.04, sp:0.003, amp:0.4, w:40 },
-  { id:'1W', l:'1W', hz:0.015, sp:0.001, amp:0.3, w:55 },
-  { id:'1M', l:'1M', hz:0.004, sp:0.0004, amp:0.25, w:75 },
-  { id:'1Y', l:'1Y', hz:0.0008, sp:0.00008, amp:0.18, w:100 },
+  { id:'1s', l:'1s', span:1e3 },
+  { id:'1m', l:'1m', span:60e3 },
+  { id:'5m', l:'5m', span:300e3 },
+  { id:'1h', l:'1h', span:3600e3 },
+  { id:'4h', l:'4h', span:14400e3 },
+  { id:'1D', l:'1D', span:86400e3 },
+  { id:'1W', l:'1W', span:604800e3 },
+  { id:'1M', l:'1M', span:2592000e3 },
+  { id:'1Y', l:'1Y', span:31536000e3 },
   ];
-  let cs = SCALES[0], pks = [], t = 0, G = 4;
+  let cs = SCALES[0], t = 0, G = 4;
+
+  // ms → short human label (750 → "750ms", 45000 → "45s", 900000 → "15m")
+  function fmtSpan(ms) {
+    if (ms < 1000) return Math.round(ms) + 'ms';
+    if (ms < 60e3) return +(ms/1e3).toFixed(ms % 1e3 ? 1 : 0) + 's';
+    if (ms < 3600e3) return +(ms/60e3).toFixed(ms % 60e3 ? 1 : 0) + 'm';
+    if (ms < 86400e3) return +(ms/3600e3).toFixed(ms % 3600e3 ? 1 : 0) + 'h';
+    if (ms < 604800e3) return +(ms/86400e3).toFixed(0) + 'd';
+    if (ms < 2592000e3) return +(ms/604800e3).toFixed(0) + 'w';
+    if (ms < 31536000e3) return +(ms/2592000e3).toFixed(0) + 'mo';
+    return +(ms/31536000e3).toFixed(0) + 'y';
+  }
 
   // Build scale buttons
   const bar = document.getElementById('actScales');
@@ -1037,7 +1050,7 @@ async function renderResourcePoint(container, canApprove) {
   b.onclick = () => {
     bar.querySelectorAll('.act-scale-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    cs = s; pks = [];
+    cs = s;
   };
   bar.appendChild(b);
   });
@@ -1051,40 +1064,23 @@ async function renderResourcePoint(container, canApprove) {
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   }
 
-  function gauss(x, c, w) { return Math.exp(-((x-c)**2)/(2*w*w)); }
-
-  function wave(x, w) {
-    // Pure activity-driven — no synthetic baseline
-    let v = 0;
-    // Merge local + server activity
-    const now = Date.now();
+  // Bucket every event into the column matching its real timestamp within the current span.
+  // One column = one time slice, so a spike is exactly as slim as the grid (G px) and sits
+  // at the true time it happened — no Gaussian smear, no decay.
+  function columnCounts(cols) {
+    const now = Date.now(), span = cs.span;
+    const counts = new Float64Array(cols);
     const act = (window.__activity || []).slice();
     if (window.__serverActivity) {
-      for (const e of window.__serverActivity) {
-        act.push({ ts: new Date(e.ts).getTime(), type: e.action, size: e.size });
-      }
+      for (const e of window.__serverActivity) act.push({ ts: new Date(e.ts).getTime(), size: e.size });
     }
-    const windowMs = Math.max(1000, 5000 / cs.hz); // faster traversal
-    const bucketMs = Math.max(50, windowMs / 30);
-    // Bucket events by time, count per bucket
-    const buckets = {};
     for (const e of act) {
       const age = now - e.ts;
-      if (age > windowMs) continue;
-      const bk = Math.floor(e.ts / bucketMs);
-      if (!buckets[bk]) buckets[bk] = { count: 0, ts: bk * bucketMs + bucketMs/2 };
-      buckets[bk].count += e.size;
+      if (age < 0 || age > span) continue;
+      const col = Math.floor((1 - age / span) * cols);   // newest → rightmost column
+      if (col >= 0 && col < cols) counts[col] += (e.size || 1);
     }
-    for (const bk of Object.values(buckets)) {
-      const age = now - bk.ts;
-      const pos = w - (age / windowMs) * w;
-      const decay = Math.max(0, 1 - age / windowMs * 0.5);
-      // Logarithmic: log10(count) so 1→0, 10→0.2, 100→0.4, 1K→0.6, 10K→0.8, 100K→1.0
-      const logH = Math.min(Math.log10(Math.max(bk.count, 1)) / 5, 1);
-      const spikeW = cs.w * 0.35 + cs.w * 0.45 * Math.min(bk.count / 5, 1);
-      v += logH * Math.exp(-((x-pos)**2)/(2*spikeW*spikeW)) * decay;
-    }
-    return v;
+    return counts;
   }
 
   function draw() {
@@ -1101,36 +1097,31 @@ async function renderResourcePoint(container, canApprove) {
     ctx.fillStyle = labelColor;
     ctx.font = '9px system-ui, sans-serif';
     ctx.textAlign = 'right';
-    // Vertical: exponential scale on the left
+    // Vertical: exponential scale on the left (log10 count → height)
     var expLabels = ['1', '10', '100', '1K', '10K', '100K'];
     var totalHeight = my * 0.85; // usable graph area
     for (var ei = 0; ei < expLabels.length; ei++) {
       var y = my - (totalHeight * (ei + 1) / expLabels.length);
       if (y > 4) ctx.fillText(expLabels[ei], 22, y + 3);
     }
-    // Horizontal: time labels based on timeframe
+    // Horizontal: quarters of the real span, derived from the active filter so labels always match dot positions
     ctx.textAlign = 'center';
-    var tLabels, tStep;
-    if (cs.hz >= 3) { tLabels = ['now', '-10s', '-20s', '-30s']; tStep = w / 4; }
-    else if (cs.hz >= 0.5) { tLabels = ['now', '-1m', '-2m', '-3m']; tStep = w / 4; }
-    else if (cs.hz >= 0.1) { tLabels = ['now', '-15m', '-30m', '-45m']; tStep = w / 4; }
-    else if (cs.hz >= 0.01) { tLabels = ['now', '-4h', '-8h', '-12h']; tStep = w / 4; }
-    else { tLabels = ['now', '-1w', '-2w', '-3w']; tStep = w / 4; }
-    for (var ti = 0; ti < tLabels.length; ti++) {
-      ctx.fillText(tLabels[ti], w - (ti * tStep) - tStep/2, h - 4);
+    var tStep = w / 4;
+    for (var ti = 0; ti < 4; ti++) {
+      var lbl = ti === 0 ? 'now' : '-' + fmtSpan(cs.span * ti / 4);
+      ctx.fillText(lbl, w - (ti * tStep) - tStep/2, h - 4);
     }
 
-    // ---- Render dots ----
+    // ---- Render slim spikes: one column per time slice, growing up from the baseline ----
     const cols = Math.floor((w - 28) / G);
-    const vals = new Float32Array(cols);
-    for (let i=0;i<cols;i++) vals[i] = wave(i*G, w);
+    const counts = columnCounts(cols);
     const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#1a1a2e';
     ctx.fillStyle = dusk ? 'rgba(255,255,255,.85)' : ink;
-
-    // Dots grow UP from the baseline: rest = faint baseline row, activity = tall spikes at "now".
     const usable = my * 0.85;
     for (let cx=0;cx<cols;cx++) {
-      const rows = 1 + Math.floor(vals[cx] * usable / G);   // +1 keeps a resting baseline
+      // log10 height: 1→0, 10→0.2, 100→0.4 … 100K→1.0 (matches the left axis)
+      const logH = counts[cx] > 0 ? Math.min(Math.log10(counts[cx]) / 5, 1) : 0;
+      const rows = 1 + Math.round(logH * usable / G);   // +1 keeps a resting baseline dot
       for (let ry=0;ry<rows;ry++) {
         ctx.fillRect(28 + cx*G, my - ry*G, 1.8, 1.8);
       }
