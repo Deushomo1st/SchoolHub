@@ -411,4 +411,40 @@ public class LibraryService {
         
         return info;
     }
+
+    // ---- Fine payment ----
+
+    @Transactional
+    public void payFine(Long recordId, org.springframework.security.core.Authentication auth) {
+        BorrowRecord record = recordRepo.findById(recordId)
+                .orElseThrow(() -> new EntityNotFoundException("Borrow record not found"));
+
+        if (record.getFinePaid()) {
+            throw new ConflictException("Fine already paid");
+        }
+
+        if (record.getFineCharged().compareTo(BigDecimal.ZERO) == 0) {
+            throw new ConflictException("No fine to pay");
+        }
+
+        // Check permission: either the student who borrowed, or a librarian
+        LibraryStudent student = studentRepo.findById(record.getLibraryStudentId())
+                .orElseThrow(() -> new EntityNotFoundException("Library student not found"));
+
+        boolean isStudent = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
+        boolean isLibrarian = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_LIBRARIAN") || a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (isStudent && !student.getUserId().equals(auth.getPrincipal())) {
+            throw new org.springframework.security.access.AccessDeniedException("Cannot pay fine for another student");
+        }
+
+        if (!isStudent && !isLibrarian) {
+            throw new org.springframework.security.access.AccessDeniedException("Only students or librarians can pay fines");
+        }
+
+        record.setFinePaid(true);
+        recordRepo.save(record);
+    }
 }

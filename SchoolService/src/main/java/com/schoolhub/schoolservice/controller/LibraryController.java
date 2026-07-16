@@ -260,6 +260,15 @@ public class LibraryController {
         return ResponseEntity.ok(libraryService.getMyLibraryInfo(userId));
     }
 
+    // ---- Fine payment ----
+
+    @PostMapping("/borrow-records/{recordId}/pay-fine")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> payFine(@PathVariable Long recordId, Authentication auth) {
+        libraryService.payFine(recordId, auth);
+        return ResponseEntity.ok().build();
+    }
+
     // ---- Helper: verify librarian membership (dedicated LIBRARIAN role OR teacher-librarian in library_staff) ----
 
     private void assertLibrarian(Authentication auth) {

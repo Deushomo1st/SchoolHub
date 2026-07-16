@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Student library info endpoint
+
+- **GET /api/v1/library/me** — student's library data (libraryCode, activeBorrows, totalFines, borrowHistory)
+- Added `countActiveBorrows` and `sumUnpaidFines` queries to BorrowRecordRepository
+- Student-only endpoint with ROLE_STUDENT authorization
+- Returns library code, active borrow count, unpaid fines total, and full borrow history
+
 ## 2026-07-16 — Library file upload/download endpoints
 
 - **POST /api/v1/library/books/{id}/upload** — multipart PDF/EPUB upload
