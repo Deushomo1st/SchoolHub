@@ -948,6 +948,7 @@ async function adminPeople(pane) {
     </div>
 
     <h2 class="pe-sub">Teacher profiles</h2>
+    <div class="tilt-host" id="tpStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
         <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
@@ -970,6 +971,7 @@ async function adminPeople(pane) {
     </div>
 
     <h2 class="pe-sub">Guardians</h2>
+    <div class="tilt-host" id="gdStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
         <thead><tr><th>Name</th><th>Email</th><th>Login</th></tr></thead>
@@ -1075,13 +1077,32 @@ async function adminPeople(pane) {
     });
   }
 
-  // ---- Teacher profiles ----
+  // ---- Teacher profiles: tilt-stack + list ----
+  const tpStack = document.getElementById('tpStack');
+  const visibleTeachers = () => teachers.filter(t =>
+    !dQuery || (t.staffNo + ' ' + t.firstName + ' ' + t.lastName + ' ' + (t.email || '')).toLowerCase().indexOf(dQuery) !== -1);
+
+  function renderTeachers() {
+    renderTiltStack(tpStack, visibleTeachers().map(t => ({
+      id: t.id, name: t.firstName + ' ' + t.lastName, subtitle: t.staffNo + (t.email ? ' · ' + t.email : ''), avatar: null, status: t.userId ? 'active' : 'pending'
+    })), {
+      showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No teachers match.',
+      onClick: it => flashRow('#tpRows', it.id)
+    });
+    const list = visibleTeachers();
+    const tbody = document.getElementById('tpRows');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No teachers found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(x =>
+      `<tr data-id="${x.id}" style="cursor:pointer"><td>${esc(x.staffNo)}</td><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td><td>${esc(x.email || '-')}</td>
+       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(tpStack, tr.dataset.id);
+    });
+  }
   async function loadTeachers() {
     teachers = await api('/api/v1/teachers');
-    document.getElementById('tpRows').innerHTML = teachers.length ? teachers.map(x =>
-      `<tr><td>${esc(x.staffNo)}</td><td>${esc(x.lastName)}, ${esc(x.firstName)}</td><td>${esc(x.email || '-')}</td>
-       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
-      : '<tr><td colspan="4" class="muted">No teachers yet.</td></tr>';
+    renderTeachers();
   }
 
   // ---- Students: tilt-stack + list ----
@@ -1112,13 +1133,32 @@ async function adminPeople(pane) {
     renderStudents();
   }
 
-  // ---- Guardians ----
+  // ---- Guardians: tilt-stack + list ----
+  const gdStack = document.getElementById('gdStack');
+  const visibleGuardians = () => guardians.filter(g =>
+    !dQuery || (g.firstName + ' ' + g.lastName + ' ' + (g.email || '')).toLowerCase().indexOf(dQuery) !== -1);
+
+  function renderGuardians() {
+    renderTiltStack(gdStack, visibleGuardians().map(g => ({
+      id: g.id, name: g.firstName + ' ' + g.lastName, subtitle: g.email || 'No email', avatar: null, status: g.userId ? 'active' : 'pending'
+    })), {
+      showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No guardians match.',
+      onClick: it => flashRow('#gdRows', it.id)
+    });
+    const list = visibleGuardians();
+    const tbody = document.getElementById('gdRows');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="3" class="muted">No guardians found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(x =>
+      `<tr data-id="${x.id}" style="cursor:pointer"><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td><td>${esc(x.email || '-')}</td>
+       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(gdStack, tr.dataset.id);
+    });
+  }
   async function loadGuardians() {
     guardians = await api('/api/v1/guardians');
-    document.getElementById('gdRows').innerHTML = guardians.length ? guardians.map(x =>
-      `<tr><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td><td>${esc(x.email || '-')}</td>
-       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
-      : '<tr><td colspan="3" class="muted">No guardians yet.</td></tr>';
+    renderGuardians();
   }
 
   // ---- Add / manage modals (all glass) ----
