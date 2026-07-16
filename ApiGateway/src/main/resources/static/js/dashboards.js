@@ -191,6 +191,59 @@ async function platformHome(pane, me) {
     </button>`).join('') + `</div>`;
   pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
   if (window.lucide) lucide.createIcons({ root: pane });
+
+  // Live activity mini-preview on the Activity tile — platform owners only (they track clicks
+  // across the whole platform, every device). No filters, no gauges; a live per-second pulse.
+  const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
+  const actTile = pane.querySelector('.bento-tile[data-go="overview"]');
+  if (isOwner && actTile) {
+    const cv = document.createElement('canvas');
+    cv.className = 'mini-activity';
+    actTile.appendChild(cv);
+    startMiniActivity(cv);
+  }
+}
+
+// Compact live sparkline of platform activity (last ~30s, per-second buckets). Self-stops when
+// the canvas leaves the DOM (i.e. you navigate away from home).
+function startMiniActivity(canvas) {
+  const ctx = canvas.getContext('2d');
+  let server = [];
+  const poll = setInterval(function () {
+    if (!document.contains(canvas)) { clearInterval(poll); return; }
+    api('/api/v1/activity/feed').then(function (d) { server = d || []; }).catch(function () {});
+  }, 2000);
+
+  function draw() {
+    if (!document.contains(canvas)) return;   // detached → stop the loop
+    const r = canvas.getBoundingClientRect();
+    if (r.width === 0) { requestAnimationFrame(draw); return; }
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = r.width, h = r.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const now = Date.now(), span = 30000, G = 3, cols = Math.floor(w / G);
+    const counts = new Float64Array(cols);
+    const act = (window.__activity || []).slice();
+    for (let i = 0; i < server.length; i++) act.push({ ts: new Date(server[i].ts).getTime(), size: server[i].size });
+    for (let j = 0; j < act.length; j++) {
+      const age = now - act[j].ts;
+      if (age < 0 || age > span) continue;
+      const col = Math.floor((1 - age / span) * cols);
+      if (col >= 0 && col < cols) counts[col] += (act[j].size || 1);
+    }
+    const my = h - 3, usable = h * 0.8;
+    ctx.fillStyle = 'rgba(255,255,255,.9)';   // sits on the accent gradient tile
+    for (let cx = 0; cx < cols; cx++) {
+      const lg = counts[cx] > 0 ? Math.min(Math.log10(counts[cx]) / 4, 1) : 0;
+      const rows = 1 + Math.round(lg * usable / G);
+      for (let ry = 0; ry < rows; ry++) ctx.fillRect(cx * G, my - ry * G, 1.6, 1.6);
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
 }
 
 // ---- Overview tab (activity + KPIs) ----
@@ -286,26 +339,43 @@ async function platformModerators(pane) {
 
 // ---- Schools tab ----
 async function platformSchools(pane) {
-  pane.innerHTML = `<div id="schMsg" class="msg"></div>
-    <div class="filter-bar" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+  pane.innerHTML = `
+    <h2 style="margin-bottom:4px">Schools</h2>
+    <p class="muted" style="margin-top:0">Hover a card for its name; search or click a row to spotlight a school and its status.</p>
+    <div id="schMsg" class="msg"></div>
+    <div class="tilt-host" id="schStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
       <button class="act-scale-btn active" data-f="all">All</button>
       <button class="act-scale-btn" data-f="active">Active</button>
       <button class="act-scale-btn" data-f="pending">Pending</button>
       <button class="act-scale-btn" data-f="suspended">Suspended</button>
       <button class="act-scale-btn" data-f="rejected">Rejected</button>
+      <input id="schSearch" class="list-search" placeholder="Search schools…" style="flex:1;min-width:160px">
     </div>
     <div class="card"><table>
       <thead><tr><th>School</th><th>Code</th><th>Plan</th><th>Users</th><th>Status</th><th></th></tr></thead>
       <tbody id="schRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
     </table></div>`;
-  let filter = 'all', schools = [];
+  let filter = 'all', query = '', schools = [];
+  const stackHost = document.getElementById('schStack');
+
+  const statusBadge = s => s === 'active' ? 'holiday' : s === 'pending' ? 'announcement' : s === 'suspended' ? 'event' : 'exam';
+
+  function visible() {
+    return schools.filter(s => {
+      if (filter !== 'all' && s.status !== filter) return false;
+      if (query && (s.name + ' ' + s.code + ' ' + (s.contactEmail || '')).toLowerCase().indexOf(query) === -1) return false;
+      return true;
+    });
+  }
 
   pane.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
     pane.querySelectorAll('[data-f]').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     filter = b.dataset.f;
-    render();
+    refresh();
   });
+  document.getElementById('schSearch').addEventListener('input', ev => { query = ev.target.value.trim().toLowerCase(); refresh(); });
 
   async function act(url, label) {
     const m = document.getElementById('schMsg'); hideMsg(m);
@@ -315,26 +385,43 @@ async function platformSchools(pane) {
 
   async function load() {
     schools = await api('/api/v1/tenants');
-    render();
+    refresh();
   }
 
-  function render() {
-    const list = filter === 'all' ? schools : schools.filter(s => s.status === filter);
+  function refresh() { renderStack(); renderRows(); }
+
+  function renderStack() {
+    renderTiltStack(stackHost, visible().map(s => ({
+      id: s.id, name: s.name, subtitle: s.code + ' · ' + s.status, avatar: null, status: s.status
+    })), {
+      showStatus: true, statusBadge, emptyText: 'No schools match.',
+      onClick: it => {
+        const tr = document.querySelector('#schRows tr[data-id="' + it.id + '"]');
+        if (tr) { tr.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)'; setTimeout(() => tr.style.background = '', 1200); tr.scrollIntoView({ block: 'nearest' }); }
+      }
+    });
+  }
+
+  function renderRows() {
+    const list = visible();
     const tbody = document.getElementById('schRows');
     if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted">No schools found.</td></tr>'; return; }
     tbody.innerHTML = list.map(s => {
-      const badge = s.status === 'active' ? 'holiday' : s.status === 'pending' ? 'announcement' : s.status === 'suspended' ? 'event' : 'exam';
       let actions = '';
       if (s.status === 'pending') actions = `<button class="btn" data-approve="${s.id}" style="padding:3px 10px;font-size:11px">Approve</button><button class="btn danger" data-reject="${s.id}" style="padding:3px 10px;font-size:11px;margin-left:4px">Reject</button>`;
       else if (s.status === 'active') actions = `<button class="btn danger" data-suspend="${s.id}" style="padding:3px 10px;font-size:11px">Suspend</button>`;
       else if (s.status === 'suspended') actions = `<button class="btn" data-activate="${s.id}" style="padding:3px 10px;font-size:11px">Activate</button>`;
-      return `<tr>
+      return `<tr data-id="${s.id}" style="cursor:pointer">
         <td><strong>${esc(s.name)}</strong><div class="subtle">${esc(s.contactEmail)}</div></td>
         <td>${esc(s.code)}</td><td>${esc(s.plan||'—')}</td><td>${s.users||0}</td>
-        <td><span class="badge ${badge}">${esc(s.status)}</span></td>
+        <td><span class="badge ${statusBadge(s.status)}">${esc(s.status)}</span></td>
         <td class="right">${actions}</td></tr>`;
     }).join('');
-    // Wire action buttons
+    // Row click (not on an action button) spotlights the matching card
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(stackHost, tr.dataset.id);
+    }));
     tbody.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => act('/api/v1/tenants/'+b.dataset.approve+'/activate', 'Approved.'));
     tbody.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => act('/api/v1/tenants/'+b.dataset.reject+'/reject', 'Rejected.'));
     tbody.querySelectorAll('[data-suspend]').forEach(b => b.onclick = () => act('/api/v1/tenants/'+b.dataset.suspend+'/suspend', 'Suspended.'));

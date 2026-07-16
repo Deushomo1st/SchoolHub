@@ -63,3 +63,17 @@
 .glass-panel h2 { margin: 0 0 6px; }
 .glass-panel .subtle { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
 .glass-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+/* ---- Notification panel (layer-2 frost glass) ---- */
+.glass-panel.notif-panel { width: min(94vw, 440px); padding: 20px 20px 16px; }
+.notif-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.notif-head h2 { margin: 0; }
+.notif-cal-btn {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.notif-cal-btn:hover { color: var(--brand); border-color: var(--brand); }
+.notif-cal-btn svg { width: 17px; height: 17px; }
+.notif-search-input { width: 100%; margin-bottom: 12px; }
+.notif-scroll { max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }

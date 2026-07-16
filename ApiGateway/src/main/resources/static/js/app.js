@@ -101,53 +101,58 @@ function initTheme() {
   }
 })();
 
-// ---- Universal overlay dismiss: click outside any open overlay closes it ----
+// ---- Notifications: the top-bar bell opens a layer-2 glass modal (bell stays in place) ----
 (function() {
-  // Bell toggle
   var bell = document.getElementById('notifBell');
-  var notif = document.getElementById('notifDropdown');
-  if (bell && notif) {
-    bell.addEventListener('click', function(e) {
-      e.stopPropagation();
-      notif.classList.toggle('show');
-      if (notif.classList.contains('show')) loadNotifications();
-    });
+  if (!bell) return;
+  var all = [];
+
+  function updateBadge() {
+    var badge = document.getElementById('notifBadge');
+    if (!badge) return;
+    var unread = all.filter(function(n) { return !n.read; }).length;
+    badge.textContent = unread; badge.style.display = unread ? '' : 'none';
   }
 
-  function loadNotifications() {
-    var list = document.getElementById('notifList');
-    if (!list) return;
-    list.innerHTML = '<p class="muted">Loading…</p>';
-    var token = null;
-    try { token = localStorage.getItem('shToken'); } catch(e) {}
+  function openPanel() {
+    var m = openGlassModal({
+      frost: true,                         // layer 2: blurs + darkens the page behind
+      className: 'notif-panel',
+      html: '<div class="notif-head"><h2>Notifications</h2>'
+        + '<button class="notif-cal-btn" title="Filter by date"><i data-lucide="calendar-days"></i></button></div>'
+        + '<input class="list-search notif-search-input" placeholder="Search notifications…">'
+        + '<div class="notif-scroll" id="glassNotifList"><p class="muted">Loading…</p></div>'
+    });
+    var list = m.panel.querySelector('#glassNotifList');
+    var query = '';
+    function render() {
+      var items = query ? all.filter(function(n) { return ((n.title || '') + ' ' + (n.body || '')).toLowerCase().indexOf(query) >= 0; }) : all;
+      if (!items.length) { list.innerHTML = '<p class="muted">' + (all.length ? 'No matches.' : 'No notifications yet.') + '</p>'; return; }
+      list.innerHTML = items.map(function(n) {
+        var time = n.createdAt ? new Date(n.createdAt).toLocaleDateString() : '';
+        return '<div class="notif-item' + (n.read ? '' : ' unread') + '"><strong>' + esc(n.title) + '</strong>'
+          + '<div>' + esc(n.body || '') + '</div><div class="notif-time">' + time + '</div></div>';
+      }).join('');
+    }
+    m.panel.querySelector('.notif-search-input').addEventListener('input', function(e) { query = e.target.value.trim().toLowerCase(); render(); });
+    // Calendar button opens the dual-calendar (a layer-3 frost modal on top) when available.
+    m.panel.querySelector('.notif-cal-btn').onclick = function() {
+      if (window.openDualCalendar) window.openDualCalendar();
+    };
+    var token = null; try { token = localStorage.getItem('shToken'); } catch(e) {}
     fetch('/api/v1/notifications', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
       .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(data) {
-        if (!data || !data.length) { list.innerHTML = '<p class="muted">No notifications yet.</p>'; return; }
-        var badge = document.getElementById('notifBadge');
-        var unread = data.filter(function(n) { return !n.read; }).length;
-        if (badge) { badge.textContent = unread; badge.style.display = unread ? '' : 'none'; }
-        list.innerHTML = data.map(function(n) {
-          var time = n.createdAt ? new Date(n.createdAt).toLocaleDateString() : '';
-          return '<div class="notif-item' + (n.read ? '' : ' unread') + '">'
-            + '<strong>' + esc(n.title) + '</strong>'
-            + '<div>' + esc(n.body || '') + '</div>'
-            + '<div class="notif-time">' + time + '</div></div>';
-        }).join('');
-      })
+      .then(function(data) { all = data || []; updateBadge(); render(); })
       .catch(function() { list.innerHTML = '<p class="muted">Could not load notifications.</p>'; });
   }
 
-  document.addEventListener('click', function(e) {
-    // 1. Notification dropdown — full-screen backdrop, dismiss when clicking backdrop (not glass)
-    if (notif && notif.classList.contains('show')) {
-      var glass = notif.querySelector('.notif-glass');
-      if (glass && !glass.contains(e.target) && (!bell || e.target !== bell)) {
-        notif.classList.remove('show');
-      }
-    }
+  bell.addEventListener('click', function(e) { e.stopPropagation(); openPanel(); });
+})();
 
-    // 2. Date-range picker modal
+// ---- Universal overlay dismiss: click outside any open overlay closes it ----
+(function() {
+  document.addEventListener('click', function(e) {
+    // Date-range picker modal
     var dateModal = document.getElementById('dateModal');
     if (dateModal && dateModal.classList.contains('show')) {
       var glass = dateModal.querySelector('.notif-glass');

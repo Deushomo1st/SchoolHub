@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-16 — Schools tilt-stack, notification→glass modal, activity mini-preview
+
+- **Schools section** rebuilt like Moderators: a tilt-stack of school cards (status badge on each) + filter buttons + live search. Search filters both the stack and the table; clicking a card spotlights its table row, clicking a row highlights its card — status reflected both ways. Action buttons (approve/reject/suspend/activate) preserved.
+- **Notifications migrated to the glass system**: the top-bar bell now opens a layer-2 frost glass modal (blurs + darkens the page behind, per the rules) with a search box, calendar button, and the list. The bell icon stays in the top bar. The calendar button is wired to `window.openDualCalendar` (built next).
+- **Activity mini-preview**: the home Activity tile now shows a live per-second sparkline (no filters, no gauges) and still opens the full tracker on click. Platform-owner only; the renderer self-stops when you navigate away.
+
 ## 2026-07-16 — Glass modal system, glass logout + back-prevention, moderator TiltStack
 
 - **Layered glass modals** (`/app/modal/`): `openGlassModal({frost})`. Layer 1 = see-through refractive glass, no page darkening (picture 3). Layer 2+ = frosted glass that blurs + darkens everything behind; each frosted backdrop composites over the last, so more modals = progressively darker/blurrier (rules 1-4). Theme-sensitive; Escape/backdrop-click close.
