@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-16 — Glass system as project rules: glass-white (light) / glossy silver (dark)
+
+- Consolidated the glassmorphism into one theme-sensitive recipe (`--glass-*` tokens in style.css): **light = frosted glass-white** (the activity-widget look), **dark = glossy silver** (metallic sheen). Glass modals, the avatar modal, and the activity widget all read from the same tokens — never hardcode glass.
+- Documented the modal layering rules (layer 1 clear → layer 2+ frost, cumulative darken/blur) and the theme glass look as **general project design rules** in CLAUDE.md, plus the tilt/hero/padlock conventions.
+
 ## 2026-07-16 — Change-password modal → glass system
 
 - The change-password modal now uses `openGlassModal` (layer-1 clear glass) instead of the old opaque `.modal-bg`, with the view-password toggle on every field and ghost/brand actions. Removed the static `#pwdModal` markup.

@@ -43,15 +43,11 @@
   width: min(92vw, 400px);
   padding: 24px;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--card) 78%, transparent);
-  border: 1px solid rgba(255,255,255,.18);
-  backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
-  box-shadow: 0 24px 60px rgba(2,48,71,.35), inset 0 1px 0 rgba(255,255,255,.25);
+  background: var(--glass-bg-frost);            /* shared glass recipe: white light / silver dark */
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
   color: var(--ink);
-}
-:root[data-theme="dusk"] .avatar-modal {
-  border-color: rgba(255,255,255,.10);
-  box-shadow: 0 24px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
 }
 .avatar-modal h2 { margin: 0 0 4px; }
 .avatar-modal .subtle { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
