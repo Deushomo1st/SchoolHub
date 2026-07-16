@@ -259,7 +259,8 @@ function Seed-DemoSchool {
         return Invoke-RestMethod -Method Post $url -Headers $h -ContentType 'application/json' -Body ($obj | ConvertTo-Json -Depth 6)
     }
     function Token($e, $p) {
-        return (Invoke-RestMethod -Method Post "$GatewayUrl/api/v1/auth/login" -ContentType 'application/json' -Body (@{ email = $e; password = $p } | ConvertTo-Json)).accessToken
+        # lock=true: PLATFORM_OWNER logins are refused without the padlock flag; other roles ignore it.
+        return (Invoke-RestMethod -Method Post "$GatewayUrl/api/v1/auth/login" -ContentType 'application/json' -Body (@{ email = $e; password = $p; lock = $true } | ConvertTo-Json)).accessToken
     }
     try {
         Post "$GatewayUrl/api/v1/tenants/signup" $null @{ schoolName='Demo Secondary School'; code='demo'; templateKey='nigerian_secondary'; planName='Standard'; adminEmail='admin@demo.school'; adminPassword='Demo12345!'; adminFirstName='Amaka'; adminLastName='Admin' } | Out-Null
