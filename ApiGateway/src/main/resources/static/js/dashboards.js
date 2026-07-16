@@ -207,6 +207,15 @@ async function renderPlatform(view, me) {
   var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
   if (homeItem) homeItem.classList.add('active');
   setTriggerIcon('layout-grid');
+
+  // After a dynamic-island hard refresh, return to the section you were on (once).
+  try {
+    var restore = sessionStorage.getItem('shReloadSection');
+    sessionStorage.removeItem('shReloadSection');
+    if (restore && restore !== 'home' && document.querySelector('.drawer-item[data-nav="' + restore + '"]')) {
+      openSection(restore);
+    }
+  } catch (e) {}
 }
 
 // ---- Home: bento cluster of live glass widgets, each a shortcut to its sector ----
@@ -511,8 +520,72 @@ async function platformSchools(pane) {
 }
 
 // ---- Plans & Quotas tab ----
-function platformPlans(pane, isOwner) {
-  pane.innerHTML = `<div class="card"><h2>Plans &amp; Quotas</h2><p class="muted">Loading…</p></div>`;
+async function platformPlans(pane, isOwner) {
+  pane.innerHTML = `<div id="plMsg" class="msg"></div>
+    ${isOwner ? '<div style="margin-bottom:16px"><button class="btn" id="plNew"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> New plan</button></div>' : ''}
+    <div class="plan-grid" id="plGrid"><p class="muted">Loading…</p></div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
+  const msg = document.getElementById('plMsg');
+
+  async function load() {
+    let plans = [];
+    try { plans = await api('/api/v1/tenants/plans'); }
+    catch (e) { document.getElementById('plGrid').innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; return; }
+    const grid = document.getElementById('plGrid');
+    if (!plans.length) { grid.innerHTML = '<p class="muted">No plans yet.</p>'; return; }
+    grid.innerHTML = plans.map(p => {
+      const perks = (p.description || '').split(',').map(s => s.trim()).filter(Boolean);
+      return `<div class="plan-card">
+        <div class="plan-badge">${esc(p.name)}</div>
+        <div class="plan-price">${p.priceNaira ? naira(p.priceNaira) : 'Free'}<span>/term</span></div>
+        <div class="plan-cap">Up to <strong>${(p.maxStudents || 0).toLocaleString()}</strong> students</div>
+        ${perks.length ? '<ul class="plan-perks">' + perks.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : ''}
+        ${isOwner ? `<div class="plan-actions"><button class="btn ghost" data-edit="${p.id}">Edit</button><button class="btn ghost danger-text" data-del="${p.id}">Delete</button></div>` : ''}
+      </div>`;
+    }).join('');
+    if (isOwner) {
+      grid.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editPlan(plans.find(p => String(p.id) === b.dataset.edit)));
+      grid.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        const p = plans.find(x => String(x.id) === b.dataset.del);
+        if (!(await glassConfirm('Delete the "' + p.name + '" plan? Schools already on it keep it; new signups can\'t pick it.', { title: 'Delete plan', danger: true, okText: 'Delete' }))) return;
+        try { await api('/api/v1/tenants/plans/' + p.id, { method: 'DELETE' }); showMsg(msg, 'Plan deleted.', 'ok'); load(); }
+        catch (e) { showMsg(msg, e.message, 'err'); }
+      });
+    }
+  }
+
+  function editPlan(plan) {
+    const editing = !!plan;
+    const ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>${editing ? 'Edit' : 'New'} plan</h2>
+        <div id="pemsg" class="msg"></div>
+        <form id="peform">
+          <label>Name</label><input name="name" required value="${editing ? esc(plan.name) : ''}">
+          <label>Price (₦ / term)</label><input name="priceNaira" type="number" min="0" required value="${editing ? plan.priceNaira : 0}">
+          <label>Max students</label><input name="maxStudents" type="number" min="1" required value="${editing ? plan.maxStudents : 100}">
+          <label>Perks (comma-separated)</label><input name="description" value="${editing ? esc(plan.description || '') : ''}">
+          <div class="glass-actions" style="margin-top:18px">
+            <button class="btn ghost" type="button" data-x="cancel">Cancel</button>
+            <button class="btn" type="submit">${editing ? 'Save' : 'Create'}</button>
+          </div>
+        </form>`
+    });
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('#peform').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const m = ctrl.panel.querySelector('#pemsg'); hideMsg(m);
+      const b = Object.fromEntries(new FormData(ev.target));
+      b.priceNaira = Number(b.priceNaira); b.maxStudents = Number(b.maxStudents);
+      try {
+        await api('/api/v1/tenants/plans' + (editing ? '/' + plan.id : ''), { method: editing ? 'PUT' : 'POST', body: JSON.stringify(b) });
+        ctrl.close(); showMsg(msg, editing ? 'Plan updated.' : 'Plan created.', 'ok'); load();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    });
+  }
+
+  if (isOwner) document.getElementById('plNew').onclick = () => editPlan(null);
+  await load();
 }
 
 // ---- Designs tab ----

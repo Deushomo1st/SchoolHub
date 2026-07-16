@@ -1073,3 +1073,24 @@ section.block { margin-bottom: 28px; }
   --glass-blur:     blur(18px) saturate(150%);
   --glass-shadow:   0 30px 70px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -16px 34px rgba(175,186,208,.10);
 }
+
+/* ---- Plans & Pricing sector (glass pricing cards) ---- */
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.plan-card {
+  position: relative; padding: 22px; border-radius: 18px; overflow: hidden;
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.plan-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:var(--glass-sheen); mix-blend-mode:screen; }
+.plan-badge { align-self: flex-start; background: var(--brand); color: var(--brand-ink); font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 20px; text-transform: uppercase; letter-spacing: .06em; }
+.plan-price { font-size: 32px; font-weight: 800; color: var(--ink); line-height: 1; }
+.plan-price span { font-size: 13px; font-weight: 400; color: var(--muted); }
+.plan-cap { font-size: 13px; color: var(--muted); }
+.plan-cap strong { color: var(--ink); }
+.plan-perks { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--ink); }
+.plan-perks li::before { content: "\2713 "; color: var(--ok); font-weight: 700; }
+.plan-actions { margin-top: auto; display: flex; gap: 8px; padding-top: 10px; }
+.btn.danger-text { color: var(--danger); }
+.plan-edit-modal label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.plan-edit-modal input { width: 100%; }

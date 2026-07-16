@@ -127,7 +127,14 @@ function initTheme() {
     island.id = 'dynamicIsland';
     island.className = 'dynamic-island';
     island.innerHTML = '<span class="di-badge">SchoolHub</span>';
-    island.onclick = function() { location.reload(true); };
+    // Hard refresh that keeps you on the current section (not a jump back to the dashboard).
+    island.onclick = function() {
+      try {
+        var active = document.querySelector('.drawer-item.active');
+        if (active && active.dataset.nav) sessionStorage.setItem('shReloadSection', active.dataset.nav);
+      } catch (e) {}
+      location.reload();
+    };
     document.body.appendChild(island);
   }
 })();

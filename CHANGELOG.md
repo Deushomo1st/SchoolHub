@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-16 — Island hard-refresh keeps section; Plans & Pricing sector built
+
+- **Dynamic island** now does a true hard refresh that returns you to the section you were on (saves the active section, restores it once after reload) instead of dumping you back on the dashboard.
+- **Plans & Pricing sector** built out: glass pricing cards (name, price/term, student cap, perks); owner can create / edit / delete plans via a glass modal form + glass confirm. Reads/writes the existing `/api/v1/tenants/plans` CRUD.
+
 ## 2026-07-16 — Home nav shortcuts are live glass widgets; notification badge preloads
 
 - **Bento shortcuts are now widgets:** every tile uses the shared glass recipe and surfaces a live headline — Schools (count + pending), Moderators (count), Plans (count), Designs (icon), Account (avatar) — still clickable to its sector.
