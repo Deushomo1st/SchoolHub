@@ -128,11 +128,27 @@ function initTheme() {
     function render() {
       var items = query ? all.filter(function(n) { return ((n.title || '') + ' ' + (n.body || '')).toLowerCase().indexOf(query) >= 0; }) : all;
       if (!items.length) { list.innerHTML = '<p class="muted">' + (all.length ? 'No matches.' : 'No notifications yet.') + '</p>'; return; }
+      var canRoute = typeof window.notificationRoute === 'function';
       list.innerHTML = items.map(function(n) {
         var time = n.createdAt ? new Date(n.createdAt).toLocaleDateString() : '';
-        return '<div class="notif-item' + (n.read ? '' : ' unread') + '"><strong>' + esc(n.title) + '</strong>'
+        var actionable = canRoute && window.notificationRoute(n);
+        return '<div class="notif-item' + (n.read ? '' : ' unread') + (actionable ? ' actionable' : '') + '" data-id="' + n.id + '">'
+          + '<strong>' + esc(n.title) + '</strong>'
           + '<div>' + esc(n.body || '') + '</div><div class="notif-time">' + time + '</div></div>';
       }).join('');
+      // Clicking a notification marks it read and jumps to where it can be acted on.
+      list.querySelectorAll('.notif-item[data-id]').forEach(function(el) {
+        el.onclick = function() {
+          var n = all.find(function(x) { return String(x.id) === el.dataset.id; });
+          if (!n) return;
+          var token = null; try { token = localStorage.getItem('shToken'); } catch(e) {}
+          fetch('/api/v1/notifications/' + n.id + '/read', { method: 'POST', headers: token ? { 'Authorization': 'Bearer ' + token } : {} }).catch(function() {});
+          n.read = true; updateBadge();
+          var route = canRoute ? window.notificationRoute(n) : null;
+          m.close();
+          if (route && window.openSectionAndHighlight) window.openSectionAndHighlight(route.section, route.id);
+        };
+      });
     }
     m.panel.querySelector('.notif-search-input').addEventListener('input', function(e) { query = e.target.value.trim().toLowerCase(); render(); });
     // Calendar button opens the dual-calendar (a layer-3 frost modal on top) when available.

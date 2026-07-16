@@ -88,6 +88,8 @@ window.rebuildDrawer = function(items) {
     div.className = 'drawer-item';
     div.dataset.nav = item.id;
     div.dataset.icon = item.icon;   // remembered so the trigger can mirror the active section's icon
+    div.dataset.label = item.label;
+    div.dataset.desc = item.desc || '';   // shown in the hero when this section is open
     div.innerHTML = '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span>';
     colIcons.appendChild(div);
   });

@@ -40,6 +40,18 @@ function setTriggerIcon(icon) {
   if (window.lucide) lucide.createIcons({ root: t });
 }
 
+// The hero (top of every page) shows either the welcome line (on the dashboard/home)
+// or the current section's name + description (on every other page).
+function setHero(title, sub) {
+  var g = document.getElementById('greeting'), s = document.getElementById('roleSub');
+  if (g) g.textContent = title;
+  if (s) s.textContent = sub || '';
+}
+function setWelcomeHero() {
+  var u = getUser();
+  setHero('Welcome ' + (u && u.firstName ? u.firstName : ''), (u && (u.role || u.roleCode) || '').replace(/_/g, ' '));
+}
+
 function wireDrawerNav(navMap) {
   document.querySelectorAll('.drawer-item[data-nav]').forEach(function(item) {
     item.onclick = function() {
@@ -50,6 +62,9 @@ function wireDrawerNav(navMap) {
       document.querySelectorAll('.drawer-item').forEach(function(i) { i.classList.remove('active'); });
       item.classList.add('active');
       setTriggerIcon(item.dataset.icon);
+      // Home keeps the welcome line; every other page shows its name + description in the hero.
+      if (nav === 'home') setWelcomeHero();
+      else setHero(item.dataset.label || '', item.dataset.desc || '');
       fn(document.getElementById('view'));
     };
   });
@@ -60,6 +75,29 @@ function openSection(navId) {
   var item = document.querySelector('.drawer-item[data-nav="' + navId + '"]');
   if (item) item.click();
 }
+
+// Open a section, then spotlight a card in it once its (async) tilt-stack has rendered.
+function openSectionAndHighlight(navId, id) {
+  openSection(navId);
+  var tries = 0;
+  (function attempt() {
+    var card = document.querySelector('#view .tilt-card[data-id="' + CSS.escape(String(id)) + '"]');
+    var host = document.querySelector('#view .tilt-host');
+    if (card && host) { highlightTiltCard(host, id); return; }
+    if (tries++ < 25) setTimeout(attempt, 140);
+  })();
+}
+
+// Where a notification's link points. Returns { section, id } or null.
+function notificationRoute(n) {
+  if (!n) return null;
+  switch (n.linkType) {
+    case 'tenant': return { section: 'schools', id: n.linkId };   // school pending/approval etc.
+    default: return null;
+  }
+}
+window.notificationRoute = notificationRoute;
+window.openSectionAndHighlight = openSectionAndHighlight;
 
 function roleAccountPane(pane) {
   var u = getUser();
@@ -180,28 +218,31 @@ async function platformHome(pane, me) {
   const stats = {
     schools: schools.length + ' school' + (schools.length === 1 ? '' : 's') + (pending ? ' · ' + pending + ' pending' : ''),
   };
-  pane.innerHTML = `<div class="bento">` + tiles.map(t => `
-    <button class="bento-tile${t.wide ? ' span2 accent' : ''}" data-go="${t.id}">
+  // Platform owners get a live Activity Monitor widget in the wide tile (a scaled-down version of
+  // the full box: title + side numbers + graph). Everyone else gets the plain shortcut tile.
+  const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
+  function tileHTML(t) {
+    if (t.id === 'overview' && isOwner) {
+      return `<button class="bento-tile span2 accent activity-widget" data-go="overview">
+        <div class="aw-head"><i data-lucide="activity"></i><strong>Activity Monitor</strong></div>
+        <canvas class="mini-activity"></canvas>
+      </button>`;
+    }
+    return `<button class="bento-tile${t.wide ? ' span2 accent' : ''}" data-go="${t.id}">
       <span class="bt-icon"><i data-lucide="${t.icon}"></i></span>
       <span class="bt-text">
         <strong>${esc(t.label)}</strong>
         <span class="bt-desc">${esc(stats[t.id] || t.desc || '')}</span>
       </span>
       <span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span>
-    </button>`).join('') + `</div>`;
+    </button>`;
+  }
+  pane.innerHTML = `<div class="bento">` + tiles.map(tileHTML).join('') + `</div>`;
   pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
   if (window.lucide) lucide.createIcons({ root: pane });
 
-  // Live activity mini-preview on the Activity tile — platform owners only (they track clicks
-  // across the whole platform, every device). No filters, no gauges; a live per-second pulse.
-  const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
-  const actTile = pane.querySelector('.bento-tile[data-go="overview"]');
-  if (isOwner && actTile) {
-    const cv = document.createElement('canvas');
-    cv.className = 'mini-activity';
-    actTile.appendChild(cv);
-    startMiniActivity(cv);
-  }
+  const cv = pane.querySelector('.activity-widget .mini-activity');
+  if (cv) startMiniActivity(cv);
 }
 
 // Compact live sparkline of platform activity (last ~30s, per-second buckets). Self-stops when
@@ -224,7 +265,19 @@ function startMiniActivity(canvas) {
     const w = r.width, h = r.height;
     ctx.clearRect(0, 0, w, h);
 
-    const now = Date.now(), span = 30000, G = 3, cols = Math.floor(w / G);
+    // "Numbers on the side": a compact vertical log scale, like the full monitor.
+    const AX = 26;                        // left gutter for the axis labels
+    const my = h - 3, usable = h * 0.82;
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.font = '8px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    const labels = ['1', '10', '100', '1K', '10K'];
+    for (let i = 0; i < labels.length; i++) {
+      const y = my - usable * (i + 1) / labels.length;
+      if (y > 6) ctx.fillText(labels[i], AX - 5, y + 3);
+    }
+
+    const now = Date.now(), span = 30000, G = 3, cols = Math.floor((w - AX) / G);
     const counts = new Float64Array(cols);
     const act = (window.__activity || []).slice();
     for (let i = 0; i < server.length; i++) act.push({ ts: new Date(server[i].ts).getTime(), size: server[i].size });
@@ -234,12 +287,11 @@ function startMiniActivity(canvas) {
       const col = Math.floor((1 - age / span) * cols);
       if (col >= 0 && col < cols) counts[col] += (act[j].size || 1);
     }
-    const my = h - 3, usable = h * 0.8;
-    ctx.fillStyle = 'rgba(255,255,255,.9)';   // sits on the accent gradient tile
+    ctx.fillStyle = 'rgba(255,255,255,.92)';   // sits on the accent gradient tile
     for (let cx = 0; cx < cols; cx++) {
       const lg = counts[cx] > 0 ? Math.min(Math.log10(counts[cx]) / 4, 1) : 0;
       const rows = 1 + Math.round(lg * usable / G);
-      for (let ry = 0; ry < rows; ry++) ctx.fillRect(cx * G, my - ry * G, 1.6, 1.6);
+      for (let ry = 0; ry < rows; ry++) ctx.fillRect(AX + cx * G, my - ry * G, 1.6, 1.6);
     }
     requestAnimationFrame(draw);
   }
@@ -266,8 +318,6 @@ async function platformOverview(pane) {
 // ---- Moderators tab: tilt-stack of moderator cards + schools-style search/filter ----
 async function platformModerators(pane) {
   pane.innerHTML = `
-    <h2 style="margin-bottom:4px">Moderators</h2>
-    <p class="muted" style="margin-top:0">Platform support team. Hover a card for details; search to jump to one.</p>
     <div class="tilt-host" id="modStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
       <button class="act-scale-btn active" data-f="all">All</button>
@@ -340,8 +390,6 @@ async function platformModerators(pane) {
 // ---- Schools tab ----
 async function platformSchools(pane) {
   pane.innerHTML = `
-    <h2 style="margin-bottom:4px">Schools</h2>
-    <p class="muted" style="margin-top:0">Hover a card for its name; search or click a row to spotlight a school and its status.</p>
     <div id="schMsg" class="msg"></div>
     <div class="tilt-host" id="schStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">

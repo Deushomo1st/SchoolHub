@@ -77,3 +77,7 @@
 .notif-cal-btn svg { width: 17px; height: 17px; }
 .notif-search-input { width: 100%; margin-bottom: 12px; }
 .notif-scroll { max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+
+/* Actionable notification (has a place to jump to) */
+.notif-item.actionable { cursor: pointer; transition: background .15s; }
+.notif-item.actionable:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }

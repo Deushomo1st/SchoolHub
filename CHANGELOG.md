@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Hero page titles, actionable notifications, activity widget, drawer logout fix
+
+- **Section name + description now live in the hero** (where "Welcome {name}" sits) on every page except the dashboard/home, which keeps the welcome line. Drawer items carry `data-label`/`data-desc`; `setHero`/`setWelcomeHero` swap it on nav. Removed the duplicated in-pane headers from Moderators/Schools.
+- **Notifications are clickable**: clicking one marks it read (badge updates) and jumps to where you act on it — school notifications (`linkType: tenant`) open Schools and spotlight that school card. Routing via `notificationRoute` + `openSectionAndHighlight` (retries until the async tilt-stack renders).
+- **Activity home tile is now a mini Activity Monitor widget** — keeps the "Activity Monitor" title and the side number scale (1–10K), drops the description text; a scaled-down live graph. Still opens the full tracker on click; owner-only.
+- **Drawer "Sign out" is now visible** — the footer was being pushed off by 7 nav items; the drawer body is taller, the icon column scrolls, and the footer is pinned at the bottom.
+
 ## 2026-07-16 — Schools tilt-stack, notification→glass modal, activity mini-preview
 
 - **Schools section** rebuilt like Moderators: a tilt-stack of school cards (status badge on each) + filter buttons + live search. Search filters both the stack and the table; clicking a card spotlights its table row, clicking a row highlights its card — status reflected both ways. Action buttons (approve/reject/suspend/activate) preserved.
