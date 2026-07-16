@@ -251,12 +251,16 @@ public class LibraryController {
         return ResponseEntity.ok(libraryService.stats());
     }
 
-    // ---- Helper: verify librarian membership ----
+    // ---- Helper: verify librarian membership (dedicated LIBRARIAN role OR teacher-librarian in library_staff) ----
 
     private void assertLibrarian(Authentication auth) {
+        // Dedicated librarian: role is LIBRARIAN in the JWT
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_LIBRARIAN"))) return;
+        // Teacher/staff appointed as librarian via library_staff table
         Long userId = (Long) auth.getPrincipal();
-        if (!libraryService.isLibrarian(userId)) {
-            throw new AccessDeniedException("Library staff access required");
-        }
+        if (libraryService.isLibrarian(userId)) return;
+        // Admin also gets library access
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) return;
+        throw new AccessDeniedException("Library staff access required");
     }
 }

@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS book_flag (
 -- Library fine rules (general rules, can be overridden per-book)
 CREATE TABLE IF NOT EXISTS library_fine_rule (
     id BIGSERIAL PRIMARY KEY,
-    rule_type VARCHAR(16) NOT NULL UNIQUE
+    rule_type VARCHAR(24) NOT NULL UNIQUE
         CHECK (rule_type IN ('fine_per_day','max_borrow_days','max_books_per_student')),
     value NUMERIC(10,2) NOT NULL,
     updated_by BIGINT REFERENCES platform.app_user(id),

@@ -342,7 +342,8 @@ public class AuthService {
         "STUDENT",        "Student",
         "PARENT",         "Parent",
         "BURSAR",         "Bursar",
-        "MODERATOR",      "Moderator"
+        "MODERATOR",      "Moderator",
+        "LIBRARIAN",      "Librarian"
     );
 
     private List<RoleAssignmentDto> getRoleAssignmentDtos(Long userId) {

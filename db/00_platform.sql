@@ -16,15 +16,16 @@ CREATE TABLE IF NOT EXISTS platform.role (
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO platform.role (name, description) VALUES
-    ('PLATFORM_OWNER', 'Runs SchoolHub itself. Sees every tenant school, manages plans. Not tied to any one school.'),
-    ('MODERATOR',      'Platform support staff. Reviews and suspends schools, helps the owner. Read-mostly across tenants, no plan/billing control.'),
-    ('ADMIN',          'Runs one school. Created when the school signs up. Manages that school''s users and data.'),
-    ('PRINCIPAL',      'School principal. Senior staff with school-wide oversight (admin-equivalent access).'),
-    ('TEACHER',        'Marks attendance, enters grades, owns their classes within one school.'),
-    ('STUDENT',        'Sees own results, timetable, fees within one school.'),
-    ('PARENT',         'Sees their children''s progress and pays fees within one school.'),
-    ('BURSAR',         'Finance role within one school: fees and payroll.')
+INSERT INTO platform.role (id, name, description) VALUES
+    (1, 'PLATFORM_OWNER', 'Runs SchoolHub itself. Sees every tenant school, manages plans. Not tied to any one school.'),
+    (2, 'MODERATOR',      'Platform support staff. Reviews and suspends schools, helps the owner. Read-mostly across tenants, no plan/billing control.'),
+    (3, 'ADMIN',          'Runs one school. Created when the school signs up. Manages that school''s users and data.'),
+    (4, 'PRINCIPAL',      'School principal. Senior staff with school-wide oversight (admin-equivalent access).'),
+    (5, 'TEACHER',        'Marks attendance, enters grades, owns their classes within one school.'),
+    (6, 'STUDENT',        'Sees own results, timetable, fees within one school.'),
+    (7, 'PARENT',         'Sees their children''s progress and pays fees within one school.'),
+    (8, 'BURSAR',         'Finance role within one school: fees and payroll.'),
+    (9, 'LIBRARIAN',      'Library staff within one school: manages books, approves borrows, escalates flags.')
 ON CONFLICT (name) DO NOTHING;
 
 -- ---- Subscription plans (a school picks one at signup) ---------------------
