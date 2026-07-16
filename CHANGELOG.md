@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-07-16 — Designs sector: appearance & theme controls
+
+- Built the last empty platform sector as an **Appearance** panel: theme picker (light/dusk), a live palette-token swatch grid (theme-sensitive), component live-previews (glass modal, frost modal, confirm, dual calendar), and the repo's design experiments (lava button, dot-matrix graph) embedded as iframes from `/design/`.
+
 ## 2026-07-16 — Island hard-refresh keeps section; Plans & Pricing sector built
 
 - **Dynamic island** now does a true hard refresh that returns you to the section you were on (saves the active section, restores it once after reload) instead of dumping you back on the dashboard.

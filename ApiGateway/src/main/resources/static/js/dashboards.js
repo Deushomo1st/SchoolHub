@@ -588,9 +588,69 @@ async function platformPlans(pane, isOwner) {
   await load();
 }
 
-// ---- Designs tab ----
+// ---- Designs: appearance & theme controls ----
 function platformDesigns(pane) {
-  pane.innerHTML = `<div class="card"><h2>Designs</h2><p class="muted">UI/UX design tools and theme management.</p></div>`;
+  const tokens = ['--brand', '--ink', '--card', '--muted', '--line', '--ok', '--danger'];
+  const cs = getComputedStyle(document.documentElement);
+  const swatches = tokens.map(t =>
+    `<div class="swatch"><span class="sw-chip" style="background:${cs.getPropertyValue(t).trim()}"></span><span class="sw-name">${t}</span></div>`).join('');
+
+  pane.innerHTML = `
+    <div class="design-grid">
+      <div class="card">
+        <h2>Theme</h2>
+        <p class="muted" style="margin-top:0">Everything is theme-sensitive — light is frosted glass-white, dusk is glossy silver.</p>
+        <div class="theme-choices">
+          <button class="theme-choice" data-set-theme="light"><span class="tc-swatch tc-light"></span>Light</button>
+          <button class="theme-choice" data-set-theme="dusk"><span class="tc-swatch tc-dusk"></span>Dusk</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Palette</h2>
+        <p class="muted" style="margin-top:0">The live design tokens for the current theme.</p>
+        <div class="swatches">${swatches}</div>
+      </div>
+
+      <div class="card">
+        <h2>Components</h2>
+        <p class="muted" style="margin-top:0">Live preview of the shared primitives.</p>
+        <div class="design-previews">
+          <button class="btn" data-demo="glass">Glass modal</button>
+          <button class="btn secondary" data-demo="frost">Frost modal</button>
+          <button class="btn secondary" data-demo="confirm">Confirm dialog</button>
+          <button class="btn secondary" data-demo="calendar">Dual calendar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Experiments</h2>
+        <p class="muted" style="margin-top:0">Design studies kept in the repo.</p>
+        <div class="design-experiments">
+          <div class="exp-frame"><iframe src="/design/lava-button.html" title="Lava button"></iframe><span class="exp-label">Lava button</span></div>
+          <div class="exp-frame"><iframe src="/design/dot-matrix-graph.html" title="Dot-matrix graph"></iframe><span class="exp-label">Dot-matrix graph</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  function markActive() {
+    pane.querySelectorAll('[data-set-theme]').forEach(b => b.classList.toggle('active', b.dataset.setTheme === currentTheme()));
+  }
+  pane.querySelectorAll('[data-set-theme]').forEach(b => b.onclick = () => {
+    applyTheme(b.dataset.setTheme); if (window.updateThemeButton) updateThemeButton();
+    platformDesigns(pane);   // re-render so palette swatches reflect the new theme
+  });
+  markActive();
+
+  const demos = {
+    glass: () => openGlassModal({ frost: false, html: '<h2>Layer-1 glass</h2><p class="subtle">See-through, no page darkening.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
+    frost: () => openGlassModal({ frost: true, html: '<h2>Layer-2 frost</h2><p class="subtle">Blurs + darkens what is behind.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
+    confirm: () => glassConfirm('This is the glass confirm dialog.', { title: 'Confirm', okText: 'OK' }),
+    calendar: () => window.openDualCalendar && window.openDualCalendar({}),
+  };
+  pane.querySelectorAll('[data-demo]').forEach(b => b.onclick = () => { const f = demos[b.dataset.demo]; if (f) f(); });
+
+  if (window.lucide) lucide.createIcons({ root: pane });
 }
 
 
