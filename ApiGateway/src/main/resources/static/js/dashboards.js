@@ -36,6 +36,14 @@ function confirmLogout() {
   modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
 }
 
+// Mirror the active section's icon onto the drawer trigger (top-left) so you know where you are.
+function setTriggerIcon(icon) {
+  var t = document.getElementById('drawerTrigger');
+  if (!t || !icon) return;
+  t.innerHTML = '<i data-lucide="' + icon + '"></i>';
+  if (window.lucide) lucide.createIcons({ root: t });
+}
+
 function wireDrawerNav(navMap) {
   document.querySelectorAll('.drawer-item[data-nav]').forEach(function(item) {
     item.onclick = function() {
@@ -45,9 +53,16 @@ function wireDrawerNav(navMap) {
       if (nav === 'logout') { confirmLogout(); return; }
       document.querySelectorAll('.drawer-item').forEach(function(i) { i.classList.remove('active'); });
       item.classList.add('active');
+      setTriggerIcon(item.dataset.icon);
       fn(document.getElementById('view'));
     };
   });
+}
+
+// Jump to a drawer section from anywhere (e.g. a bento shortcut tile) by replaying its click.
+function openSection(navId) {
+  var item = document.querySelector('.drawer-item[data-nav="' + navId + '"]');
+  if (item) item.click();
 }
 
 function roleAccountPane(pane) {
@@ -106,17 +121,21 @@ async function renderCalendar(container, canCreate) {
 }
 
 // ---------------- Platform owner / moderator ----------------
+const PLATFORM_SECTIONS = [
+  { id: 'home',       icon: 'layout-grid',  label: 'Home' },
+  { id: 'overview',   icon: 'activity',     label: 'Activity', desc: 'Live platform pulse across every account', wide: true },
+  { id: 'schools',    icon: 'school',       label: 'Schools',  desc: 'Approve, suspend & inspect tenants' },
+  { id: 'moderators', icon: 'users-round',  label: 'Moderators', desc: 'Platform support team' },
+  { id: 'plans',      icon: 'banknote',     label: 'Plans & Pricing', desc: 'Subscription tiers & quotas' },
+  { id: 'designs',    icon: 'pen-line',     label: 'Designs',  desc: 'Themes & UI tools' },
+  { id: 'account',    icon: 'circle-user',  label: 'Account',  desc: 'Your profile & password' },
+];
+
 async function renderPlatform(view, me) {
   const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
-  rebuildDrawer([
-    { id: 'overview', icon: 'trending-up', label: 'Overview' },
-    { id: 'schools', icon: 'school', label: 'Schools' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-    { id: 'moderators', icon: 'users-round', label: 'Moderators' },
-    { id: 'plans', icon: 'banknote', label: 'Plans & Pricing' },
-    { id: 'designs', icon: 'pen-line', label: 'Designs' },
-  ]);
+  rebuildDrawer(PLATFORM_SECTIONS);
   wireDrawerNav({
+    home: pane => platformHome(pane, me),
     overview: platformOverview,
     schools: platformSchools,
     account: roleAccountPane,
@@ -125,8 +144,33 @@ async function renderPlatform(view, me) {
     designs: platformDesigns,
     logout: confirmLogout,
   });
-  // Start with Overview
-  await platformOverview(view);
+  // Land on the bento home; mark it active and mirror its icon onto the trigger.
+  await platformHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
+}
+
+// ---- Home: bento cluster of shortcuts to every platform sector ----
+async function platformHome(pane, me) {
+  const tiles = PLATFORM_SECTIONS.filter(s => s.id !== 'home');
+  let schools = [];
+  try { schools = await api('/api/v1/tenants'); } catch (e) {}
+  const pending = schools.filter(s => s.status === 'pending').length;
+  const stats = {
+    schools: schools.length + ' school' + (schools.length === 1 ? '' : 's') + (pending ? ' · ' + pending + ' pending' : ''),
+  };
+  pane.innerHTML = `<div class="bento">` + tiles.map(t => `
+    <button class="bento-tile${t.wide ? ' span2 accent' : ''}" data-go="${t.id}">
+      <span class="bt-icon"><i data-lucide="${t.icon}"></i></span>
+      <span class="bt-text">
+        <strong>${esc(t.label)}</strong>
+        <span class="bt-desc">${esc(stats[t.id] || t.desc || '')}</span>
+      </span>
+      <span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span>
+    </button>`).join('') + `</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  if (window.lucide) lucide.createIcons({ root: pane });
 }
 
 // ---- Overview tab (activity + KPIs) ----

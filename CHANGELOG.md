@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-16 — Bento home + section-aware drawer trigger (platform sector)
+
+- Platform owner/moderator now land on a **bento home**: a cluster of shortcut tiles, one per sector (Activity, Schools, Moderators, Plans, Designs, Account). Clicking a tile navigates to that sector by replaying its drawer click. Schools tile shows a live count.
+- The **drawer trigger (top-left) mirrors the active section's icon** — grid on home, school on Schools, etc. — so the current location reads at a glance. Each drawer item now carries its icon in `data-icon`; `setTriggerIcon()` swaps it on nav.
+- Shared helpers `openSection(navId)` and `setTriggerIcon(icon)` added; applies to any role that adopts the same pattern.
+
 ## 2026-07-16 — Activity Monitor fixed (feed was 403 for everyone)
 
 - Root cause: the graph polled `/api/v1/activity/feed` with a raw fetch and no Bearer token, so it got 403 on every account and never showed cross-session activity. Now polls via the authed `api()` helper.

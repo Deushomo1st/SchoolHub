@@ -87,6 +87,7 @@ window.rebuildDrawer = function(items) {
     var div = document.createElement('div');
     div.className = 'drawer-item';
     div.dataset.nav = item.id;
+    div.dataset.icon = item.icon;   // remembered so the trigger can mirror the active section's icon
     div.innerHTML = '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span>';
     colIcons.appendChild(div);
   });
