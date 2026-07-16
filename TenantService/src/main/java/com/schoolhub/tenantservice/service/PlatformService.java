@@ -127,6 +127,18 @@ public class PlatformService {
     /** Remove a moderator account (owner only). Cascades to role_assignment/notification via FK. */
     @Transactional
     public void deleteModerator(Long id, Long actorId) {
+        userRepo.delete(requireModerator(id));
+    }
+
+    /** Suspend / re-activate a moderator (owner only) by setting its account_status. */
+    @Transactional
+    public void setModeratorStatus(Long id, String status, Long actorId) {
+        AppUser u = requireModerator(id);
+        u.setAccountStatus(status);
+        userRepo.save(u);
+    }
+
+    private AppUser requireModerator(Long id) {
         AppUser u = userRepo.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Moderator not found"));
         Long modRoleId = roleRepo.findAll().stream()
@@ -135,7 +147,7 @@ public class PlatformService {
         if (modRoleId == null || !modRoleId.equals(u.getRoleId())) {
             throw new IllegalArgumentException("That account is not a moderator");
         }
-        userRepo.delete(u);
+        return u;
     }
 
     private static String categoryOf(String role) {

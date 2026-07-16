@@ -360,7 +360,6 @@ async function platformModerators(pane) {
   var isOwner = (getUser() || {}).roleCode === 'PLATFORM_OWNER';
   pane.innerHTML = `
     <div id="modMsg" class="msg"></div>
-    ${isOwner ? '<div style="margin-bottom:12px"><button class="btn" id="modInvite"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Invite moderator</button></div>' : ''}
     <div class="tilt-host" id="modStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
       <button class="act-scale-btn active" data-f="all">All</button>
@@ -368,10 +367,13 @@ async function platformModerators(pane) {
       <button class="act-scale-btn" data-f="suspended">Suspended</button>
       <input id="modSearch" class="list-search" placeholder="Search moderators…" style="flex:1;min-width:160px">
     </div>
-    <div class="card"><table>
-      <thead><tr><th>Name</th><th>Email</th><th>Status</th>${isOwner ? '<th></th>' : ''}</tr></thead>
-      <tbody id="modRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
-    </table></div>`;
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th>${isOwner ? '<th></th>' : ''}</tr></thead>
+        <tbody id="modRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      ${isOwner ? '<div class="list-foot"><button class="btn" id="modInvite"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Invite moderator</button></div>' : ''}
+    </div>`;
   if (window.lucide) lucide.createIcons({ root: pane });
 
   var mods = [];
@@ -403,15 +405,32 @@ async function platformModerators(pane) {
     var cols = isOwner ? 4 : 3;
     if (!list.length) { tbody.innerHTML = '<tr><td colspan="' + cols + '" class="muted">No moderators found.</td></tr>'; return; }
     tbody.innerHTML = list.map(function (m) {
+      var actions = '';
+      if (isOwner) {
+        actions = (m.status === 'suspended'
+          ? '<button class="btn ghost" data-act="' + m.id + '" style="padding:3px 10px;font-size:11px">Activate</button>'
+          : '<button class="btn ghost" data-susp="' + m.id + '" style="padding:3px 10px;font-size:11px">Suspend</button>')
+          + '<button class="btn ghost danger-text" data-del="' + m.id + '" style="padding:3px 10px;font-size:11px;margin-left:4px">Remove</button>';
+      }
       return '<tr data-id="' + m.id + '" style="cursor:pointer">'
         + '<td><strong>' + esc(m.name) + '</strong></td>'
         + '<td>' + esc(m.email) + '</td>'
         + '<td><span class="badge ' + statusBadge(m.status) + '">' + esc(m.status) + '</span></td>'
-        + (isOwner ? '<td class="right"><button class="btn ghost danger-text" data-del="' + m.id + '" style="padding:3px 10px;font-size:11px">Remove</button></td>' : '')
+        + (isOwner ? '<td class="right">' + actions + '</td>' : '')
         + '</tr>';
     }).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(function (tr) {
       tr.onclick = function (ev) { if (ev.target.closest('button')) return; highlightTiltCard(stackHost, tr.dataset.id); };
+    });
+    async function act(url, label) {
+      try { await api(url, { method: 'POST' }); showMsg(msg, label, 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    }
+    tbody.querySelectorAll('[data-susp]').forEach(function (b) {
+      b.onclick = function () { act('/api/v1/tenants/moderators/' + b.dataset.susp + '/suspend', 'Suspended.'); };
+    });
+    tbody.querySelectorAll('[data-act]').forEach(function (b) {
+      b.onclick = function () { act('/api/v1/tenants/moderators/' + b.dataset.act + '/activate', 'Activated.'); };
     });
     tbody.querySelectorAll('[data-del]').forEach(function (b) {
       b.onclick = async function () {
@@ -490,10 +509,10 @@ async function platformSchools(pane) {
       <button class="act-scale-btn" data-f="rejected">Rejected</button>
       <input id="schSearch" class="list-search" placeholder="Search schools…" style="flex:1;min-width:160px">
     </div>
-    <div class="card"><table>
+    <div class="card list-card"><div class="list-scroll sleek-scroll"><table>
       <thead><tr><th>School</th><th>Code</th><th>Plan</th><th>Users</th><th>Status</th><th></th></tr></thead>
       <tbody id="schRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
-    </table></div>`;
+    </table></div></div>`;
   let filter = 'all', query = '', schools = [];
   const stackHost = document.getElementById('schStack');
 

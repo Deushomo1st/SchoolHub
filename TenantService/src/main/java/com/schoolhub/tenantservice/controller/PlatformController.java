@@ -85,6 +85,20 @@ public class PlatformController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/moderators/{id}/suspend")
+    @PreAuthorize("hasRole('PLATFORM_OWNER')")
+    public ResponseEntity<?> suspendModerator(@PathVariable Long id, Authentication auth) {
+        platform.setModeratorStatus(id, "suspended", (Long) auth.getPrincipal());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/moderators/{id}/activate")
+    @PreAuthorize("hasRole('PLATFORM_OWNER')")
+    public ResponseEntity<?> activateModerator(@PathVariable Long id, Authentication auth) {
+        platform.setModeratorStatus(id, "active", (Long) auth.getPrincipal());
+        return ResponseEntity.ok().build();
+    }
+
     // ---- Pricing deck (owner only) ----
     @PostMapping("/plans")
     @PreAuthorize("hasRole('PLATFORM_OWNER')")

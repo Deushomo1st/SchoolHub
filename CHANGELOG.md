@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Scrollable list pattern + sleek scrollbar; moderator suspend/activate
+
+- **Reusable scrollable-list pattern:** `.list-card` (list scrolls internally via `.list-scroll .sleek-scroll`, sticky table header, pinned `.list-foot`). The **Invite moderator** button moved to the bottom footer under the scrollable list so it's never pushed off-page. Applied to Moderators + Schools tables.
+- **Sleek scrollbar** (`.sleek-scroll`, thin brand-tinted) applied to those lists and the **notification** list.
+- **Moderators** can now be **Suspend / Activate**d (new `POST /moderators/{id}/suspend|activate`, owner-only) alongside Remove. Suspended moderators can't sign in (account_status).
+- Deferred: staff suspend/remove ships with the Admin dashboard restyle; school hard-delete needs a destructive schema-drop endpoint (schools already have suspend/activate/reject).
+
 ## 2026-07-16 — Moderator invite/remove; calendar range sentence
 
 - **Moderators section:** owner can now **Invite** a moderator (glass modal: name/email/temp password → `POST /tenants/moderators`) and **Remove** one (per-row, glass confirm → new `DELETE /api/v1/tenants/moderators/{id}`, owner-only, cascades role_assignment/notification). A moderator who sets a profile picture already shows it on their tilt card.

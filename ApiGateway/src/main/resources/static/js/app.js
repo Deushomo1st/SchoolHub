@@ -168,7 +168,7 @@ function initTheme() {
       html: '<div class="notif-head"><h2>Notifications</h2>'
         + '<button class="notif-cal-btn" title="Filter by date"><i data-lucide="calendar-days"></i></button></div>'
         + '<input class="list-search notif-search-input" placeholder="Search notifications…">'
-        + '<div class="notif-scroll" id="glassNotifList"><p class="muted">Loading…</p></div>'
+        + '<div class="notif-scroll sleek-scroll" id="glassNotifList"><p class="muted">Loading…</p></div>'
     });
     var list = m.panel.querySelector('#glassNotifList');
     var query = '', dateFrom = null, dateTo = null;
