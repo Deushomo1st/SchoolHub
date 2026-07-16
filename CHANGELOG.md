@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-16 — Fine payment endpoint + library notifications
+
+- **POST /api/v1/library/borrow-records/{recordId}/pay-fine** — mark fine as paid
+- Authorization: student (own fine only) or librarian/admin
+- Prevents double-pay, zero-fine payment, cross-student payment
+- Notifications wired into library events:
+  - Borrow request created → librarian notified
+  - Borrow approved/rejected → student notified
+  - Flag escalated → admin notified
+- Scheduled job for overdue detection (runs daily at midnight)
+
 ## 2026-07-16 — Student library info endpoint
 
 - **GET /api/v1/library/me** — student's library data (libraryCode, activeBorrows, totalFines, borrowHistory)

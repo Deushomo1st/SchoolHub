@@ -25,6 +25,8 @@ public class LibraryService {
     private final BorrowRecordRepository recordRepo;
     private final BookFlagRepository flagRepo;
     private final LibraryFineRuleRepository fineRuleRepo;
+    private final NotificationService notificationService;
+    private final AppUserRepository appUserRepo;
     private final AuditRecorder audit;
 
     private static final String CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -33,7 +35,9 @@ public class LibraryService {
     public LibraryService(LibraryStaffRepository staffRepo, LibraryStudentRepository studentRepo,
                           BookRepository bookRepo, BorrowRequestRepository requestRepo,
                           BorrowRecordRepository recordRepo, BookFlagRepository flagRepo,
-                          LibraryFineRuleRepository fineRuleRepo, AuditRecorder audit) {
+                          LibraryFineRuleRepository fineRuleRepo,
+                          NotificationService notificationService, AppUserRepository appUserRepo,
+                          AuditRecorder audit) {
         this.staffRepo = staffRepo;
         this.studentRepo = studentRepo;
         this.bookRepo = bookRepo;
@@ -41,6 +45,8 @@ public class LibraryService {
         this.recordRepo = recordRepo;
         this.flagRepo = flagRepo;
         this.fineRuleRepo = fineRuleRepo;
+        this.notificationService = notificationService;
+        this.appUserRepo = appUserRepo;
         this.audit = audit;
     }
 
@@ -185,6 +191,11 @@ public class LibraryService {
         req.setBookId(bookId);
         req = requestRepo.save(req);
         audit.record("BORROW_REQUESTED", "studentId=" + libraryStudentId + " bookId=" + bookId);
+        // Notify all librarians about the new request
+        for (LibraryStaff staff : staffRepo.findByStatus("active")) {
+            notificationService.notify(staff.getUserId(), "library_request", "New borrow request",
+                    book.getTitle() + " — awaiting approval", "library", bookId);
+        }
         return req;
     }
 
@@ -219,6 +230,12 @@ public class LibraryService {
         req.setDecidedAt(LocalDateTime.now());
         req = requestRepo.save(req);
         audit.record("BORROW_APPROVED", "requestId=" + requestId + " bookId=" + book.getId());
+        // Notify the student
+        LibraryStudent student = studentRepo.findById(req.getLibraryStudentId()).orElse(null);
+        if (student != null) {
+            notificationService.notify(student.getUserId(), "library_approved", "Borrow approved",
+                    book.getTitle() + " — due " + LocalDate.now().plusDays(borrowDays), "library", book.getId());
+        }
         return req;
     }
 
@@ -235,6 +252,12 @@ public class LibraryService {
         req.setDecidedAt(LocalDateTime.now());
         req = requestRepo.save(req);
         audit.record("BORROW_REJECTED", "requestId=" + requestId + " reason=" + reason);
+        // Notify the student
+        LibraryStudent student = studentRepo.findById(req.getLibraryStudentId()).orElse(null);
+        if (student != null) {
+            notificationService.notify(student.getUserId(), "library_rejected", "Borrow request declined",
+                    "Your request was declined" + (reason != null ? ": " + reason : ""), "library", req.getBookId());
+        }
         return req;
     }
 
@@ -317,6 +340,17 @@ public class LibraryService {
         f.setEscalated(true);
         f = flagRepo.save(f);
         audit.record("BOOK_FLAG_ESCALATED", "flagId=" + flagId);
+        // Notify all admins about the escalated flag
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            List<AppUser> admins = appUserRepo.findByRoleIdAndTenantId(2L, tenantId); // role_id 2 = ADMIN
+            Book book = bookRepo.findById(f.getBookId()).orElse(null);
+            String title = book != null ? book.getTitle() : "Unknown book";
+            for (AppUser admin : admins) {
+                notificationService.notify(admin.getId(), "library_flag_escalated", "Book flag escalated",
+                        title + " — needs your review", "library", f.getBookId());
+            }
+        }
         return f;
     }
 
@@ -446,5 +480,37 @@ public class LibraryService {
 
         record.setFinePaid(true);
         recordRepo.save(record);
+    }
+
+    // ---- Scheduled: detect overdue books ----
+
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 0 * * *") // Midnight daily
+    @Transactional
+    public void detectOverdueBooks() {
+        LocalDate today = LocalDate.now();
+        List<BorrowRecord> activeRecords = recordRepo.findByStatus("active");
+        
+        for (BorrowRecord record : activeRecords) {
+            if (record.getDueDate().isBefore(today)) {
+                // Mark as overdue
+                record.setStatus("overdue");
+                recordRepo.save(record);
+                
+                // Calculate and set fine
+                Book book = bookRepo.findById(record.getBookId()).orElse(null);
+                if (book != null) {
+                    BigDecimal fine = calculateFine(record, book);
+                    record.setFineCharged(fine);
+                    recordRepo.save(record);
+                    
+                    // Notify student
+                    LibraryStudent student = studentRepo.findById(record.getLibraryStudentId()).orElse(null);
+                    if (student != null) {
+                        notificationService.notify(student.getUserId(), "library_overdue", "Book overdue",
+                                book.getTitle() + " — please return it. Fine: " + fine, "library", book.getId());
+                    }
+                }
+            }
+        }
     }
 }
