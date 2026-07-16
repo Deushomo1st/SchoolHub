@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-07-16 — Change-password modal → glass system
+
+- The change-password modal now uses `openGlassModal` (layer-1 clear glass) instead of the old opaque `.modal-bg`, with the view-password toggle on every field and ghost/brand actions. Removed the static `#pwdModal` markup.
+
 ## 2026-07-16 — Login fix (stale token blocked login), view-password, legible errors
 
 - **Root cause of "can't log in by typing":** `JwtAuthFilter` (all 3 services) *blocked* any request carrying an expired/invalid Bearer token — so a stale session token in the browser made even the public `/login` endpoint fail with an empty-body 403. Fixed: an invalid token is now ignored (proceed unauthenticated) and only a fully valid token sets authentication; the authorization rules still reject protected paths. Public endpoints (login, signup, activity ping) work regardless of a stale token.

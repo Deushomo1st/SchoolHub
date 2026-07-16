@@ -81,3 +81,9 @@
 /* Actionable notification (has a place to jump to) */
 .notif-item.actionable { cursor: pointer; transition: background .15s; }
 .notif-item.actionable:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+
+/* ---- Change-password (glass) modal ---- */
+.glass-panel.pwd-modal { width: min(92vw, 380px); }
+.glass-panel.pwd-modal label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.glass-panel.pwd-modal input { width: 100%; }
+.glass-panel.pwd-modal .msg { margin-top: 6px; }

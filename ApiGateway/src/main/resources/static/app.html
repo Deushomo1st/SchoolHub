@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/css/style.css?v=41">
   <link rel="stylesheet" href="/app/drawer/drawer.css?v=3">
   <link rel="stylesheet" href="/app/avatar/avatar.css?v=2">
-  <link rel="stylesheet" href="/app/modal/modal.css?v=3">
+  <link rel="stylesheet" href="/app/modal/modal.css?v=4">
   <link rel="stylesheet" href="/app/tiltstack/tiltstack.css?v=4">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
 </head>
@@ -94,23 +94,6 @@
     <p class="muted">Loading your dashboard…</p>
   </main>
 
-  <div class="modal-bg" id="pwdModal">
-    <div class="modal">
-      <h2>Change password</h2>
-      <p class="subtle">You signed in with a temp password set by your school. Set your own here.</p>
-      <div id="pwdMsg" class="msg"></div>
-      <form id="pwdForm">
-        <label>Current password</label><input name="currentPassword" type="password" required>
-        <label>New password (min 8)</label><input name="newPassword" type="password" minlength="8" required>
-        <label>Confirm new password</label><input name="confirm" type="password" minlength="8" required>
-        <div style="margin-top:18px;display:flex;gap:10px">
-          <button class="btn" type="submit">Update</button>
-          <button class="btn secondary" type="button" onclick="closePwd()">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="/js/app.js?v=20"></script>
   <script src="/app/drawer/drawer.js?v=5"></script>
@@ -144,23 +127,38 @@
     })();
   </script>
   <script>
-    function openPwd() { document.getElementById('pwdModal').classList.add('show'); }
-    function closePwd() {
-      document.getElementById('pwdModal').classList.remove('show');
-      hideMsg(document.getElementById('pwdMsg'));
-      document.getElementById('pwdForm').reset();
+    // Change-password uses the glass modal system (layer-1 clear glass), with view-password on each field.
+    function openPwd() {
+      var ctrl = openGlassModal({
+        frost: false,
+        className: 'pwd-modal',
+        html: '<h2>Change password</h2>'
+          + '<p class="subtle">Enter your current password, then set a new one.</p>'
+          + '<div id="pwdMsg" class="msg"></div>'
+          + '<form id="pwdForm">'
+          + '<label>Current password</label><input name="currentPassword" type="password" required>'
+          + '<label>New password (min 8)</label><input name="newPassword" type="password" minlength="8" required>'
+          + '<label>Confirm new password</label><input name="confirm" type="password" minlength="8" required>'
+          + '<div class="glass-actions" style="margin-top:18px">'
+          + '<button class="btn ghost" type="button" data-x="cancel">Cancel</button>'
+          + '<button class="btn" type="submit">Update</button>'
+          + '</div></form>'
+      });
+      var panel = ctrl.panel;
+      if (typeof addPasswordToggles === 'function') addPasswordToggles(panel);
+      panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+      panel.querySelector('#pwdForm').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const m = panel.querySelector('#pwdMsg'); hideMsg(m);
+        const b = Object.fromEntries(new FormData(ev.target));
+        if (b.newPassword !== b.confirm) { showMsg(m, 'New passwords do not match.', 'err'); return; }
+        try {
+          await api('/api/v1/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: b.currentPassword, newPassword: b.newPassword }) });
+          showMsg(m, 'Password updated. Use it next time you log in.', 'ok');
+          ev.target.reset();
+        } catch (e) { showMsg(m, e.message, 'err'); }
+      });
     }
-    document.getElementById('pwdForm').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const m = document.getElementById('pwdMsg'); hideMsg(m);
-      const b = Object.fromEntries(new FormData(ev.target));
-      if (b.newPassword !== b.confirm) { showMsg(m, 'New passwords do not match.', 'err'); return; }
-      try {
-        await api('/api/v1/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: b.currentPassword, newPassword: b.newPassword }) });
-        showMsg(m, 'Password updated. Use it next time you log in.', 'ok');
-        ev.target.reset();
-      } catch (e) { showMsg(m, e.message, 'err'); }
-    });
   </script>
 </body>
 </html>
