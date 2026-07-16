@@ -1127,11 +1127,12 @@ async function renderResourcePoint(container, canApprove) {
     const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#1a1a2e';
     ctx.fillStyle = dusk ? 'rgba(255,255,255,.85)' : ink;
 
+    // Dots grow UP from the baseline: rest = faint baseline row, activity = tall spikes at "now".
+    const usable = my * 0.85;
     for (let cx=0;cx<cols;cx++) {
-      const wy = my - vals[cx] * my * 0.85;
-      const dr = Math.floor(wy / G);
-      for (let ry=0;ry<dr;ry++) {
-        ctx.fillRect(28 + cx*G, ry*G, 1.8, 1.8);
+      const rows = 1 + Math.floor(vals[cx] * usable / G);   // +1 keeps a resting baseline
+      for (let ry=0;ry<rows;ry++) {
+        ctx.fillRect(28 + cx*G, my - ry*G, 1.8, 1.8);
       }
     }
     t++;
