@@ -67,15 +67,39 @@ function openSection(navId) {
 
 function roleAccountPane(pane) {
   var u = getUser();
-  pane.innerHTML = '<div class="card">'
-    + '<h2>Account</h2>'
-    + '<p><strong>' + esc(u?.firstName || '') + ' ' + esc(u?.lastName || '') + '</strong></p>'
-    + '<p class="muted">' + esc(u?.email || '') + '</p>'
-    + '<p class="muted">' + esc((u?.role || '').replace(/_/g, ' ')) + '</p>'
-    + (u?.username ? '<p class="muted">@' + esc(u.username) + '</p>' : '')
-    + '<button class="btn secondary" style="margin-top:12px" onclick="openPwd()">Change password</button>'
-    + '<button class="btn danger" style="margin-top:12px" onclick="logout()">Sign out</button>'
+  var name = ((u?.firstName || '') + ' ' + (u?.lastName || '')).trim();
+  pane.innerHTML = '<div class="card account-card">'
+    + '<div class="account-avatar" id="acctAvatar">'
+    +   avatarCard({ src: u?.avatar, name: name, editable: true })
+    + '</div>'
+    + '<div class="account-info">'
+    +   '<h2>Account</h2>'
+    +   '<p><strong>' + esc(name) + '</strong></p>'
+    +   '<p class="muted">' + esc(u?.email || '') + '</p>'
+    +   '<p class="muted">' + esc((u?.role || '').replace(/_/g, ' ')) + '</p>'
+    +   (u?.username ? '<p class="muted">@' + esc(u.username) + '</p>' : '')
+    +   '<div id="acctAvatarMsg" class="msg"></div>'
+    +   '<button class="btn secondary" style="margin-top:12px" onclick="openPwd()">Change password</button>'
+    +   '<button class="btn danger" style="margin-top:12px" onclick="logout()">Sign out</button>'
+    + '</div>'
     + '</div>';
+  if (window.lucide) lucide.createIcons({ root: pane });
+
+  var slot = document.getElementById('acctAvatar');
+  slot.querySelector('.avatar-card').onclick = function () {
+    openAvatarUpload({
+      current: getUser()?.avatar,
+      onSave: async function (dataUrl) {
+        var m = document.getElementById('acctAvatarMsg'); hideMsg(m);
+        try {
+          var updated = await api('/api/v1/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatar: dataUrl }) });
+          try { localStorage.setItem('shUser', JSON.stringify(updated)); } catch (e) {}
+          roleAccountPane(pane);   // re-render so the new picture and click handler rebind cleanly
+          showMsg(document.getElementById('acctAvatarMsg'), dataUrl ? 'Profile picture updated.' : 'Profile picture removed.', 'ok');
+        } catch (e) { showMsg(m, e.message, 'err'); }
+      }
+    });
+  };
 }
 
 // ---------------- Calendar (shared agenda) ----------------

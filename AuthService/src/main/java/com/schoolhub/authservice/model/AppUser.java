@@ -43,6 +43,10 @@ public class AppUser {
     @Column(name = "account_status", nullable = false)
     private String accountStatus = "active";
 
+    /** Cropped 4:3 profile picture as a base64 data-URL, or NULL for the default iconized avatar. */
+    @Column(name = "avatar", columnDefinition = "text")
+    private String avatar;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
@@ -82,6 +86,8 @@ public class AppUser {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public String getAccountStatus() { return accountStatus; }
     public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }

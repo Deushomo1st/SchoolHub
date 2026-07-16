@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Profile pictures: avatar core (design 1, part 1)
+
+- **Backend:** `avatar` TEXT column on `platform.app_user` (base64 data-URL); `PUT /api/v1/auth/me/avatar` sets/clears the caller's own picture with an image-type + ~2MB size guard; `/me` and login DTOs now carry `avatar`.
+- **Frontend component** (`/app/avatar/`): `avatarCard()` renders a downward-sideways 3D-tilted 4:3 card — real picture, or a default iconized face ("+" when editable). `openAvatarUpload()` is a glassmorphic crop modal: pick a file, drag to reposition, zoom slider, canvas-crops to 4:3 (640×480 JPEG) on save. Theme-sensitive (light + dusk).
+- Wired into the Account pane: empty "+" state → upload/crop → save → tilted display, persisted to the DB. Verified round-trip and reload persistence.
+- Next: TiltStack (row of these cards) on the moderators homepage card, then Schools; later the activity mini-preview and the calendar/dual-calendar modals.
+
 ## 2026-07-16 — Bento home + section-aware drawer trigger (platform sector)
 
 - Platform owner/moderator now land on a **bento home**: a cluster of shortcut tiles, one per sector (Activity, Schools, Moderators, Plans, Designs, Account). Clicking a tile navigates to that sector by replaying its drawer click. Schools tile shows a live count.

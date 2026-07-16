@@ -991,3 +991,8 @@ section.block { margin-bottom: 28px; }
   .bento { grid-template-columns: 1fr 1fr; }
   .bento-tile.span2 { grid-column: span 2; }
 }
+
+/* ---- Account card: avatar beside details ---- */
+.account-card { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+.account-avatar { padding: 8px 14px 0; }
+.account-info { flex: 1; min-width: 200px; }

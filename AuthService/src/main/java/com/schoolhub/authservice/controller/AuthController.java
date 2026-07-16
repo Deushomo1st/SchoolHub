@@ -43,6 +43,13 @@ public class AuthController {
         return ResponseEntity.ok(authService.getCurrentUser(userId));
     }
 
+    // Set or clear the caller's own profile picture (base64 image data-URL; null clears it).
+    @PutMapping("/me/avatar")
+    public ResponseEntity<?> setAvatar(@RequestBody Map<String, String> body, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.setAvatar(userId, body.get("avatar")));
+    }
+
     // Re-mint a token from a different role assignment the caller holds (e.g. teacher at
     // one school, guardian at another - or a second role within the same school).
     @PostMapping("/switch-context")

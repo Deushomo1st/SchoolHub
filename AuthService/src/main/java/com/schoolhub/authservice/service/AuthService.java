@@ -164,6 +164,24 @@ public class AuthService {
         return dto;
     }
 
+    /** Set (or clear, when null) the caller's own profile picture. Expects a base64 image data-URL. */
+    @Transactional
+    public UserDto setAvatar(Long userId, String avatar) {
+        AppUser user = userRepo.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        if (avatar != null) {
+            if (!avatar.startsWith("data:image/")) {
+                throw new IllegalArgumentException("Avatar must be an image data URL");
+            }
+            if (avatar.length() > 3_000_000) {   // ~2 MB of base64 — cropper should send far less
+                throw new IllegalArgumentException("Image is too large; crop or pick a smaller one");
+            }
+        }
+        user.setAvatar(avatar);
+        userRepo.save(user);
+        return getCurrentUser(userId);
+    }
+
     @Transactional
     public void changePassword(Long userId, String currentPassword, String newPassword) {
         AppUser user = userRepo.findById(userId)
@@ -310,6 +328,7 @@ public class AuthService {
         dto.setRoleCode(rawRole);
         dto.setTenantId(u.getTenantId());
         dto.setAccountStatus(u.getAccountStatus());
+        dto.setAvatar(u.getAvatar());
         dto.setLastLoginAt(u.getLastLoginAt());
         dto.setCreatedAt(u.getCreatedAt());
         return dto;

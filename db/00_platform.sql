@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS platform.app_user (
     tenant_id      BIGINT       REFERENCES platform.tenant(id) ON DELETE CASCADE,
     account_status VARCHAR(16)  NOT NULL DEFAULT 'active'
                    CHECK (account_status IN ('active','pending','invited','suspended','disabled')),
+    avatar         TEXT,                              -- cropped 4:3 profile picture as a base64 data-URL; NULL = default iconized avatar
     last_login_at  TIMESTAMP,
     created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
