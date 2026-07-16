@@ -24,7 +24,7 @@
       var badge = (opts.showStatus && it.status)
         ? '<span class="tc-status badge ' + (opts.statusBadge ? opts.statusBadge(it.status) : '') + '">' + e(it.status) + '</span>'
         : '';
-      var hot = (opts.highlightId != null && String(opts.highlightId) === String(it.id)) ? ' highlight' : '';
+      var hot = (opts.highlightId != null && String(opts.highlightId) === String(it.id)) ? ' spotlight' : '';
       return '<div class="tilt-card' + hot + '" data-id="' + e(it.id) + '" tabindex="0">'
         + '<div class="tc-name">' + e(it.name) + (it.subtitle ? '<span class="tc-sub">' + e(it.subtitle) + '</span>' : '') + '</div>'
         + '<div class="tc-face">' + face + badge + '</div>'
@@ -65,12 +65,13 @@
     }
   };
 
-  // Scroll a card into view and flash it (used when a search result is clicked).
+  // Bring a card to the centre and put it in the raised "hover" state (name shown) — used when a
+  // search result or table row is clicked. No coloured highlight; it reads like you hovered it.
   window.highlightTiltCard = function (container, id) {
     var card = container.querySelector('.tilt-card[data-id="' + CSS.escape(String(id)) + '"]');
     if (!card) return;
-    container.querySelectorAll('.tilt-card.highlight').forEach(function (c) { c.classList.remove('highlight'); });
-    card.classList.add('highlight');
+    container.querySelectorAll('.tilt-card.spotlight').forEach(function (c) { c.classList.remove('spotlight'); });
+    card.classList.add('spotlight');
     card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   };
 })();

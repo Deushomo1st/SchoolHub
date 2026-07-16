@@ -62,22 +62,17 @@
 }
 .tc-name .tc-sub { font-size: 11px; font-weight: 500; color: var(--muted); }
 
-/* Hover / focus: the card rises out of the stack, straightens, and reveals its name */
-.tilt-card:hover, .tilt-card:focus-visible { z-index: 5; }
-.tilt-card:hover .tc-face, .tilt-card:focus-visible .tc-face {
+/* Hover / focus / spotlight: the card rises out of the stack, straightens, and reveals its name.
+   .spotlight is applied programmatically (search result / row click) so it reads like a hover. */
+.tilt-card:hover, .tilt-card:focus-visible, .tilt-card.spotlight { z-index: 5; }
+.tilt-card:hover .tc-face, .tilt-card:focus-visible .tc-face, .tilt-card.spotlight .tc-face {
   transform: var(--card-tilt-hover) translateY(-16px) scale(1.05);
   box-shadow: 0 30px 54px rgba(2,48,71,.36);
 }
-.tilt-card:hover .tc-name, .tilt-card:focus-visible .tc-name {
+.tilt-card:hover .tc-name, .tilt-card:focus-visible .tc-name, .tilt-card.spotlight .tc-name {
   opacity: 1; transform: translate(-50%, -14px) var(--card-tilt-hover, rotateY(14deg) rotateX(3deg));
 }
 :root[data-theme="dusk"] .tc-name { text-shadow: 0 1px 8px rgba(0,0,0,.85); }
-
-/* Highlight (from a clicked search result) */
-.tilt-card.highlight .tc-face {
-  border-color: var(--brand);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 55%, transparent), 0 26px 48px rgba(2,48,71,.34);
-}
 
 .tilt-empty { padding: 30px; text-align: center; color: var(--muted); }
 

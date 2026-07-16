@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-16 — Spotlight-as-hover, glass activity widget with themed dots
+
+- Selecting a list/search result now **scrolls the card to centre and puts it in the raised hover state** (name revealed) instead of a blue highlight ring. `.spotlight` shares the hover CSS; the coloured `.highlight` ring is gone.
+- **Activity Monitor widget** is now a **glass-white tile** (was the orange accent gradient), theme-sensitive. Dots follow the accent: **blue/teal on light, orange on dark**; axis labels use the muted token.
+
 ## 2026-07-16 — Hero page titles, actionable notifications, activity widget, drawer logout fix
 
 - **Section name + description now live in the hero** (where "Welcome {name}" sits) on every page except the dashboard/home, which keeps the welcome line. Drawer items carry `data-label`/`data-desc`; `setHero`/`setWelcomeHero` swap it on nav. Removed the duplicated in-pane headers from Moderators/Schools.

@@ -1007,12 +1007,22 @@ section.block { margin-bottom: 28px; }
 .list-search:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent); }
 .tilt-host { min-height: 120px; }
 
-/* ---- Activity Monitor mini-widget on the home tile (title + side numbers + graph) ---- */
+/* ---- Activity Monitor mini-widget on the home tile (glass white; title + side numbers + graph) ---- */
 .bento-tile.accent { overflow: hidden; }
 .bento-tile.activity-widget {
   flex-direction: column; align-items: stretch; gap: 8px; padding: 16px 18px; min-height: 150px;
+  overflow: hidden; color: var(--ink);
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+  backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, .45);
+  box-shadow: 0 10px 30px rgba(2, 48, 71, .12), inset 0 1px 0 rgba(255, 255, 255, .5);
 }
-.aw-head { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+:root[data-theme="dusk"] .bento-tile.activity-widget {
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+  border-color: rgba(255, 255, 255, .12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.aw-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--brand); }
 .aw-head svg { width: 17px; height: 17px; }
-.aw-head strong { font-weight: 700; }
+.aw-head strong { font-weight: 700; color: var(--ink); }
 .mini-activity { flex: 1; width: 100%; min-height: 96px; pointer-events: none; }

@@ -223,7 +223,7 @@ async function platformHome(pane, me) {
   const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
   function tileHTML(t) {
     if (t.id === 'overview' && isOwner) {
-      return `<button class="bento-tile span2 accent activity-widget" data-go="overview">
+      return `<button class="bento-tile span2 activity-widget" data-go="overview">
         <div class="aw-head"><i data-lucide="activity"></i><strong>Activity Monitor</strong></div>
         <canvas class="mini-activity"></canvas>
       </button>`;
@@ -265,10 +265,15 @@ function startMiniActivity(canvas) {
     const w = r.width, h = r.height;
     ctx.clearRect(0, 0, w, h);
 
+    // Dots follow the theme accent: blue on the light glass tile, orange on dark.
+    const css = getComputedStyle(document.documentElement);
+    const dotColor = css.getPropertyValue('--brand').trim() || '#209EBB';
+    const axisColor = css.getPropertyValue('--muted').trim() || 'rgba(0,0,0,.4)';
+
     // "Numbers on the side": a compact vertical log scale, like the full monitor.
     const AX = 26;                        // left gutter for the axis labels
     const my = h - 3, usable = h * 0.82;
-    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.fillStyle = axisColor;
     ctx.font = '8px system-ui, sans-serif';
     ctx.textAlign = 'right';
     const labels = ['1', '10', '100', '1K', '10K'];
@@ -287,7 +292,7 @@ function startMiniActivity(canvas) {
       const col = Math.floor((1 - age / span) * cols);
       if (col >= 0 && col < cols) counts[col] += (act[j].size || 1);
     }
-    ctx.fillStyle = 'rgba(255,255,255,.92)';   // sits on the accent gradient tile
+    ctx.fillStyle = dotColor;               // blue (light) / orange (dusk)
     for (let cx = 0; cx < cols; cx++) {
       const lg = counts[cx] > 0 ? Math.min(Math.log10(counts[cx]) / 4, 1) : 0;
       const rows = 1 + Math.round(lg * usable / G);
