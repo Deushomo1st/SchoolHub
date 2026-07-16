@@ -155,9 +155,15 @@ function initTheme() {
         + '<div class="notif-scroll" id="glassNotifList"><p class="muted">Loading…</p></div>'
     });
     var list = m.panel.querySelector('#glassNotifList');
-    var query = '';
+    var query = '', dateFrom = null, dateTo = null;
     function render() {
-      var items = query ? all.filter(function(n) { return ((n.title || '') + ' ' + (n.body || '')).toLowerCase().indexOf(query) >= 0; }) : all;
+      var items = all.filter(function(n) {
+        if (query && ((n.title || '') + ' ' + (n.body || '')).toLowerCase().indexOf(query) < 0) return false;
+        var day = n.createdAt ? String(n.createdAt).slice(0, 10) : '';
+        if (dateFrom && (!day || day < dateFrom)) return false;
+        if (dateTo && (!day || day > dateTo)) return false;
+        return true;
+      });
       if (!items.length) { list.innerHTML = '<p class="muted">' + (all.length ? 'No matches.' : 'No notifications yet.') + '</p>'; return; }
       var canRoute = typeof window.notificationRoute === 'function';
       list.innerHTML = items.map(function(n) {
@@ -182,9 +188,14 @@ function initTheme() {
       });
     }
     m.panel.querySelector('.notif-search-input').addEventListener('input', function(e) { query = e.target.value.trim().toLowerCase(); render(); });
-    // Calendar button opens the dual-calendar (a layer-3 frost modal on top) when available.
-    m.panel.querySelector('.notif-cal-btn').onclick = function() {
-      if (window.openDualCalendar) window.openDualCalendar();
+    // Calendar button opens the dual From/To calendar (a layer-3 frost modal on top) and filters by range.
+    var calBtn = m.panel.querySelector('.notif-cal-btn');
+    calBtn.onclick = function() {
+      if (!window.openDualCalendar) return;
+      window.openDualCalendar({
+        from: dateFrom, to: dateTo,
+        onApply: function(f, t) { dateFrom = f; dateTo = t; calBtn.classList.toggle('active', !!(f || t)); render(); }
+      });
     };
     var token = null; try { token = localStorage.getItem('shToken'); } catch(e) {}
     fetch('/api/v1/notifications', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })

@@ -77,4 +77,4 @@
 .tilt-empty { padding: 30px; text-align: center; color: var(--muted); }
 
 :root[data-theme="dusk"] .tc-face { box-shadow: 0 22px 44px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08); }
-:root[data-theme="dusk"] .tc-name { background: color-mix(in srgb, var(--card) 88%, transparent); }
+/* name stays bare text in dark too — no background box behind it */

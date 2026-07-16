@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-16 — Dual From/To calendar; tilt-card highlight fix
+
+- **Dual From/To calendar** (`/app/calendar/`): `openDualCalendar({from, to, onApply})` — two months in one glass modal (layer-3 frost over the notification panel), slightly spaced, each with its own nav (‹ › month, ▲▼ year, scroll-to-change-month). The To can't be earlier than the From and vice-versa (out-of-range days disabled). Theme-sensitive; selected day = accent circle (teal light / orange dusk). Wired to the notification calendar button — Apply filters notifications by the picked range.
+- **Fixed dark-theme tilt cards:** removed a leftover dusk rule that gave the hover name-label a background box. The name is now bare tilted text in both themes.
+- Confirmed normal modals use the *identical* glass recipe as the Activity widget (computed styles match).
+
 ## 2026-07-16 — Login mechanism corrected + remaining dashboard modals → glass
 
 - **Login:** the red Google is now only an INDICATOR that verification is bypassed (padlock armed) — it's inert, not a login button. Logging in is done with the **Log in button**, which carries the `lock` flag when the padlock is armed. (Previously the red Google acted as the bypass login button, which was wrong.)

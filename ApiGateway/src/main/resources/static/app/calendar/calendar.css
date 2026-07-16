@@ -1,0 +1,49 @@
+/* ---- Dual From/To calendar ---- */
+.glass-panel.dual-cal-modal { width: min(94vw, 600px); }
+.dual-cal { display: flex; align-items: flex-start; }
+.cal-col { flex: 1; min-width: 0; }
+.cal-gap { width: 24px; flex: none; }               /* the slight spacing between From and To */
+.cal-label {
+  font-size: 11px; font-weight: 700; color: var(--brand);
+  text-transform: uppercase; letter-spacing: .08em; text-align: center; margin-bottom: 10px;
+}
+
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cal-nav {
+  width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: none; color: var(--muted); cursor: pointer; font-size: 17px; line-height: 1;
+  transition: color .15s, border-color .15s;
+}
+.cal-nav:hover { color: var(--brand); border-color: var(--brand); }
+.cal-title-wrap { display: flex; flex-direction: column; align-items: center; line-height: 1; cursor: ns-resize; }
+.cal-chev {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 8px; color: var(--brand); opacity: .8; transition: opacity .15s, transform .15s;
+}
+.cal-chev:hover { opacity: 1; transform: scale(1.2); }
+.cal-title { font-size: 15px; font-weight: 700; color: var(--ink); margin: 2px 0; white-space: nowrap; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-wdh { text-align: center; font-size: 10px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.cal-day {
+  aspect-ratio: 1; display: grid; place-items: center;
+  font-size: 13px; color: var(--ink);
+  border: none; background: none; border-radius: 50%; cursor: pointer;
+  transition: background .12s;
+}
+.cal-day:hover:not(.disabled):not(.muted-day):not(.sel) { background: color-mix(in srgb, var(--brand) 16%, transparent); }
+.cal-day.sel {
+  background: var(--brand); color: var(--brand-ink); font-weight: 700;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.cal-day.muted-day { color: color-mix(in srgb, var(--ink) 28%, transparent); pointer-events: none; }
+.cal-day.disabled { color: color-mix(in srgb, var(--ink) 20%, transparent); pointer-events: none; cursor: default; }
+
+.dual-cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+#calRange { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+@media (max-width: 560px) {
+  .dual-cal { flex-direction: column; }
+  .cal-gap { width: 0; height: 20px; }
+}

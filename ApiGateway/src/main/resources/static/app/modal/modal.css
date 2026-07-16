@@ -77,3 +77,5 @@
 
 /* ---- Student-progress (large glass content) modal ---- */
 .glass-panel.progress-modal { width: min(92vw, 700px); max-height: 85vh; overflow-y: auto; text-align: left; }
+
+.notif-cal-btn.active { color: var(--brand); border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
