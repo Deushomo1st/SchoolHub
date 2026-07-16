@@ -6,12 +6,7 @@
 <title>SchoolHub - bring your school online</title>
 <link rel="stylesheet" href="/css/style.css?v=18">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("shTheme")||"light"}catch(e){}</script>
-<script>
-window.__activity=JSON.parse(sessionStorage.getItem("shActivity")||"[]");
-function _save(){try{sessionStorage.setItem("shActivity",JSON.stringify(window.__activity))}catch(e){}}
-function _ping(a,s){fetch("/api/v1/activity/ping",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:a,size:s,userId:null})}).catch(function(){})}
-document.addEventListener("click",function(e){var el=e.target.closest("button, a, [role=button], input[type=submit]");if(el){var l=el.textContent.trim().slice(0,20)||el.tagName;window.__activity.push({ts:Date.now(),type:"click: "+l,size:5});_save();_ping("click: "+l,5)}},true);
-</script>
+<!-- Activity click tracking lives in /js/app.js (shared by every page) -->
 <style>
 .plan-carousel-wrap{perspective:1000px;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:20px 0 40px;position:relative}
 .plan-stage{position:relative;width:340px;height:480px;transform-style:preserve-3d}
@@ -59,7 +54,7 @@ ul.plan-features-3d li .check{color:var(--ok);margin-right:6px}
 <div class="plan-carousel-wrap"><div class="plan-stage" id="planStage"><p class="muted" style="text-align:center;width:100%">Loading plans…</p></div></div>
 </div>
 
-<script src="/js/app.js?v=6"></script>
+<script src="/js/app.js?v=17"></script>
 <script>
 var msg=document.getElementById("msg"),msg2=document.getElementById("msg2"),step1=document.getElementById("step1"),step2=document.getElementById("step2"),details=null;
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-16 — Activity Monitor fixed (feed was 403 for everyone)
+
+- Root cause: the graph polled `/api/v1/activity/feed` with a raw fetch and no Bearer token, so it got 403 on every account and never showed cross-session activity. Now polls via the authed `api()` helper.
+- Click tracker consolidated into `/js/app.js` (was duplicated inline in login.html + index.html, missing from app.html). Every page now pings, and pings carry the real `userId` when signed in.
+- All pages bumped to app.js?v=17 / dashboards.js?v=17.
+
 ## 2026-07-16 — Padlock backdoor enforced server-side
 
 - Login page: left edge line reveals padlock; padlock arms backdoor (Google turns red) and the red Google click posts form credentials with `lock: true`

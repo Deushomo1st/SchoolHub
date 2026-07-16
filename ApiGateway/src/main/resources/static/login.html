@@ -41,16 +41,7 @@
     #googleBtn.backdoor { color: #ef4444 !important; text-shadow: 0 0 10px rgba(239,68,68,.65) !important; }
     :root[data-theme="dusk"] #googleBtn.backdoor { color: #f87171 !important; text-shadow: 0 0 14px rgba(248,113,113,.7) !important; }
   </style>
-  <script>
-    // Activity tracking — every click pings the server
-    window.__activity = JSON.parse(sessionStorage.getItem('shActivity')||'[]');
-    function _save(){ try{sessionStorage.setItem('shActivity',JSON.stringify(window.__activity))}catch(e){} }
-    function _ping(a,s){ fetch('/api/v1/activity/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a,size:s,userId:null})}).catch(()=>{}) }
-    document.addEventListener('click',function(e){
-      var el=e.target.closest('button, a, [role="button"], input[type="submit"]');
-      if(el){var l=el.textContent.trim().slice(0,20)||el.tagName;window.__activity.push({ts:Date.now(),type:'click: '+l,size:5});_save();_ping('click: '+l,5)}
-    },true);
-  </script>
+  <!-- Activity click tracking lives in /js/app.js (shared by every page) -->
 </head>
 <body class="landing">
   <div class="left-accent" id="edgeLine"></div>
@@ -82,7 +73,7 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=16"></script>
+  <script src="/js/app.js?v=17"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');

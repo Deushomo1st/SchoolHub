@@ -48,3 +48,5 @@ This generated password is for development use only. Your security configuration
 2026-07-15T21:34:04.313+01:00  INFO 42268 --- [SchoolService] [nio-9003-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
 2026-07-15T21:34:04.315+01:00  INFO 42268 --- [SchoolService] [nio-9003-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
 2026-07-15T21:34:04.330+01:00  INFO 42268 --- [SchoolService] [nio-9003-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 15 ms
+
+C:\Users\Deus\Desktop\Springworld\SchoolHub refix\SchoolService>

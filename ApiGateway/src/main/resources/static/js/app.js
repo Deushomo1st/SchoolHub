@@ -162,6 +162,31 @@ function initTheme() {
   });
 })();
 
+// ---- Activity tracking: every click on any page pings the platform feed ----
+(function() {
+  if (window.__activityWired) return;   // pages may still carry an inline copy — never double-fire
+  window.__activityWired = true;
+  window.__activity = window.__activity || JSON.parse(sessionStorage.getItem('shActivity') || '[]');
+  function save() { try { sessionStorage.setItem('shActivity', JSON.stringify(window.__activity)); } catch(e) {} }
+  function ping(action, size) {
+    var u = getUser();
+    fetch('/api/v1/activity/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, size: size, userId: u ? u.id : null })
+    }).catch(function() {});
+  }
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('button, a, [role="button"], input[type="submit"]');
+    if (!el) return;
+    var label = el.textContent.trim().slice(0, 20) || el.tagName;
+    window.__activity.push({ ts: Date.now(), type: 'click: ' + label, size: 5 });
+    if (window.__activity.length > 500) window.__activity = window.__activity.slice(-300);
+    save();
+    ping('click: ' + label, 5);
+  }, true);
+})();
+
 // ---- Bokeh: hero blurs as you scroll past it (depth of field) ----
 (function() {
   var maxBlur = 10, triggerStart = 80, triggerEnd = 400;

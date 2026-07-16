@@ -1141,12 +1141,11 @@ async function renderResourcePoint(container, canApprove) {
   window.addEventListener('resize', resize);
   draw();
 
-  // Poll server activity feed every 2s
+  // Poll server activity feed every 2s — api() adds the Bearer token (feed is 403 without it)
   window.__serverActivity = [];
   setInterval(async () => {
     try {
-      const res = await fetch('/api/v1/activity/feed');
-      if (res.ok) window.__serverActivity = await res.json();
+      window.__serverActivity = await api('/api/v1/activity/feed');
     } catch(e) {}
   }, 2000);
 }
