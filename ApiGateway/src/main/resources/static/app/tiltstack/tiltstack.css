@@ -49,21 +49,18 @@
   font-size: 10px; text-transform: capitalize;
 }
 
-/* Name label floats above the card, hidden until hover */
+/* Name = bare letters (no card) that lean on the same tilt as the face, revealed on hover */
 .tc-name {
-  position: absolute; top: -8px; left: 50%;
-  transform: translate(-50%, 6px);
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 6px 12px; border-radius: 10px;
-  background: color-mix(in srgb, var(--card) 82%, transparent);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--line);
-  font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap;
+  position: absolute; top: -6px; left: 50%;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  transform-origin: center bottom;
+  transform: translate(-50%, 8px) var(--card-tilt-hover, rotateY(14deg) rotateX(3deg));
+  font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap;
+  text-shadow: 0 1px 5px var(--card), 0 1px 3px rgba(0,0,0,.18);
   opacity: 0; pointer-events: none; z-index: 6;
-  box-shadow: 0 8px 20px rgba(2,48,71,.2);
   transition: opacity .25s, transform .25s;
 }
-.tc-name .tc-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+.tc-name .tc-sub { font-size: 11px; font-weight: 500; color: var(--muted); }
 
 /* Hover / focus: the card rises out of the stack, straightens, and reveals its name */
 .tilt-card:hover, .tilt-card:focus-visible { z-index: 5; }
@@ -71,7 +68,10 @@
   transform: var(--card-tilt-hover) translateY(-16px) scale(1.05);
   box-shadow: 0 30px 54px rgba(2,48,71,.36);
 }
-.tilt-card:hover .tc-name, .tilt-card:focus-visible .tc-name { opacity: 1; transform: translate(-50%, -6px); }
+.tilt-card:hover .tc-name, .tilt-card:focus-visible .tc-name {
+  opacity: 1; transform: translate(-50%, -14px) var(--card-tilt-hover, rotateY(14deg) rotateX(3deg));
+}
+:root[data-theme="dusk"] .tc-name { text-shadow: 0 1px 8px rgba(0,0,0,.85); }
 
 /* Highlight (from a clicked search result) */
 .tilt-card.highlight .tc-face {
