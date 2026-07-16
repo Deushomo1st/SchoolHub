@@ -251,6 +251,15 @@ public class LibraryController {
         return ResponseEntity.ok(libraryService.stats());
     }
 
+    // ---- Student library info ----
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Map<String, Object>> myLibraryInfo(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return ResponseEntity.ok(libraryService.getMyLibraryInfo(userId));
+    }
+
     // ---- Helper: verify librarian membership (dedicated LIBRARIAN role OR teacher-librarian in library_staff) ----
 
     private void assertLibrarian(Authentication auth) {

@@ -396,4 +396,19 @@ public class LibraryService {
         s.put("pendingRequests", requestRepo.countByStatus("pending"));
         return s;
     }
+
+    // ---- Student library info ----
+
+    public Map<String, Object> getMyLibraryInfo(Long userId) {
+        LibraryStudent student = studentRepo.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Library student not found"));
+        
+        Map<String, Object> info = new HashMap<>();
+        info.put("libraryCode", student.getLibraryCode());
+        info.put("activeBorrows", recordRepo.countActiveBorrows(student.getId()));
+        info.put("totalFines", recordRepo.sumUnpaidFines(student.getId()));
+        info.put("borrowHistory", recordRepo.findByLibraryStudentIdOrderByBorrowDateDesc(student.getId()));
+        
+        return info;
+    }
 }

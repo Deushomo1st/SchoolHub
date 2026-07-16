@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-16 — Library file upload/download endpoints
+
+- **POST /api/v1/library/books/{id}/upload** — multipart PDF/EPUB upload
+- **GET /api/v1/library/books/{id}/file** — stream file with correct Content-Type
+- Files stored in `uploads/books/{schema}/{bookId}.{ext}`
+- Upload is librarian-only, download requires authentication
+- Validates file extension (PDF/EPUB only)
+- **BookFileController** created with proper authorization checks
+
 ## 2026-07-16 — Admin dashboard restyle (full pass) + staff suspend/activate/remove
 
 - **Admin home is now a bento of live glass widgets** (mirrors the platform home): Students (+staff-awaiting-approval alert), Classes/subjects, Payments awaiting approval, Governance decisions pending, next Calendar event, Account avatar — each a shortcut to its sector. Old "Overview" stat page absorbed; drawer gains Home; island hard-refresh keeps the section.
