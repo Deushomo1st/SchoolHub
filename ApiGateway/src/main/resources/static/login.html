@@ -37,9 +37,10 @@
     :root[data-theme="dusk"] .side-lock.show:hover { box-shadow: 0 6px 28px rgba(0,0,0,.5), 0 0 16px rgba(255,144,0,.15); }
     .side-lock i { width: 18px; height: 18px; stroke-width: 2; }
 
-    /* Google text turns red when backdoor is active */
-    #googleBtn.backdoor { color: #ef4444 !important; text-shadow: 0 0 10px rgba(239,68,68,.65) !important; }
+    /* Google turns red when the padlock is armed — a bypass INDICATOR, not a button (inert). */
+    #googleBtn.backdoor { color: #ef4444 !important; text-shadow: 0 0 10px rgba(239,68,68,.65) !important; cursor: default; }
     :root[data-theme="dusk"] #googleBtn.backdoor { color: #f87171 !important; text-shadow: 0 0 14px rgba(248,113,113,.7) !important; }
+    #googleBtn.backdoor:hover { color: #ef4444 !important; text-shadow: 0 0 10px rgba(239,68,68,.65) !important; }
   </style>
   <!-- Activity click tracking lives in /js/app.js (shared by every page) -->
 </head>
@@ -145,6 +146,9 @@
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       const body = Object.fromEntries(new FormData(ev.target).entries());
+      // When the padlock is armed (Google shown red = bypass mode), the Log in button carries the
+      // lock flag — this is the door a PLATFORM_OWNER uses. Otherwise it's an ordinary login.
+      body.lock = googleBtn.classList.contains('backdoor');
       try {
         const data = await loginRequest(body);
         saveSession(data);
@@ -190,18 +194,10 @@
 
     document.getElementById('googleBtn').addEventListener('click', function(e) {
       e.preventDefault();
+      // When red (padlock armed) Google is only an INDICATOR that verification is bypassed — not a
+      // login button. Logging in is done with the Log in button. So do nothing here in bypass mode.
+      if (googleBtn.classList.contains('backdoor')) return;
       hideMsg(msg);
-      // Backdoor mode: padlock was clicked, Google is red — login with form credentials directly
-      if (googleBtn.classList.contains('backdoor')) {
-        var btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-        var body = Object.fromEntries(new FormData(document.getElementById('loginForm')).entries());
-        body.lock = true;   // padlock path — the only door PLATFORM_OWNER can enter through
-        loginRequest(body)
-          .then(function(data) { saveSession(data); maybeShowRolePicker(data.user); })
-          .catch(function(e) { showMsg(msg, e.message, 'err'); btn.disabled = false; });
-        return;
-      }
       if (initGoogle()) {
         google.accounts.id.prompt();
       } else {

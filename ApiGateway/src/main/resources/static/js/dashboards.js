@@ -11,9 +11,9 @@ function roleLabel(r) { return r ? r.charAt(0) + r.slice(1).toLowerCase().replac
 function naira(n) { return '₦' + Number(n || 0).toLocaleString(); }
 function feeBadge(status) { return status === 'paid' ? 'holiday' : status === 'partial' ? 'announcement' : status === 'cancelled' ? 'event' : 'exam'; }
 async function payInvoice(id, label) {
-  if (!confirm('Pay ' + (label || 'this invoice') + ' now? (simulated Paystack)')) return;
-  try { const r = await api('/api/v1/invoices/' + id + '/pay', { method: 'POST' }); alert(r.message + '\nReference: ' + r.reference); location.reload(); }
-  catch (e) { alert(e.message); }
+  if (!(await glassConfirm('Pay ' + (label || 'this invoice') + ' now? (simulated Paystack)', { title: 'Pay invoice', okText: 'Pay now' }))) return;
+  try { const r = await api('/api/v1/invoices/' + id + '/pay', { method: 'POST' }); await glassAlert(r.message + '\nReference: ' + r.reference, { title: 'Payment successful' }); location.reload(); }
+  catch (e) { await glassAlert(e.message, { title: 'Payment failed' }); }
 }
 
 // ---------------- Shared drawer navigation ----------------
@@ -748,7 +748,7 @@ async function adminPeople(pane) {
   }
   document.getElementById('scgen').onclick = async () => {
     const m = document.getElementById('scm'); hideMsg(m);
-    if (!confirm('Generate a new staff code? Any code you shared before will stop working.')) return;
+    if (!(await glassConfirm('Generate a new staff code? Any code you shared before will stop working.', { title: 'New staff code', okText: 'Generate' }))) return;
     try { await api('/api/v1/tenants/staff-code', { method: 'POST' }); await loadStaffCode();
       showMsg(m, 'New code generated.', 'ok'); } catch (e) { showMsg(m, e.message, 'err'); }
   };
@@ -766,7 +766,7 @@ async function adminPeople(pane) {
       ok.onclick = async () => { hideMsg(m); try { await api('/api/v1/tenants/pending-staff/' + p.id + '/approve', { method: 'POST' });
         showMsg(m, 'Approved ' + p.name + '.', 'ok'); loadPendingStaff(); } catch (e) { showMsg(m, e.message, 'err'); } };
       const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.marginLeft = '6px';
-      no.onclick = async () => { if (!confirm('Reject ' + p.name + "'s sign-up?")) return; hideMsg(m);
+      no.onclick = async () => { if (!(await glassConfirm('Reject ' + p.name + "'s sign-up?", { title: 'Reject staff', danger: true, okText: 'Reject' }))) return; hideMsg(m);
         try { await api('/api/v1/tenants/pending-staff/' + p.id + '/reject', { method: 'POST' });
           showMsg(m, 'Rejected ' + p.name + '.', 'ok'); loadPendingStaff(); } catch (e) { showMsg(m, e.message, 'err'); } };
       tr.lastElementChild.append(ok, no);
@@ -1237,7 +1237,7 @@ async function renderResourcePoint(container, canApprove) {
         const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Approve';
         ok.onclick = async () => { await api('/api/v1/payments/items/' + it.batchId + '/approve', { method: 'POST' }); loadItems(); };
         const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.marginLeft = '6px';
-        no.onclick = async () => { if (!confirm('Reject "' + it.title + '"? It will be discarded.')) return;
+        no.onclick = async () => { if (!(await glassConfirm('Reject "' + it.title + '"? It will be discarded.', { title: 'Reject item', danger: true, okText: 'Reject' }))) return;
           await api('/api/v1/payments/items/' + it.batchId + '/reject', { method: 'POST' }); loadItems(); };
         tr.lastElementChild.append(ok, no);
       } else {
@@ -1430,17 +1430,16 @@ function wireForm(formId, msgId, url, transform, after) {
 
 // ---- Student progress modal ----
 async function openStudentProgress(studentId) {
-  const modal = document.createElement('div');
-  modal.className = 'confirm-modal';
-  modal.innerHTML = `<div class="confirm-glass" style="max-width:700px;width:90vw;max-height:85vh;overflow-y:auto;text-align:left">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h2 style="margin:0">Student progress</h2>
-      <button class="btn secondary" onclick="this.closest('.confirm-modal').remove()" style="padding:4px 12px">✕</button>
-    </div>
-    <div id="spContent"><p class="muted">Loading…</p></div>
-  </div>`;
-  document.body.appendChild(modal);
-  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  const ctrl = openGlassModal({
+    frost: true,                    // large content panel — frost reads better behind it
+    className: 'progress-modal',
+    html: `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="margin:0">Student progress</h2>
+        <button class="btn ghost" data-x="close" style="padding:4px 12px">✕</button>
+      </div>
+      <div id="spContent"><p class="muted">Loading…</p></div>`
+  });
+  ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
 
   try {
     const d = await api('/api/v1/students/' + studentId + '/progress');

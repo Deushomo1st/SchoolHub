@@ -36,8 +36,7 @@
 .avatar-modal-bg {
   position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center;
-  background: rgba(2,24,38,.45);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  background: transparent;              /* layer-1 modal: no page darkening (rule 1) */
 }
 .avatar-modal {
   width: min(92vw, 400px);

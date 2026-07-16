@@ -74,3 +74,6 @@
 .glass-panel.pwd-modal label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .glass-panel.pwd-modal input { width: 100%; }
 .glass-panel.pwd-modal .msg { margin-top: 6px; }
+
+/* ---- Student-progress (large glass content) modal ---- */
+.glass-panel.progress-modal { width: min(92vw, 700px); max-height: 85vh; overflow-y: auto; text-align: left; }

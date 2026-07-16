@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-16 — Login mechanism corrected + remaining dashboard modals → glass
+
+- **Login:** the red Google is now only an INDICATOR that verification is bypassed (padlock armed) — it's inert, not a login button. Logging in is done with the **Log in button**, which carries the `lock` flag when the padlock is armed. (Previously the red Google acted as the bypass login button, which was wrong.)
+- **All remaining dashboard dialogs now use the glass system:** added `glassConfirm()` / `glassAlert()` (glass replacements for native `confirm()`/`alert()`), swapped every native dialog (pay invoice, staff code, reject staff, reject payment item), and migrated the student-progress modal from the old `.confirm-modal` to `openGlassModal`. The avatar upload modal is now a proper layer-1 modal (no page darkening, per rule 1).
+
 ## 2026-07-16 — Glass system as project rules: glass-white (light) / glossy silver (dark)
 
 - Consolidated the glassmorphism into one theme-sensitive recipe (`--glass-*` tokens in style.css): **light = frosted glass-white** (the activity-widget look), **dark = glossy silver** (metallic sheen). Glass modals, the avatar modal, and the activity widget all read from the same tokens — never hardcode glass.
