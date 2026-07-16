@@ -1026,3 +1026,15 @@ section.block { margin-bottom: 28px; }
 .aw-head svg { width: 17px; height: 17px; }
 .aw-head strong { font-weight: 700; color: var(--ink); }
 .mini-activity { flex: 1; width: 100%; min-height: 96px; pointer-events: none; }
+
+/* ---- Show/hide password toggle ---- */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap > input { width: 100%; padding-right: 42px; }
+.pw-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; padding: 6px;
+  color: var(--muted); display: grid; place-items: center; border-radius: 8px;
+  transition: color .15s, background .15s;
+}
+.pw-eye:hover { color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.pw-eye svg { width: 18px; height: 18px; }

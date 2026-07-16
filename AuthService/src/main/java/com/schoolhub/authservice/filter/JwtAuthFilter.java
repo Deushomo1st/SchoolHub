@@ -35,33 +35,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
+        // A bad/expired/revoked token must NOT block the request here — otherwise a stale token
+        // sitting in a client would break public endpoints like /login. We only *set* an
+        // authentication when the token is fully valid; anything else is left unauthenticated and
+        // the authorization rules (anyRequest().authenticated()) reject protected paths as usual.
         String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-        try {
-            Claims claims = jwtUtil.parseToken(authHeader.substring(7));
-            if (!JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Refresh tokens cannot authenticate API calls");
-                return;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                String jti = jwtUtil.getJti(claims);
+                boolean usable = JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))
+                        && (jti == null || !blacklistRepo.existsByTokenJti(jti));
+                if (usable) {
+                    Long userId = jwtUtil.getUserId(claims);
+                    String role = jwtUtil.getRole(claims);
+                    List<SimpleGrantedAuthority> authorities = role == null
+                            ? List.of()
+                            : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(userId, null, authorities));
+                }
+            } catch (JwtException ignored) {
+                // Invalid/expired token: proceed unauthenticated.
             }
-            String jti = jwtUtil.getJti(claims);
-            if (jti != null && blacklistRepo.existsByTokenJti(jti)) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
-                return;
-            }
-            Long userId = jwtUtil.getUserId(claims);
-            String role = jwtUtil.getRole(claims);
-            List<SimpleGrantedAuthority> authorities = role == null
-                    ? List.of()
-                    : List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(userId, null, authorities));
-        } catch (JwtException e) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
-            return;
         }
 
         chain.doFilter(request, response);

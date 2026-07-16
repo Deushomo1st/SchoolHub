@@ -32,26 +32,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        // A bad/expired token must not block the request — public endpoints (signup, activity ping)
+        // still need to work for a client holding a stale token. Only set auth when the token is
+        // valid; otherwise proceed unauthenticated and let the authorization rules reject.
         String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            chain.doFilter(request, response);
-            return;
-        }
-        try {
-            Claims claims = jwtUtil.parseToken(authHeader.substring(7));
-            if (!JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Refresh tokens cannot authenticate API calls");
-                return;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                if (JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))) {
+                    String role = jwtUtil.getRole(claims);
+                    List<SimpleGrantedAuthority> authorities = role == null
+                            ? List.of()
+                            : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(jwtUtil.getUserId(claims), null, authorities));
+                }
+            } catch (JwtException ignored) {
+                // Invalid/expired token: proceed unauthenticated.
             }
-            String role = jwtUtil.getRole(claims);
-            List<SimpleGrantedAuthority> authorities = role == null
-                    ? List.of()
-                    : List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(jwtUtil.getUserId(claims), null, authorities));
-        } catch (JwtException e) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
-            return;
         }
         chain.doFilter(request, response);
     }

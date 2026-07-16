@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Login fix (stale token blocked login), view-password, legible errors
+
+- **Root cause of "can't log in by typing":** `JwtAuthFilter` (all 3 services) *blocked* any request carrying an expired/invalid Bearer token — so a stale session token in the browser made even the public `/login` endpoint fail with an empty-body 403. Fixed: an invalid token is now ignored (proceed unauthenticated) and only a fully valid token sets authentication; the authorization rules still reject protected paths. Public endpoints (login, signup, activity ping) work regardless of a stale token.
+- Frontend: the login page now **clears any stale token on load** and warms the auth chain; `api()` never surfaces a **blank error** (empty-body failures get a clear message); the login retries once on a transient empty-body 403.
+- **View-password toggle** (eye icon) added to every password field — login and the change-password modal (self-contained SVGs, theme-aware).
+- Confirmed end-to-end: without the padlock, superadmin login is rejected with a visible message; with the padlock (red Google) the typed login reaches the dashboard. Lock protocol verified on both back-end and front-end.
+
 ## 2026-07-16 — Spotlight-as-hover, glass activity widget with themed dots
 
 - Selecting a list/search result now **scrolls the card to centre and puts it in the raised hover state** (name revealed) instead of a blue highlight ring. `.spotlight` shares the hover CSS; the coloured `.highlight` ring is gone.

@@ -34,37 +34,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
+        // A bad/expired token must not block the request — public endpoints (e.g. activity ping)
+        // still need to work for a client holding a stale token. Only set auth + tenant binding
+        // when the token is valid; otherwise proceed unauthenticated.
         String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            chain.doFilter(request, response);
-            return;
-        }
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtUtil.parseToken(authHeader.substring(7));
+                if (JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))) {
+                    String role = jwtUtil.getRole(claims);
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                    if (role != null) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                        // A principal is senior school staff with admin-equivalent access.
+                        if ("PRINCIPAL".equals(role)) authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                    }
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(jwtUtil.getUserId(claims), null, authorities));
 
-        try {
-            Claims claims = jwtUtil.parseToken(authHeader.substring(7));
-            if (!JwtUtil.TYPE_ACCESS.equals(jwtUtil.getType(claims))) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Refresh tokens cannot authenticate API calls");
-                return;
+                    TenantContext.setUserId(jwtUtil.getUserId(claims));
+                    TenantContext.setTenantId(jwtUtil.getTenantId(claims));
+                    String tenantSchema = jwtUtil.getTenantSchema(claims);
+                    if (tenantSchema != null) {
+                        TenantContext.set(tenantSchema);
+                    }
+                }
+            } catch (JwtException ignored) {
+                // Invalid/expired token: proceed unauthenticated.
             }
-            String role = jwtUtil.getRole(claims);
-            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-            if (role != null) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
-                // A principal is senior school staff with admin-equivalent access.
-                if ("PRINCIPAL".equals(role)) authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
-            }
-            SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(jwtUtil.getUserId(claims), null, authorities));
-
-            TenantContext.setUserId(jwtUtil.getUserId(claims));
-            TenantContext.setTenantId(jwtUtil.getTenantId(claims));
-            String tenantSchema = jwtUtil.getTenantSchema(claims);
-            if (tenantSchema != null) {
-                TenantContext.set(tenantSchema);
-            }
-        } catch (JwtException e) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
-            return;
         }
 
         try {

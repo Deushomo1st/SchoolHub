@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SchoolHub - log in</title>
-  <link rel="stylesheet" href="/css/style.css?v=18">
+  <link rel="stylesheet" href="/css/style.css?v=41">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
   <style>
     #googleBtn { transition: color .2s, text-shadow .2s; }
@@ -73,7 +73,7 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=17"></script>
+  <script src="/js/app.js?v=20"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');
@@ -128,6 +128,16 @@
       } catch (e) { emailHint.style.display = 'none'; }
     });
 
+    // Login, retrying once if the first attempt hit a cold empty-body 403 (filter-chain warmup).
+    async function loginRequest(body) {
+      try {
+        return await api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) });
+      } catch (e) {
+        if (e.emptyBody) return await api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) });
+        throw e;
+      }
+    }
+
     // ---- Login form ----
     document.getElementById('loginForm').addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -136,7 +146,7 @@
       btn.disabled = true;
       const body = Object.fromEntries(new FormData(ev.target).entries());
       try {
-        const data = await api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) });
+        const data = await loginRequest(body);
         saveSession(data);
         maybeShowRolePicker(data.user);
       } catch (e) {
@@ -187,7 +197,7 @@
         btn.disabled = true;
         var body = Object.fromEntries(new FormData(document.getElementById('loginForm')).entries());
         body.lock = true;   // padlock path — the only door PLATFORM_OWNER can enter through
-        api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) })
+        loginRequest(body)
           .then(function(data) { saveSession(data); maybeShowRolePicker(data.user); })
           .catch(function(e) { showMsg(msg, e.message, 'err'); btn.disabled = false; });
         return;

@@ -27,7 +27,13 @@ async function api(path, opts) {
     var text = await res.text();
     var msg = text;
     try { var j = JSON.parse(text); msg = j.message || j.error || text; } catch(e) {}
-    throw new Error(msg || res.statusText);
+    // Never surface a blank error: an empty body (e.g. a transient 403) still needs a reason.
+    if (!msg || !msg.trim()) {
+      msg = res.status === 403 ? 'The server rejected the request — please try again in a moment.'
+          : ('Something went wrong (' + res.status + '). Please try again.');
+    }
+    var err = new Error(msg); err.status = res.status; err.emptyBody = !text || !text.trim();
+    throw err;
   }
   if (res.status === 204) return null;
   return await res.json();
@@ -58,6 +64,31 @@ function logout() {
 
 // ---- Escaper ----
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ---- Show/hide toggle on every password field (self-contained SVGs, no icon lib needed) ----
+var _EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+var _EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 5.1A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>';
+function addPasswordToggles(root) {
+  (root || document).querySelectorAll('input[type="password"]').forEach(function (inp) {
+    if (inp.dataset.pwToggle) return;
+    inp.dataset.pwToggle = '1';
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'pw-eye'; btn.tabIndex = -1;
+    btn.setAttribute('aria-label', 'Show password');
+    btn.innerHTML = _EYE;
+    wrap.appendChild(btn);
+    btn.addEventListener('click', function () {
+      var reveal = inp.type === 'password';
+      inp.type = reveal ? 'text' : 'password';
+      btn.innerHTML = reveal ? _EYE_OFF : _EYE;
+      btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+    });
+  });
+}
 
 // ---- Theme (light / dusk) ----
 function currentTheme() { return document.documentElement.dataset.theme === 'dusk' ? 'dusk' : 'light'; }
@@ -242,3 +273,14 @@ function initTheme() {
 })();
 
 initTheme();
+
+// Add the show/hide eye to every password field on the page (login, signup, change-password modal…).
+addPasswordToggles(document);
+document.addEventListener('DOMContentLoaded', function () { addPasswordToggles(document); });
+
+// On the login page: drop any stale session token (so it can't be attached to — and rejected on —
+// the login request) and warm the auth filter chain so the first real login isn't a cold hit.
+if (/login\.html$/.test(location.pathname)) {
+  try { localStorage.removeItem('shToken'); localStorage.removeItem('shUser'); localStorage.removeItem('shRefresh'); } catch (e) {}
+  fetch('/api/v1/auth/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'warmup@warmup.local' }) }).catch(function () {});
+}
