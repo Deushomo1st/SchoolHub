@@ -35,8 +35,11 @@ async function api(path, opts) {
     var err = new Error(msg); err.status = res.status; err.emptyBody = !text || !text.trim();
     throw err;
   }
+  // Tolerate empty success bodies (e.g. actions that return 200/204 with no JSON) — parsing an
+  // empty string as JSON throws "Unexpected end of JSON input".
   if (res.status === 204) return null;
-  return await res.json();
+  var body = await res.text();
+  return body ? JSON.parse(body) : null;
 }
 
 // ---- Utility functions used by login + all dashboards ----
