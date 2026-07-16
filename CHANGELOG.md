@@ -1,15 +1,32 @@
 # Changelog
 
-## 2026-07-16 — Fine payment endpoint + library notifications
+## 2026-07-16 — Java 25 build fix: .mvn/jvm.config + JAR launch
+
+- **Root cause:** Java 25 module system broke the Maven wrapper (`mvnw.cmd`). `--enable-native-access=ALL-UNNAMED` is now required.
+- **Fix:** Created `.mvn/jvm.config` in all 4 services with the flag. Maven reads this automatically — zero wrapper changes needed, survives wrapper upgrades.
+- **JAR launch replaces `spring-boot:run`:** `SchoolHub-Manager.ps1` now builds with `mvnw package` (produces executable JARs) and launches via `java -jar target/<Service>.jar`. Single process per service, no Maven runtime dependency, faster startup.
+- **Manager updated:** `Compile-One`/`Compile-All` use `package` instead of `compile`. `Launch-One`/`Launch-All` use `java -jar` with glob-based JAR discovery. User-facing messaging updated (Build/Build → JARs built).
+- **Housekeeping:** Fixed `active-db.properties` comment (referenced deleted `Manage-Database.ps1`). Updated `CLAUDE.md` and `schoolhub-backend` skill with new build/launch process.
+- **Verified:** All 4 services package cleanly on Java 25. Live smoke test confirmed Gateway → Auth → Tenant → School all operational.
+
+## 2026-07-16 — Library notifications + scheduled overdue detection
+
+- **Notifications wired into library events:**
+  - Borrow request created → all active librarians notified (`library_request`)
+  - Borrow approved → student notified with due date (`library_approved`)
+  - Borrow rejected → student notified with reason (`library_rejected`)
+  - Flag escalated → all admins notified (`library_flag_escalated`)
+- **Scheduled task: `detectOverdueBooks()`** runs daily at midnight (cron: `0 0 0 * * *`)
+  - Scans all active borrows, marks overdue if past due date
+  - Calculates fine and saves to record
+  - Notifies students with book title and fine amount (`library_overdue`)
+- Injected `NotificationService` and `AppUserRepository` into `LibraryService`
+
+## 2026-07-16 — Fine payment endpoint
 
 - **POST /api/v1/library/borrow-records/{recordId}/pay-fine** — mark fine as paid
 - Authorization: student (own fine only) or librarian/admin
 - Prevents double-pay, zero-fine payment, cross-student payment
-- Notifications wired into library events:
-  - Borrow request created → librarian notified
-  - Borrow approved/rejected → student notified
-  - Flag escalated → admin notified
-- Scheduled job for overdue detection (runs daily at midnight)
 
 ## 2026-07-16 — Student library info endpoint
 

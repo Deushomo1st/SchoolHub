@@ -11,6 +11,8 @@
 - Login: DeusSA@gmail.com / admin123 (Platform Owner)
 - Services: Auth(9001), Tenant(9002), School(9003), Gateway(9000)
 - Static files: copy `src/main/resources/static/` → `target/classes/static/` to deploy UI changes (no restart needed for static files)
+- Build: each service has `.mvn/jvm.config` with `--enable-native-access=ALL-UNNAMED` so `mvnw.cmd` works on Java 25. Use `mvnw package -DskipTests` (produces JAR). Launch via `java -jar target/*.jar`, not `spring-boot:run`.
+- Launcher: double-click `SchoolHub-Manager.cmd` or run `setup/SchoolHub-Manager.ps1`
 
 ## Conventions
 - RoleCode for routing, not display name (PLATFORM_OWNER → "Platform Owner")

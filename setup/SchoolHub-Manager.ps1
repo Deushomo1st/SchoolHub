@@ -226,21 +226,27 @@ function Invoke-PreFlight($db) {
 
 # ---- Service launcher (internal) ------------------------------------------
 function Compile-All {
-    Write-Host "  Compiling..." -ForegroundColor Cyan
+    Write-Host "  Building (package)..." -ForegroundColor Cyan
     foreach ($s in $Services) {
         $mvnw = Join-Path $ProjectRoot "$($s.Name)\mvnw.cmd"
-        & $mvnw -f (Join-Path $ProjectRoot "$($s.Name)\pom.xml") -DskipTests -q compile
-        if ($LASTEXITCODE -ne 0) { Write-Host "  FAILED: $($s.Name) did not compile." -ForegroundColor Red; return $false }
+        & $mvnw -f (Join-Path $ProjectRoot "$($s.Name)\pom.xml") -DskipTests -q package
+        if ($LASTEXITCODE -ne 0) { Write-Host "  FAILED: $($s.Name) did not build." -ForegroundColor Red; return $false }
     }
-    Write-Host "  Compiled." -ForegroundColor Green; return $true
+    Write-Host "  All JARs built." -ForegroundColor Green; return $true
 }
 function Launch-All {
     # Write PIDs placeholder
     "# SchoolHub PIDs — last launch $(Get-Date -Format o)" | Set-Content -LiteralPath $PidsFile -NoNewline
     foreach ($s in $Services) {
         $dir = Join-Path $ProjectRoot $s.Name
-        $mvnw = Join-Path $dir 'mvnw.cmd'
-        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& `"$mvnw`" -DskipTests spring-boot:run"
+        $jar = Get-ChildItem "$dir\target\*.jar" -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -notmatch '(sources|javadoc|original)\.jar$' } |
+               Select-Object -First 1
+        if (-not $jar) {
+            Write-Host "  $($s.Name): no JAR found — run build first" -ForegroundColor Red
+            continue
+        }
+        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& java -jar `"$($jar.FullName)`""
         $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         Write-Host "  $($s.Name) launched (PID $($proc.Id), port $($s.Port))" -ForegroundColor Green
         Start-Sleep -Milliseconds 400
@@ -297,15 +303,22 @@ function Seed-DemoSchool {
 
 function Launch-One($svc) {
     $dir = Join-Path $ProjectRoot $svc.Name
-    $mvnw = Join-Path $dir 'mvnw.cmd'
-    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& `"$mvnw`" -DskipTests spring-boot:run"
+    $jar = Get-ChildItem "$dir\target\*.jar" -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -notmatch '(sources|javadoc|original)\.jar$' } |
+           Select-Object -First 1
+    if (-not $jar) {
+        Write-Host "    $($svc.Name): no JAR found — run compile first" -ForegroundColor Red
+        return
+    }
+    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& java -jar `"$($jar.FullName)`""
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
     Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
 }
 function Compile-One($svc) {
     $mvnw = Join-Path $ProjectRoot "$($svc.Name)\mvnw.cmd"
-    & $mvnw -f (Join-Path $ProjectRoot "$($svc.Name)\pom.xml") -DskipTests -q compile
+    # package (not just compile) — produces the executable JAR for java -jar launch
+    & $mvnw -f (Join-Path $ProjectRoot "$($svc.Name)\pom.xml") -DskipTests -q package
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -375,19 +388,19 @@ function Action-StartServices {
         }
     }
 
-    # Compile
+    # Build
     $toCompile = @()
     if ($needsStart.Count) { $toCompile += $needsStart }
     if ($needsRestart.Count) { $toCompile += $needsRestart }
     $toCompile = @($toCompile | Sort-Object Name -Unique)
     if ($toCompile.Count) {
-        $skip = Read-Host "  Compile before launch? (y/n, default y)"
+        $skip = Read-Host "  Build (package) before launch? (y/n, default y)"
         if ($skip -ne 'n') {
             foreach ($s in $toCompile) {
-                Write-Host "  Compiling $($s.Name)..."
-                if (-not (Compile-One $s)) { Write-Host "  FAILED: $($s.Name) did not compile." -ForegroundColor Red; Press-Enter; return }
+                Write-Host "  Building $($s.Name)..."
+                if (-not (Compile-One $s)) { Write-Host "  FAILED: $($s.Name) did not build." -ForegroundColor Red; Press-Enter; return }
             }
-            Write-Host "  Compiled." -ForegroundColor Green
+            Write-Host "  All JARs built." -ForegroundColor Green
         }
     }
 
@@ -874,7 +887,7 @@ VALUES ('$eEsc', crypt('$pEsc', gen_salt('bf', 10)), '$first', '$last',
         if (Wait-Url "$GatewayUrl/health/auth" 10) { Seed-DemoSchool }
         else { Write-Host "  Services not running — seed skipped. Run option 1 first, then seed via option 1's prompt." -ForegroundColor Yellow }
     }
-    if ((Read-Host "  Compile & launch now? (y/n)") -eq 'y') {
+    if ((Read-Host "  Build & launch now? (y/n)") -eq 'y') {
         if (Invoke-PreFlight $db) {
             if (Compile-All) { Launch-All }
         }
