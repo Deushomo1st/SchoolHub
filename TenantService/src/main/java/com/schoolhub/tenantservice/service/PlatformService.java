@@ -124,6 +124,20 @@ public class PlatformService {
         return out;
     }
 
+    /** Remove a moderator account (owner only). Cascades to role_assignment/notification via FK. */
+    @Transactional
+    public void deleteModerator(Long id, Long actorId) {
+        AppUser u = userRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Moderator not found"));
+        Long modRoleId = roleRepo.findAll().stream()
+                .filter(r -> "MODERATOR".equals(r.getName()))
+                .map(Role::getId).findFirst().orElse(null);
+        if (modRoleId == null || !modRoleId.equals(u.getRoleId())) {
+            throw new IllegalArgumentException("That account is not a moderator");
+        }
+        userRepo.delete(u);
+    }
+
     private static String categoryOf(String role) {
         return switch (role) {
             case "PLATFORM_OWNER", "MODERATOR" -> "Platform team";

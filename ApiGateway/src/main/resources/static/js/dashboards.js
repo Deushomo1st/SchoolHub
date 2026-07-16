@@ -357,7 +357,10 @@ async function platformOverview(pane) {
 
 // ---- Moderators tab: tilt-stack of moderator cards + schools-style search/filter ----
 async function platformModerators(pane) {
+  var isOwner = (getUser() || {}).roleCode === 'PLATFORM_OWNER';
   pane.innerHTML = `
+    <div id="modMsg" class="msg"></div>
+    ${isOwner ? '<div style="margin-bottom:12px"><button class="btn" id="modInvite"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Invite moderator</button></div>' : ''}
     <div class="tilt-host" id="modStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
       <button class="act-scale-btn active" data-f="all">All</button>
@@ -366,13 +369,15 @@ async function platformModerators(pane) {
       <input id="modSearch" class="list-search" placeholder="Search moderators…" style="flex:1;min-width:160px">
     </div>
     <div class="card"><table>
-      <thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead>
-      <tbody id="modRows"><tr><td colspan="3" class="muted">Loading…</td></tr></tbody>
+      <thead><tr><th>Name</th><th>Email</th><th>Status</th>${isOwner ? '<th></th>' : ''}</tr></thead>
+      <tbody id="modRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
     </table></div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
 
   var mods = [];
   var filter = 'all', query = '';
   var stackHost = document.getElementById('modStack');
+  var msg = document.getElementById('modMsg');
 
   function statusBadge(s) { return s === 'active' ? 'holiday' : s === 'suspended' ? 'event' : 'exam'; }
 
@@ -395,15 +400,56 @@ async function platformModerators(pane) {
   function renderRows() {
     var list = visible();
     var tbody = document.getElementById('modRows');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="3" class="muted">No moderators found.</td></tr>'; return; }
+    var cols = isOwner ? 4 : 3;
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="' + cols + '" class="muted">No moderators found.</td></tr>'; return; }
     tbody.innerHTML = list.map(function (m) {
       return '<tr data-id="' + m.id + '" style="cursor:pointer">'
         + '<td><strong>' + esc(m.name) + '</strong></td>'
         + '<td>' + esc(m.email) + '</td>'
-        + '<td><span class="badge ' + statusBadge(m.status) + '">' + esc(m.status) + '</span></td></tr>';
+        + '<td><span class="badge ' + statusBadge(m.status) + '">' + esc(m.status) + '</span></td>'
+        + (isOwner ? '<td class="right"><button class="btn ghost danger-text" data-del="' + m.id + '" style="padding:3px 10px;font-size:11px">Remove</button></td>' : '')
+        + '</tr>';
     }).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(function (tr) {
-      tr.onclick = function () { highlightTiltCard(stackHost, tr.dataset.id); };
+      tr.onclick = function (ev) { if (ev.target.closest('button')) return; highlightTiltCard(stackHost, tr.dataset.id); };
+    });
+    tbody.querySelectorAll('[data-del]').forEach(function (b) {
+      b.onclick = async function () {
+        var m = mods.find(function (x) { return String(x.id) === b.dataset.del; });
+        if (!(await glassConfirm('Remove ' + m.name + ' from the platform? Their moderator account is deleted.', { title: 'Remove moderator', danger: true, okText: 'Remove' }))) return;
+        try { await api('/api/v1/tenants/moderators/' + m.id, { method: 'DELETE' }); showMsg(msg, m.name + ' removed.', 'ok'); await load(); }
+        catch (e) { showMsg(msg, e.message, 'err'); }
+      };
+    });
+  }
+
+  function invite() {
+    var ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>Invite moderator</h2>
+        <p class="subtle">Creates a platform moderator with a temporary password you share with them.</p>
+        <div id="miMsg" class="msg"></div>
+        <form id="miForm">
+          <label>First name</label><input name="firstName" required>
+          <label>Last name</label><input name="lastName" required>
+          <label>Email</label><input name="email" type="email" required>
+          <label>Temporary password (min 8)</label><input name="password" type="password" minlength="8" required>
+          <div class="glass-actions" style="margin-top:18px">
+            <button class="btn ghost" type="button" data-x="cancel">Cancel</button>
+            <button class="btn" type="submit">Send invite</button>
+          </div>
+        </form>`
+    });
+    if (typeof addPasswordToggles === 'function') addPasswordToggles(ctrl.panel);
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('#miForm').addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      var m = ctrl.panel.querySelector('#miMsg'); hideMsg(m);
+      var b = Object.fromEntries(new FormData(ev.target));
+      try {
+        await api('/api/v1/tenants/moderators', { method: 'POST', body: JSON.stringify(b) });
+        ctrl.close(); showMsg(msg, 'Moderator invited. Share the temporary password with them.', 'ok'); await load();
+      } catch (e) { showMsg(m, e.message, 'err'); }
     });
   }
   function highlightRow(id) {
@@ -411,6 +457,11 @@ async function platformModerators(pane) {
     if (tr) { tr.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)'; setTimeout(function () { tr.style.background = ''; }, 1200); }
   }
   function refresh() { renderStack(); renderRows(); }
+
+  async function load() {
+    try { mods = await api('/api/v1/tenants/moderators'); refresh(); }
+    catch (e) { stackHost.innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; }
+  }
 
   pane.querySelectorAll('[data-f]').forEach(function (b) {
     b.onclick = function () {
@@ -421,10 +472,9 @@ async function platformModerators(pane) {
   document.getElementById('modSearch').addEventListener('input', function (ev) {
     query = ev.target.value.trim().toLowerCase(); refresh();
   });
+  if (isOwner) document.getElementById('modInvite').onclick = invite;
 
-  try { mods = await api('/api/v1/tenants/moderators'); }
-  catch (e) { stackHost.innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; return; }
-  refresh();
+  await load();
 }
 
 // ---- Schools tab ----

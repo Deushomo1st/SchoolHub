@@ -78,6 +78,13 @@ public class PlatformController {
         return ResponseEntity.status(HttpStatus.CREATED).body(platform.createModerator(req, (Long) auth.getPrincipal()));
     }
 
+    @DeleteMapping("/moderators/{id}")
+    @PreAuthorize("hasRole('PLATFORM_OWNER')")
+    public ResponseEntity<?> deleteModerator(@PathVariable Long id, Authentication auth) {
+        platform.deleteModerator(id, (Long) auth.getPrincipal());
+        return ResponseEntity.ok().build();
+    }
+
     // ---- Pricing deck (owner only) ----
     @PostMapping("/plans")
     @PreAuthorize("hasRole('PLATFORM_OWNER')")
