@@ -10,5 +10,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     boolean existsByUsernameIgnoreCase(String username);
     long countByTenantId(Long tenantId);
     List<AppUser> findByTenantIdAndAccountStatusOrderByCreatedAtDesc(Long tenantId, String accountStatus);
+    List<AppUser> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
     List<AppUser> findByRoleIdOrderByCreatedAtDesc(Long roleId);
 }

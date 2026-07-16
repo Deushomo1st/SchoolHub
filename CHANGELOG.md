@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-16 — Admin dashboard restyle (full pass) + staff suspend/activate/remove
+
+- **Admin home is now a bento of live glass widgets** (mirrors the platform home): Students (+staff-awaiting-approval alert), Classes/subjects, Payments awaiting approval, Governance decisions pending, next Calendar event, Account avatar — each a shortcut to its sector. Old "Overview" stat page absorbed; drawer gains Home; island hard-refresh keeps the section.
+- **People rebuilt:** Staff get a tilt-stack + filter/search + scrollable list with **Suspend / Activate / Remove** per row (new TenantService endpoints `GET/POST/DELETE /api/v1/tenants/staff…`, ADMIN/PRINCIPAL, tenant-scoped, self-protected; suspended staff can't sign in). Students get a tilt-stack + search too. Pending staff is an amber card shown only when non-empty. Every add-form (staff, teacher, student, guardian, reset-password, staff-code) is now a **glass modal** launched from the list footer (new `glassForm()` factory; staff code got its own glass modal with rotate).
+- **Academics restyled:** subjects / classes / assignments are scrollable list-cards with glass modal Add/Assign forms.
+- **Payments (Resource point) restyled** for both admin and bursar: post-item form moved into a glass modal ("Post an item" in the list footer), drafts-awaiting-approval and live items are list-cards.
+- **Governance restyled:** all three tables are scrollable list-cards; intro card dropped (hero carries the section name now).
+- Shared `widgetTileHTML()` extracted (platform + admin bento); unused `goToSection` removed; `.lc-title`/`.pe-sub` CSS helpers; style.css v47, dashboards.js v32.
+
 ## 2026-07-16 — Scrollable list pattern + sleek scrollbar; moderator suspend/activate
 
 - **Reusable scrollable-list pattern:** `.list-card` (list scrolls internally via `.list-scroll .sleek-scroll`, sticky table header, pinned `.list-foot`). The **Invite moderator** button moved to the bottom footer under the scrollable list so it's never pushed off-page. Applied to Moderators + Schools tables.

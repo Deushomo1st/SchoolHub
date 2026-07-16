@@ -136,6 +136,71 @@ public class StaffOnboardingService {
         audit.record(tenantId, callerUserId, "STAFF_REJECTED", email);
     }
 
+    // ---- Admin: manage active staff (suspend / re-activate / remove) ----
+
+    private static final Set<String> STAFF_ROLES = Set.of("ADMIN", "PRINCIPAL", "BURSAR", "TEACHER");
+
+    /** Every staff login of the caller's school (pending ones live in the pending list instead). */
+    public List<Map<String, Object>> listStaff(Long callerUserId) {
+        Tenant t = callerTenant(callerUserId);
+        Map<Long, String> roleNames = roleRepo.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Role::getId, Role::getName));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (AppUser u : userRepo.findByTenantIdOrderByCreatedAtDesc(t.getId())) {
+            String role = roleNames.getOrDefault(u.getRoleId(), "?");
+            if (!STAFF_ROLES.contains(role) || "pending".equals(u.getAccountStatus())) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", u.getId());
+            row.put("name", u.getFirstName() + " " + u.getLastName());
+            row.put("email", u.getEmail());
+            row.put("username", u.getUsername());
+            row.put("role", role);
+            row.put("status", u.getAccountStatus());
+            row.put("avatar", u.getAvatar());
+            row.put("self", u.getId().equals(callerUserId));
+            out.add(row);
+        }
+        return out;
+    }
+
+    /** Suspend / re-activate a staff login (account_status); a suspended member can't sign in. */
+    @Transactional
+    public void setStaffStatus(Long callerUserId, Long staffUserId, String status) {
+        AppUser staff = staffInCallerSchool(callerUserId, staffUserId);
+        staff.setAccountStatus(status);
+        userRepo.save(staff);
+        audit.record(staff.getTenantId(), callerUserId,
+                "suspended".equals(status) ? "STAFF_SUSPENDED" : "STAFF_ACTIVATED", staff.getEmail());
+    }
+
+    /** Remove a staff login. Cascades role_assignment/notification via FK (moderator-delete pattern). */
+    @Transactional
+    public void deleteStaff(Long callerUserId, Long staffUserId) {
+        AppUser staff = staffInCallerSchool(callerUserId, staffUserId);
+        Long tenantId = staff.getTenantId();
+        String email = staff.getEmail();
+        userRepo.delete(staff);
+        audit.record(tenantId, callerUserId, "STAFF_REMOVED", email);
+    }
+
+    /** Loads a staff member, asserts same school + staff role + not the caller themself. */
+    private AppUser staffInCallerSchool(Long callerUserId, Long staffUserId) {
+        Tenant t = callerTenant(callerUserId);
+        AppUser staff = userRepo.findById(staffUserId)
+                .orElseThrow(() -> new EntityNotFoundException("No such staff member"));
+        if (!t.getId().equals(staff.getTenantId())) {
+            throw new AccessDeniedException("That staff member is not in your school");
+        }
+        String role = roleRepo.findById(staff.getRoleId()).map(Role::getName).orElse("?");
+        if (!STAFF_ROLES.contains(role)) {
+            throw new IllegalArgumentException("That account is not a staff member");
+        }
+        if (staff.getId().equals(callerUserId)) {
+            throw new IllegalArgumentException("You cannot suspend or remove your own account");
+        }
+        return staff;
+    }
+
     // ---- Helpers ----
 
     /** The school of the calling admin/principal; rejects platform users (no tenant). */

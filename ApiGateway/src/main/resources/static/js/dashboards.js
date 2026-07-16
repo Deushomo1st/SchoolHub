@@ -247,20 +247,7 @@ async function platformHome(pane, me) {
         <canvas class="mini-activity"></canvas>
       </button>`;
     }
-    const w = W[t.id] || { sub: t.desc || '' };
-    let body;
-    if (w.avatar) {
-      body = `<div class="wt-body">${avatarThumb(me)}</div>`;
-    } else if (w.num != null) {
-      body = `<div class="wt-body"><span class="wt-num">${w.num}</span><span class="wt-unit">${esc(w.unit)}</span></div>`;
-    } else {
-      body = `<div class="wt-body wt-body-icon"><i data-lucide="${t.icon}"></i></div>`;
-    }
-    return `<button class="bento-tile widget-tile" data-go="${t.id}">
-      <div class="wt-head"><span class="bt-icon"><i data-lucide="${t.icon}"></i></span><span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span></div>
-      ${body}
-      <div class="wt-foot"><strong>${esc(t.label)}</strong><span class="wt-sub">${esc(w.sub)}</span></div>
-    </button>`;
+    return widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me);
   }
 
   pane.innerHTML = `<div class="bento">` + tiles.map(tileHTML).join('') + `</div>`;
@@ -269,6 +256,23 @@ async function platformHome(pane, me) {
 
   const cv = pane.querySelector('.activity-widget .mini-activity');
   if (cv) startMiniActivity(cv);
+}
+
+// One live glass widget tile (shared by the platform and admin bento homes).
+function widgetTileHTML(t, w, me) {
+  let body;
+  if (w.avatar) {
+    body = `<div class="wt-body">${avatarThumb(me)}</div>`;
+  } else if (w.num != null) {
+    body = `<div class="wt-body"><span class="wt-num">${w.num}</span><span class="wt-unit">${esc(w.unit)}</span></div>`;
+  } else {
+    body = `<div class="wt-body wt-body-icon"><i data-lucide="${t.icon}"></i></div>`;
+  }
+  return `<button class="bento-tile widget-tile" data-go="${t.id}">
+    <div class="wt-head"><span class="bt-icon"><i data-lucide="${t.icon}"></i></span><span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span></div>
+    ${body}
+    <div class="wt-foot"><strong>${esc(t.label)}</strong><span class="wt-sub">${esc(w.sub)}</span></div>
+  </button>`;
 }
 
 // A small round avatar thumbnail for the Account widget (picture or initials).
@@ -739,69 +743,126 @@ function tabs(view, defs) {
   defs.forEach((d, i) => d.render(document.getElementById('pane' + i)));
 }
 
-// Open a tab AND lock onto a specific section within it: scroll it into view and flash it.
-function goToSection(tabIndex, sectionId) {
-  const tabs = document.querySelectorAll('.tabs .tab');
-  if (tabs[tabIndex]) tabs[tabIndex].click();
-  const scrollToSec = () => {
-    const el = document.getElementById(sectionId);
-    if (!el) return;
-    const y = el.getBoundingClientRect().top + window.scrollY - 12;
-    window.scrollTo({ top: y, behavior: 'smooth' });
-  };
-  // Section tables load async, so the section's position keeps moving for a beat.
-  // Re-scroll a few times until layout settles, then flash it once.
-  [150, 450, 900].forEach(ms => setTimeout(scrollToSec, ms));
-  setTimeout(() => {
-    const el = document.getElementById(sectionId);
-    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
-  }, 950);
-}
-
 // ---------------- School owner (ADMIN / PRINCIPAL) ----------------
+const ADMIN_SECTIONS = [
+  { id: 'home',       icon: 'layout-grid',    label: 'Home' },
+  { id: 'people',     icon: 'users',          label: 'People',     desc: 'Staff, students & guardians' },
+  { id: 'academics',  icon: 'graduation-cap', label: 'Academics',  desc: 'Subjects, classes & who teaches what' },
+  { id: 'payments',   icon: 'banknote',       label: 'Payments',   desc: 'Payable items & approvals' },
+  { id: 'governance', icon: 'scale',          label: 'Governance', desc: 'Proposals, confirmations & protests' },
+  { id: 'calendar',   icon: 'calendar-days',  label: 'Calendar',   desc: 'School agenda & announcements' },
+  { id: 'account',    icon: 'circle-user',    label: 'Account',    desc: 'Your profile & password' },
+];
+
 async function renderAdmin(view, me) {
-  rebuildDrawer([
-    { id: 'overview', icon: 'trending-up', label: 'Overview' },
-    { id: 'people', icon: 'users', label: 'People' },
-    { id: 'academics', icon: 'graduation-cap', label: 'Academics' },
-    { id: 'payments', icon: 'banknote', label: 'Payments' },
-    { id: 'governance', icon: 'scale', label: 'Governance' },
-    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-  ]);
+  rebuildDrawer(ADMIN_SECTIONS);
   wireDrawerNav({
-    overview: adminOverview,
+    home: pane => adminHome(pane, me),
     people: adminPeople,
     academics: adminAcademics,
-    payments: pane => renderResourcePoint(wrapCard(pane), true),
+    payments: pane => renderResourcePoint(pane, true),
     governance: renderGovernance,
     calendar: pane => renderCalendar(wrapCard(pane), true),
     account: roleAccountPane,
     logout: confirmLogout,
   });
-  await adminOverview(view);
+  // Land on the bento home; mark it active and mirror its icon onto the trigger.
+  await adminHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
+
+  // After a dynamic-island hard refresh, return to the section you were on (once).
+  try {
+    var restore = sessionStorage.getItem('shReloadSection');
+    sessionStorage.removeItem('shReloadSection');
+    if (restore && restore !== 'home' && document.querySelector('.drawer-item[data-nav="' + restore + '"]')) {
+      openSection(restore);
+    }
+  } catch (e) {}
+}
+
+// ---- Home: bento of live glass widgets, one per sector ----
+async function adminHome(pane, me) {
+  const tiles = ADMIN_SECTIONS.filter(s => s.id !== 'home');
+  const [school, items, wf, events, pendingStaff] = await Promise.all([
+    api('/api/v1/me/school').catch(() => null),
+    api('/api/v1/payments/items').catch(() => []),
+    api('/api/v1/workflow-requests').catch(() => []),
+    api('/api/v1/events').catch(() => []),
+    api('/api/v1/tenants/pending-staff').catch(() => []),
+  ]);
+  const c = (school && school.counts) || {};
+  const drafts = items.filter(i => i.status === 'draft').length;
+  const decisions = wf.filter(w => w.state === 'pending_confirmation').length;
+  const today = new Date().toISOString().slice(0, 10);
+  const next = events.filter(e => (e.startDate || '') >= today)
+    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0];
+
+  const W = {
+    people:     { num: c.students || 0, unit: c.students === 1 ? 'Student' : 'Students',
+                  sub: pendingStaff.length ? pendingStaff.length + ' staff awaiting approval'
+                                           : (c.teachers || 0) + ' teachers · ' + (c.guardians || 0) + ' guardians' },
+    academics:  { num: c.classes || 0, unit: c.classes === 1 ? 'Class' : 'Classes', sub: (c.subjects || 0) + ' subjects' },
+    payments:   { num: drafts, unit: drafts === 1 ? 'Item' : 'Items', sub: drafts ? 'Awaiting your approval' : 'Nothing waiting on you' },
+    governance: { num: decisions, unit: decisions === 1 ? 'Decision' : 'Decisions', sub: decisions ? 'Awaiting your confirmation' : 'No open decisions' },
+    calendar:   { sub: next ? next.title + ' · ' + fmt(next.startDate) : 'Nothing scheduled ahead' },
+    account:    { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  if (window.lucide) lucide.createIcons({ root: pane });
+}
+
+// Small glass-form factory: title + fields + submit; onSubmit throws to keep the modal open.
+function glassForm(opts) {
+  const ctrl = openGlassModal({
+    className: 'plan-edit-modal',
+    html: `<h2>${opts.title}</h2>
+      ${opts.sub ? '<p class="subtle">' + opts.sub + '</p>' : ''}
+      <div class="msg" data-m></div>
+      <form>${opts.fields}
+        <div class="glass-actions" style="margin-top:18px">
+          <button class="btn ghost" type="button" data-x="cancel">Cancel</button>
+          <button class="btn" type="submit">${opts.submitLabel || 'Save'}</button>
+        </div>
+      </form>`
+  });
+  if (typeof addPasswordToggles === 'function') addPasswordToggles(ctrl.panel);
+  ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+  ctrl.panel.querySelector('form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+    const b = Object.fromEntries(new FormData(ev.target));
+    Object.keys(b).forEach(k => { if (b[k] === '') delete b[k]; });
+    try { await opts.onSubmit(b); ctrl.close(); } catch (e) { showMsg(m, e.message, 'err'); }
+  });
+  return ctrl;
 }
 
 // ---------------- Governance (propose/confirm/protest) ----------------
 function wfBadge(state) { return state === 'applied' ? 'holiday' : state === 'cancelled' || state === 'rejected' ? 'event' : 'announcement'; }
 async function renderGovernance(pane) {
   pane.innerHTML = `
-    <div class="card"><h1>Governance</h1>
-      <p class="muted">Proposed org units, offerings, progression rules, credential revocations and
+    <p class="muted" style="margin:0 2px 14px">Proposed org units, offerings, progression rules, credential revocations and
       disputes all flow through here. A protest doesn't cancel an action by itself - it escalates
-      for a Moderator's review; only a Moderator's own second is final.</p></div>
-    <div class="card" id="wfPendingCard" style="display:none;border-left:4px solid var(--amber)">
-      <h2>Awaiting your decision</h2>
-      <table><thead><tr><th>Type</th><th>Initiated</th><th>Created</th><th></th></tr></thead>
-      <tbody id="wfPendingRows"></tbody></table></div>
-    <div class="card" id="wfProtestCard" style="display:none;border-left:4px solid var(--danger)">
-      <h2>Open protests</h2>
-      <p class="muted">Seconding here escalates to tier 2 and notifies Moderators, unless you already are one.</p>
-      <table><thead><tr><th>Against</th><th>Tier</th><th>Comment</th><th>Raised by</th><th></th></tr></thead>
-      <tbody id="wfProtestRows"></tbody></table></div>
-    <div class="card"><h2>All requests</h2><div id="wfm" class="msg"></div>
-      <table><thead><tr><th>Type</th><th>State</th><th>Tier</th><th>Initiated</th><th>Created</th></tr></thead>
-      <tbody id="wfRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div>`;
+      for a Moderator's review; only a Moderator's own second is final.</p>
+    <div id="wfm" class="msg"></div>
+    <div class="card list-card" id="wfPendingCard" style="display:none;border-left:4px solid var(--amber)">
+      <h2 class="lc-title">Awaiting your decision</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Type</th><th>Initiated</th><th>Created</th><th></th></tr></thead>
+        <tbody id="wfPendingRows"></tbody></table></div></div>
+    <div class="card list-card" id="wfProtestCard" style="display:none;border-left:4px solid var(--danger)">
+      <h2 class="lc-title">Open protests</h2>
+      <p class="muted" style="margin:0 16px 8px">Seconding here escalates to tier 2 and notifies Moderators, unless you already are one.</p>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Against</th><th>Tier</th><th>Comment</th><th>Raised by</th><th></th></tr></thead>
+        <tbody id="wfProtestRows"></tbody></table></div></div>
+    <div class="card list-card"><h2 class="lc-title">All requests</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Type</th><th>State</th><th>Tier</th><th>Initiated</th><th>Created</th></tr></thead>
+        <tbody id="wfRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div></div>`;
 
   const msg = document.getElementById('wfm');
   async function act(url, okText) {
@@ -855,225 +916,405 @@ async function renderGovernance(pane) {
 }
 function wrapCard(pane) { pane.innerHTML = '<div class="card"></div>'; return pane.firstElementChild; }
 
-async function adminOverview(pane) {
-  pane.innerHTML = `<div class="card"><h1>School overview</h1>
-    <p class="muted">Click a card to open that section.</p>
-    <div class="stats" id="ov"></div></div>`;
-  const s = await api('/api/v1/me/school');
-  const c = s.counts;
-  // [count, label, tab index, section id]  -> People = 1, Academics = 2
-  const cards = [
-    [c.students, 'Students', 1, 'sec-students'], [c.teachers, 'Teachers', 1, 'sec-teachers'],
-    [c.guardians, 'Guardians', 1, 'sec-guardians'], [c.classes, 'Classes', 2, 'sec-classes'],
-    [c.subjects, 'Subjects', 2, 'sec-subjects'],
-  ];
-  document.getElementById('ov').innerHTML = cards.map(([n, label, tab, sec]) =>
-    `<a class="stat" data-tab="${tab}" data-sec="${sec}"><div class="n">${n}</div><div class="l">${label}</div></a>`).join('');
-  document.querySelectorAll('#ov .stat').forEach(el => el.onclick = () => goToSection(Number(el.dataset.tab), el.dataset.sec));
-}
-
 async function adminPeople(pane) {
+  const smallBtn = 'padding:3px 10px;font-size:11px';
   pane.innerHTML = `
-    <div class="card" id="sec-teachers"><h2>Teachers</h2><div id="tm" class="msg"></div>
-      <form id="tf" class="inline-form">
-        <div><label>Staff no.</label><input name="staffNo" required></div>
-        <div><label>First name</label><input name="firstName" required></div>
-        <div><label>Last name</label><input name="lastName" required></div>
-        <div><label>Email</label><input name="email" type="email"></div>
-        <div><label>Temp password</label><input name="loginPassword" type="password"></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form>
-      <table><thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead><tbody id="tl"></tbody></table></div>
+    <div id="peMsg" class="msg"></div>
 
-    <div class="card" id="sec-students"><h2>Students</h2><div id="sm" class="msg"></div>
-      <form id="sf" class="inline-form">
-        <div><label>Adm. no.</label><input name="admissionNo" required></div>
-        <div><label>First name</label><input name="firstName" required></div>
-        <div><label>Last name</label><input name="lastName" required></div>
-        <div><label>Class</label><select name="classId" id="sclass"></select></div>
-        <div><label>Email</label><input name="email" type="email"></div>
-        <div><label>Temp password</label><input name="loginPassword" type="password"></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form>
-      <table><thead><tr><th>Adm. no.</th><th>Name</th><th>Class</th><th>Status</th></tr></thead><tbody id="sl"></tbody></table></div>
+    <div class="card list-card" id="pePendingCard" style="display:none;border-left:4px solid var(--amber)">
+      <h2 class="lc-title">Pending staff <span class="subtle">(signed up with your code — approve before they can sign in)</span></h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Name</th><th>Email</th><th>Username</th><th>Requested role</th><th></th></tr></thead>
+        <tbody id="pePendingRows"></tbody></table></div></div>
 
-    <div class="card" id="sec-guardians"><h2>Guardians</h2><div id="gm" class="msg"></div>
-      <form id="gf" class="inline-form">
-        <div><label>First name</label><input name="firstName" required></div>
-        <div><label>Last name</label><input name="lastName" required></div>
-        <div><label>Email</label><input name="email" type="email"></div>
-        <div><label>Temp password</label><input name="loginPassword" type="password"></div>
-        <div><label>Child</label><select name="studentId" id="gchild"></select></div>
-        <div><label>Relationship</label><input name="relationship" placeholder="Mother"></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form>
-      <table><thead><tr><th>Name</th><th>Email</th><th>Login</th></tr></thead><tbody id="gl"></tbody></table></div>
+    <h2 class="pe-sub">Staff</h2>
+    <div class="tilt-host" id="stStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
+      <button class="act-scale-btn active" data-sf="all">All</button>
+      <button class="act-scale-btn" data-sf="active">Active</button>
+      <button class="act-scale-btn" data-sf="suspended">Suspended</button>
+      <input id="stSearch" class="list-search" placeholder="Search staff…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+        <tbody id="stRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="peAddStaff"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add staff</button>
+        <button class="btn secondary" id="peStaffCode">Staff sign-up code</button>
+        <button class="btn ghost" id="peResetPwd">Reset a password</button>
+      </div>
+    </div>
 
-    <div class="card"><h2>Add staff <span class="subtle">(school admin, principal, bursar)</span></h2><div id="stm" class="msg"></div>
-      <form id="stf" class="inline-form">
-        <div><label>First name</label><input name="firstName" required></div>
-        <div><label>Last name</label><input name="lastName" required></div>
-        <div><label>Email</label><input name="email" type="email" required></div>
-        <div><label>Temp password</label><input name="password" type="password" minlength="8" required></div>
-        <div><label>Role</label><select name="role">
-          <option value="PRINCIPAL">Principal</option><option value="ADMIN">School admin</option><option value="BURSAR">Bursar</option></select></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form></div>
+    <h2 class="pe-sub">Teacher profiles</h2>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
+        <tbody id="tpRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot"><button class="btn" id="peAddTeacher"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add teacher</button></div>
+    </div>
 
-    <div class="card" id="sec-staffcode"><h2>Staff sign-up code <span class="subtle">(let staff self-register)</span></h2>
-      <p class="muted">Share this code with new teachers/bursars. They sign up at the staff link below, then appear under
-        "Pending staff" for you to approve. Rotating the code stops anyone using the old one.</p>
-      <div id="scm" class="msg"></div>
-      <div class="inline-form" style="align-items:center">
-        <div><label>Current code</label><div id="scval" style="font-size:20px;font-weight:700;letter-spacing:2px">...</div></div>
-        <div style="flex:0"><button class="btn secondary" id="scgen">Generate / rotate</button></div>
-        <div style="flex:2"><label>Staff sign-up link</label><div class="subtle" id="sclink"></div></div>
-      </div></div>
+    <h2 class="pe-sub">Students</h2>
+    <div class="tilt-host" id="sdStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
+      <input id="sdSearch" class="list-search" placeholder="Search students…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Adm. no.</th><th>Name</th><th>Class</th><th>Status</th><th></th></tr></thead>
+        <tbody id="sdRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot"><button class="btn" id="peAddStudent"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add student</button></div>
+    </div>
 
-    <div class="card" id="sec-pending"><h2>Pending staff <span class="subtle">(awaiting your approval)</span></h2>
-      <p class="muted">People who signed up with your code. They cannot sign in until you approve them.</p>
-      <div id="psm" class="msg"></div>
-      <table><thead><tr><th>Name</th><th>Email</th><th>Username</th><th>Requested role</th><th></th></tr></thead>
-      <tbody id="psl"></tbody></table></div>
+    <h2 class="pe-sub">Guardians</h2>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Name</th><th>Email</th><th>Login</th></tr></thead>
+        <tbody id="gdRows"><tr><td colspan="3" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot"><button class="btn" id="peAddGuardian"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add guardian</button></div>
+    </div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
 
-    <div class="card"><h2>Reset a user's password <span class="subtle">(lockout / forgot-password)</span></h2><div id="rpm" class="msg"></div>
-      <form id="rpf" class="inline-form">
-        <div style="flex:2"><label>User email</label><input name="email" type="email" required></div>
-        <div><label>New temp password</label><input name="newPassword" type="password" minlength="8" required></div>
-        <div style="flex:0"><button class="btn">Reset</button></div></form></div>`;
+  const msg = document.getElementById('peMsg');
+  let staff = [], teachers = [], students = [], guardians = [], classes = [];
+  let sFilter = 'all', sQuery = '', dQuery = '';
+  const statusBadge = s => s === 'active' ? 'holiday' : s === 'suspended' ? 'event' : 'exam';
+  const className = id => (classes.find(c => c.id === id) || {}).name || '—';
+  const stStack = document.getElementById('stStack');
+  const sdStack = document.getElementById('sdStack');
 
-  let classes = [];
-  async function refreshClasses() {
-    classes = await api('/api/v1/classes');
-    document.getElementById('sclass').innerHTML = opts(classes, 'id', c => c.name, 'No class');
-  }
-  const classNameById = id => (classes.find(c => c.id === id) || {}).name || '-';
-
-  async function loadTeachers() {
-    const t = await api('/api/v1/teachers');
-    document.getElementById('tl').innerHTML = t.length ? t.map(x =>
-      `<tr><td>${esc(x.staffNo)}</td><td>${esc(x.lastName)}, ${esc(x.firstName)}</td><td>${esc(x.email || '-')}</td>
-       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
-      : '<tr><td colspan="4" class="muted">No teachers yet.</td></tr>';
-  }
-  async function loadStudents() {
-    const s = await api('/api/v1/students');
-    document.getElementById('sl').innerHTML = s.length ? s.map(x =>
-      `<tr><td>${esc(x.admissionNo)}</td><td>${esc(x.lastName)}, ${esc(x.firstName)}</td>
-       <td>${esc(classNameById(x.classId))}</td><td><span class="pill">${esc(x.status)}</span></td>
-       <td class="right"><button class="btn secondary" style="padding:3px 10px;font-size:11px" onclick="openStudentProgress(${x.id})">View progress</button></td></tr>`).join('')
-      : '<tr><td colspan="5" class="muted">No students yet.</td></tr>';
-    document.getElementById('gchild').innerHTML = opts(s, 'id', x => x.lastName + ', ' + x.firstName, 'No child yet');
-  }
-  async function loadGuardians() {
-    const g = await api('/api/v1/guardians');
-    document.getElementById('gl').innerHTML = g.length ? g.map(x =>
-      `<tr><td>${esc(x.lastName)}, ${esc(x.firstName)}</td><td>${esc(x.email || '-')}</td>
-       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
-      : '<tr><td colspan="3" class="muted">No guardians yet.</td></tr>';
+  function flashRow(sel, id) {
+    const tr = document.querySelector(sel + ' tr[data-id="' + id + '"]');
+    if (tr) { tr.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)'; setTimeout(() => tr.style.background = '', 1200); tr.scrollIntoView({ block: 'nearest' }); }
   }
 
-  async function loadStaffCode() {
-    const { staffCode } = await api('/api/v1/tenants/staff-code');
-    document.getElementById('scval').textContent = staffCode || 'not generated yet';
-    document.getElementById('sclink').textContent = location.origin + '/staff-signup.html';
+  // ---- Staff (logins): tilt-stack + list with suspend / activate / remove ----
+  const visibleStaff = () => staff.filter(m => {
+    if (sFilter !== 'all' && m.status !== sFilter) return false;
+    if (sQuery && (m.name + ' ' + m.email + ' ' + (m.username || '') + ' ' + m.role).toLowerCase().indexOf(sQuery) === -1) return false;
+    return true;
+  });
+
+  function renderStaff() {
+    renderTiltStack(stStack, visibleStaff().map(m => ({
+      id: m.id, name: m.name, subtitle: roleLabel(m.role) + (m.username ? ' · @' + m.username : ''), avatar: m.avatar, status: m.status
+    })), {
+      showStatus: true, statusBadge, emptyText: 'No staff match.',
+      onClick: it => flashRow('#stRows', it.id)
+    });
+    const tbody = document.getElementById('stRows');
+    const list = visibleStaff();
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No staff found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(m => {
+      const actions = m.self ? '<span class="subtle">you</span>'
+        : (m.status === 'suspended'
+            ? `<button class="btn ghost" data-act="${m.id}" style="${smallBtn}">Activate</button>`
+            : `<button class="btn ghost" data-susp="${m.id}" style="${smallBtn}">Suspend</button>`)
+          + `<button class="btn ghost danger-text" data-del="${m.id}" style="${smallBtn};margin-left:4px">Remove</button>`;
+      return `<tr data-id="${m.id}" style="cursor:pointer">
+        <td><strong>${esc(m.name)}</strong>${m.username ? '<div class="subtle">@' + esc(m.username) + '</div>' : ''}</td>
+        <td>${esc(m.email)}</td>
+        <td><span class="pill">${esc(roleLabel(m.role))}</span></td>
+        <td><span class="badge ${statusBadge(m.status)}">${esc(m.status)}</span></td>
+        <td class="right">${actions}</td></tr>`;
+    }).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(stStack, tr.dataset.id);
+    });
+    const act = async (url, label) => {
+      try { await api(url, { method: 'POST' }); showMsg(msg, label, 'ok'); await loadStaff(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    };
+    tbody.querySelectorAll('[data-susp]').forEach(b => b.onclick = () =>
+      act('/api/v1/tenants/staff/' + b.dataset.susp + '/suspend', 'Suspended — they can no longer sign in.'));
+    tbody.querySelectorAll('[data-act]').forEach(b => b.onclick = () =>
+      act('/api/v1/tenants/staff/' + b.dataset.act + '/activate', 'Activated.'));
+    tbody.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      const m = staff.find(x => String(x.id) === b.dataset.del);
+      if (!(await glassConfirm('Remove ' + m.name + '? Their login is deleted; school records they created stay.', { title: 'Remove staff', danger: true, okText: 'Remove' }))) return;
+      try { await api('/api/v1/tenants/staff/' + m.id, { method: 'DELETE' }); showMsg(msg, m.name + ' removed.', 'ok'); await loadStaff(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
   }
-  document.getElementById('scgen').onclick = async () => {
-    const m = document.getElementById('scm'); hideMsg(m);
-    if (!(await glassConfirm('Generate a new staff code? Any code you shared before will stop working.', { title: 'New staff code', okText: 'Generate' }))) return;
-    try { await api('/api/v1/tenants/staff-code', { method: 'POST' }); await loadStaffCode();
-      showMsg(m, 'New code generated.', 'ok'); } catch (e) { showMsg(m, e.message, 'err'); }
-  };
+  async function loadStaff() {
+    try { staff = await api('/api/v1/tenants/staff'); renderStaff(); }
+    catch (e) { stStack.innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; }
+  }
+
+  // ---- Pending staff (amber card, only when non-empty) ----
   async function loadPendingStaff() {
-    const list = await api('/api/v1/tenants/pending-staff');
-    const tb = document.getElementById('psl');
-    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="muted">No pending staff.</td></tr>'; return; }
+    const list = await api('/api/v1/tenants/pending-staff').catch(() => []);
+    const card = document.getElementById('pePendingCard');
+    if (!list.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const tb = document.getElementById('pePendingRows');
     tb.innerHTML = '';
     list.forEach(p => {
-      const m = document.getElementById('psm');
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${esc(p.name)}</td><td>${esc(p.email)}</td><td>@${esc(p.username || '')}</td>
         <td><span class="pill">${esc(p.role)}</span></td><td class="right"></td>`;
-      const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Approve';
-      ok.onclick = async () => { hideMsg(m); try { await api('/api/v1/tenants/pending-staff/' + p.id + '/approve', { method: 'POST' });
-        showMsg(m, 'Approved ' + p.name + '.', 'ok'); loadPendingStaff(); } catch (e) { showMsg(m, e.message, 'err'); } };
-      const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.marginLeft = '6px';
-      no.onclick = async () => { if (!(await glassConfirm('Reject ' + p.name + "'s sign-up?", { title: 'Reject staff', danger: true, okText: 'Reject' }))) return; hideMsg(m);
+      const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Approve'; ok.style.cssText = smallBtn;
+      ok.onclick = async () => { hideMsg(msg); try {
+        await api('/api/v1/tenants/pending-staff/' + p.id + '/approve', { method: 'POST' });
+        showMsg(msg, 'Approved ' + p.name + '.', 'ok'); await loadPendingStaff(); await loadStaff();
+      } catch (e) { showMsg(msg, e.message, 'err'); } };
+      const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.cssText = smallBtn + ';margin-left:6px';
+      no.onclick = async () => {
+        if (!(await glassConfirm('Reject ' + p.name + "'s sign-up?", { title: 'Reject staff', danger: true, okText: 'Reject' }))) return;
+        hideMsg(msg);
         try { await api('/api/v1/tenants/pending-staff/' + p.id + '/reject', { method: 'POST' });
-          showMsg(m, 'Rejected ' + p.name + '.', 'ok'); loadPendingStaff(); } catch (e) { showMsg(m, e.message, 'err'); } };
+          showMsg(msg, 'Rejected ' + p.name + '.', 'ok'); await loadPendingStaff(); } catch (e) { showMsg(msg, e.message, 'err'); }
+      };
       tr.lastElementChild.append(ok, no);
       tb.appendChild(tr);
     });
   }
 
-  wireForm('tf', 'tm', '/api/v1/teachers', null, loadTeachers);
-  wireForm('sf', 'sm', '/api/v1/students', b => { b.classId = num(b.classId); }, loadStudents);
-  wireForm('gf', 'gm', '/api/v1/guardians', b => {
-    if (b.studentId) { b.studentIds = [num(b.studentId)]; } delete b.studentId;
-  }, loadGuardians);
-  wireForm('stf', 'stm', '/api/v1/staff', null, null);
-  wireForm('rpf', 'rpm', '/api/v1/auth/admin/reset-password', null, null);
+  // ---- Teacher profiles ----
+  async function loadTeachers() {
+    teachers = await api('/api/v1/teachers');
+    document.getElementById('tpRows').innerHTML = teachers.length ? teachers.map(x =>
+      `<tr><td>${esc(x.staffNo)}</td><td>${esc(x.lastName)}, ${esc(x.firstName)}</td><td>${esc(x.email || '-')}</td>
+       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">No teachers yet.</td></tr>';
+  }
 
-  await refreshClasses(); await loadTeachers(); await loadStudents(); await loadGuardians();
-  await loadStaffCode(); await loadPendingStaff();
+  // ---- Students: tilt-stack + list ----
+  const visibleStudents = () => students.filter(s =>
+    !dQuery || (s.admissionNo + ' ' + s.firstName + ' ' + s.lastName + ' ' + className(s.classId)).toLowerCase().indexOf(dQuery) !== -1);
+
+  function renderStudents() {
+    renderTiltStack(sdStack, visibleStudents().map(s => ({
+      id: s.id, name: s.firstName + ' ' + s.lastName, subtitle: s.admissionNo + ' · ' + className(s.classId), avatar: null, status: s.status
+    })), {
+      showStatus: true, statusBadge: () => 'holiday', emptyText: 'No students match.',
+      onClick: it => flashRow('#sdRows', it.id)
+    });
+    const list = visibleStudents();
+    const tbody = document.getElementById('sdRows');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No students found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(x =>
+      `<tr data-id="${x.id}" style="cursor:pointer"><td>${esc(x.admissionNo)}</td><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td>
+       <td>${esc(className(x.classId))}</td><td><span class="pill">${esc(x.status)}</span></td>
+       <td class="right"><button class="btn secondary" style="${smallBtn}" onclick="openStudentProgress(${x.id})">View progress</button></td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(sdStack, tr.dataset.id);
+    });
+  }
+  async function loadStudents() {
+    [students, classes] = await Promise.all([api('/api/v1/students'), api('/api/v1/classes')]);
+    renderStudents();
+  }
+
+  // ---- Guardians ----
+  async function loadGuardians() {
+    guardians = await api('/api/v1/guardians');
+    document.getElementById('gdRows').innerHTML = guardians.length ? guardians.map(x =>
+      `<tr><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td><td>${esc(x.email || '-')}</td>
+       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('')
+      : '<tr><td colspan="3" class="muted">No guardians yet.</td></tr>';
+  }
+
+  // ---- Add / manage modals (all glass) ----
+  document.getElementById('peAddStaff').onclick = () => glassForm({
+    title: 'Add staff', sub: 'School admin, principal or bursar with a temporary password you share.',
+    submitLabel: 'Add staff',
+    fields: `<label>First name</label><input name="firstName" required>
+      <label>Last name</label><input name="lastName" required>
+      <label>Email</label><input name="email" type="email" required>
+      <label>Temporary password (min 8)</label><input name="password" type="password" minlength="8" required>
+      <label>Role</label><select name="role">
+        <option value="PRINCIPAL">Principal</option><option value="ADMIN">School admin</option><option value="BURSAR">Bursar</option></select>`,
+    onSubmit: async b => {
+      await api('/api/v1/staff', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Staff member added.', 'ok'); await loadStaff();
+    }
+  });
+
+  document.getElementById('peAddTeacher').onclick = () => glassForm({
+    title: 'Add teacher', sub: 'Email + temporary password also creates their login (optional otherwise).',
+    submitLabel: 'Add teacher',
+    fields: `<label>Staff no.</label><input name="staffNo" required>
+      <label>First name</label><input name="firstName" required>
+      <label>Last name</label><input name="lastName" required>
+      <label>Email</label><input name="email" type="email">
+      <label>Temporary password</label><input name="loginPassword" type="password">`,
+    onSubmit: async b => {
+      await api('/api/v1/teachers', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Teacher added.', 'ok'); await loadTeachers(); await loadStaff();
+    }
+  });
+
+  document.getElementById('peAddStudent').onclick = () => glassForm({
+    title: 'Add student', sub: 'Email + temporary password also creates their login.',
+    submitLabel: 'Add student',
+    fields: `<label>Admission no.</label><input name="admissionNo" required>
+      <label>First name</label><input name="firstName" required>
+      <label>Last name</label><input name="lastName" required>
+      <label>Class</label><select name="classId">${opts(classes, 'id', c => c.name, 'No class')}</select>
+      <label>Email</label><input name="email" type="email">
+      <label>Temporary password</label><input name="loginPassword" type="password">`,
+    onSubmit: async b => {
+      b.classId = num(b.classId);
+      await api('/api/v1/students', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Student added.', 'ok'); await loadStudents();
+    }
+  });
+
+  document.getElementById('peAddGuardian').onclick = () => glassForm({
+    title: 'Add guardian', sub: 'Link them to a child so For You shows what the child owes.',
+    submitLabel: 'Add guardian',
+    fields: `<label>First name</label><input name="firstName" required>
+      <label>Last name</label><input name="lastName" required>
+      <label>Email</label><input name="email" type="email">
+      <label>Temporary password</label><input name="loginPassword" type="password">
+      <label>Child</label><select name="studentId">${opts(students, 'id', x => x.lastName + ', ' + x.firstName, 'No child yet')}</select>
+      <label>Relationship</label><input name="relationship" placeholder="Mother">`,
+    onSubmit: async b => {
+      if (b.studentId) b.studentIds = [num(b.studentId)];
+      delete b.studentId;
+      await api('/api/v1/guardians', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Guardian added.', 'ok'); await loadGuardians();
+    }
+  });
+
+  document.getElementById('peResetPwd').onclick = () => glassForm({
+    title: 'Reset a password', sub: 'For lockouts — set a temporary password and share it with the user.',
+    submitLabel: 'Reset',
+    fields: `<label>User email</label><input name="email" type="email" required>
+      <label>New temporary password (min 8)</label><input name="newPassword" type="password" minlength="8" required>`,
+    onSubmit: async b => {
+      await api('/api/v1/auth/admin/reset-password', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Password reset.', 'ok');
+    }
+  });
+
+  document.getElementById('peStaffCode').onclick = async () => {
+    let code = '';
+    try { code = (await api('/api/v1/tenants/staff-code')).staffCode || ''; } catch (e) {}
+    const ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>Staff sign-up code</h2>
+        <p class="subtle">Share this code with new teachers/bursars. They sign up at the link below, then appear
+        under "Pending staff" for you to approve. Rotating the code stops anyone using the old one.</p>
+        <div class="msg" data-m></div>
+        <div style="font-size:26px;font-weight:700;letter-spacing:3px;margin:10px 0" data-code>${esc(code || 'not generated yet')}</div>
+        <div class="subtle">${esc(location.origin + '/staff-signup.html')}</div>
+        <div class="glass-actions" style="margin-top:18px">
+          <button class="btn ghost" data-x="cancel">Close</button>
+          <button class="btn secondary" data-x="rotate">Generate / rotate</button>
+        </div>`
+    });
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('[data-x="rotate"]').onclick = async () => {
+      if (!(await glassConfirm('Generate a new staff code? Any code you shared before will stop working.', { title: 'New staff code', okText: 'Generate' }))) return;
+      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+      try {
+        const r = await api('/api/v1/tenants/staff-code', { method: 'POST' });
+        ctrl.panel.querySelector('[data-code]').textContent = r.staffCode;
+        showMsg(m, 'New code generated.', 'ok');
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    };
+  };
+
+  // ---- Wiring: filters + search ----
+  pane.querySelectorAll('[data-sf]').forEach(b => b.onclick = () => {
+    pane.querySelectorAll('[data-sf]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); sFilter = b.dataset.sf; renderStaff();
+  });
+  document.getElementById('stSearch').addEventListener('input', ev => { sQuery = ev.target.value.trim().toLowerCase(); renderStaff(); });
+  document.getElementById('sdSearch').addEventListener('input', ev => { dQuery = ev.target.value.trim().toLowerCase(); renderStudents(); });
+
+  await Promise.all([loadStaff(), loadPendingStaff(), loadTeachers(), loadStudents(), loadGuardians()]);
 }
 
 async function adminAcademics(pane) {
   pane.innerHTML = `
-    <div class="card" id="sec-subjects"><h2>Subjects</h2><div id="subm" class="msg"></div>
-      <form id="subf" class="inline-form">
-        <div><label>Name</label><input name="name" required></div>
-        <div><label>Code</label><input name="code" required></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form>
-      <table><thead><tr><th>Name</th><th>Code</th></tr></thead><tbody id="subl"></tbody></table></div>
+    <div id="acMsg" class="msg"></div>
+    <div class="card list-card"><h2 class="lc-title">Subjects</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Name</th><th>Code</th></tr></thead>
+        <tbody id="acSub"><tr><td colspan="2" class="muted">Loading…</td></tr></tbody></table></div>
+      <div class="list-foot"><button class="btn" id="acAddSub"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add subject</button></div></div>
 
-    <div class="card" id="sec-classes"><h2>Classes</h2><div id="clm" class="msg"></div>
-      <form id="clf" class="inline-form">
-        <div><label>Name</label><input name="name" required placeholder="JSS1A"></div>
-        <div><label>Level</label><input name="levelLabel" placeholder="JSS1"></div>
-        <div><label>Class teacher</label><select name="classTeacherId" id="clteach"></select></div>
-        <div style="flex:0"><button class="btn">Add</button></div></form>
-      <table><thead><tr><th>Class</th><th>Level</th></tr></thead><tbody id="cll"></tbody></table></div>
+    <div class="card list-card"><h2 class="lc-title">Classes</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Class</th><th>Level</th></tr></thead>
+        <tbody id="acCls"><tr><td colspan="2" class="muted">Loading…</td></tr></tbody></table></div>
+      <div class="list-foot"><button class="btn" id="acAddCls"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add class</button></div></div>
 
-    <div class="card"><h2>Subject assignments <span class="subtle">(who teaches what, where)</span></h2><div id="asm" class="msg"></div>
-      <form id="asf" class="inline-form">
-        <div><label>Class</label><select name="classId" id="asclass" required></select></div>
-        <div><label>Subject</label><select name="subjectId" id="assubj" required></select></div>
-        <div><label>Teacher</label><select name="teacherId" id="asteach"></select></div>
-        <div style="flex:0"><button class="btn">Assign</button></div></form>
-      <table><thead><tr><th>Class</th><th>Subject</th><th>Teacher</th></tr></thead><tbody id="asl"></tbody></table></div>`;
+    <div class="card list-card"><h2 class="lc-title">Subject assignments <span class="subtle">(who teaches what, where)</span></h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Class</th><th>Subject</th><th>Teacher</th></tr></thead>
+        <tbody id="acAsg"><tr><td colspan="3" class="muted">Loading…</td></tr></tbody></table></div>
+      <div class="list-foot"><button class="btn" id="acAssign"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Assign subject</button></div></div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
 
+  const msg = document.getElementById('acMsg');
   let subjects = [], classes = [], teachers = [];
   const byId = (arr, id) => arr.find(x => x.id === id) || {};
+  const tlabel = t => t.firstName + ' ' + t.lastName;
 
   async function refreshRefs() {
     [subjects, classes, teachers] = await Promise.all([
       api('/api/v1/subjects'), api('/api/v1/classes'), api('/api/v1/teachers')]);
-    const tlabel = t => t.firstName + ' ' + t.lastName;
-    document.getElementById('clteach').innerHTML = opts(teachers, 'id', tlabel, 'None');
-    document.getElementById('asclass').innerHTML = opts(classes, 'id', c => c.name);
-    document.getElementById('assubj').innerHTML = opts(subjects, 'id', s => s.name);
-    document.getElementById('asteach').innerHTML = opts(teachers, 'id', tlabel, 'Unassigned');
   }
-  async function loadSubjects() {
-    document.getElementById('subl').innerHTML = subjects.length ? subjects.map(x =>
-      `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td></tr>`).join('') : '<tr><td colspan="2" class="muted">None yet.</td></tr>';
+  function renderSubjects() {
+    document.getElementById('acSub').innerHTML = subjects.length ? subjects.map(x =>
+      `<tr><td><strong>${esc(x.name)}</strong></td><td>${esc(x.code)}</td></tr>`).join('')
+      : '<tr><td colspan="2" class="muted">None yet.</td></tr>';
   }
-  async function loadClasses() {
-    document.getElementById('cll').innerHTML = classes.length ? classes.map(x =>
-      `<tr><td>${esc(x.name)}</td><td>${esc(x.levelLabel || '-')}</td></tr>`).join('') : '<tr><td colspan="2" class="muted">None yet.</td></tr>';
+  function renderClasses() {
+    document.getElementById('acCls').innerHTML = classes.length ? classes.map(x =>
+      `<tr><td><strong>${esc(x.name)}</strong></td><td>${esc(x.levelLabel || '-')}</td></tr>`).join('')
+      : '<tr><td colspan="2" class="muted">None yet.</td></tr>';
   }
-  async function loadAssignments() {
+  async function renderAssignments() {
     const list = await api('/api/v1/class-subjects');
-    const tl = t => t.id ? (t.firstName + ' ' + t.lastName) : '-';
-    document.getElementById('asl').innerHTML = list.length ? list.map(cs =>
+    document.getElementById('acAsg').innerHTML = list.length ? list.map(cs =>
       `<tr><td>${esc(byId(classes, cs.classId).name || '?')}</td><td>${esc(byId(subjects, cs.subjectId).name || '?')}</td>
-       <td>${esc(cs.teacherId ? tl(byId(teachers, cs.teacherId)) : '-')}</td></tr>`).join('')
+       <td>${esc(cs.teacherId && byId(teachers, cs.teacherId).id ? tlabel(byId(teachers, cs.teacherId)) : '-')}</td></tr>`).join('')
       : '<tr><td colspan="3" class="muted">No assignments yet.</td></tr>';
   }
-  const refreshAll = async () => { await refreshRefs(); await loadSubjects(); await loadClasses(); await loadAssignments(); };
+  const refreshAll = async () => { await refreshRefs(); renderSubjects(); renderClasses(); await renderAssignments(); };
 
-  wireForm('subf', 'subm', '/api/v1/subjects', null, refreshAll);
-  wireForm('clf', 'clm', '/api/v1/classes', b => { b.classTeacherId = num(b.classTeacherId); }, refreshAll);
-  wireForm('asf', 'asm', '/api/v1/class-subjects', b => {
-    b.classId = num(b.classId); b.subjectId = num(b.subjectId); b.teacherId = num(b.teacherId);
-  }, loadAssignments);
+  document.getElementById('acAddSub').onclick = () => glassForm({
+    title: 'Add subject', submitLabel: 'Add subject',
+    fields: `<label>Name</label><input name="name" required>
+      <label>Code</label><input name="code" required>`,
+    onSubmit: async b => {
+      await api('/api/v1/subjects', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Subject added.', 'ok'); await refreshAll();
+    }
+  });
+  document.getElementById('acAddCls').onclick = () => glassForm({
+    title: 'Add class', submitLabel: 'Add class',
+    fields: `<label>Name</label><input name="name" required placeholder="JSS1A">
+      <label>Level</label><input name="levelLabel" placeholder="JSS1">
+      <label>Class teacher</label><select name="classTeacherId">${opts(teachers, 'id', tlabel, 'None')}</select>`,
+    onSubmit: async b => {
+      b.classTeacherId = num(b.classTeacherId);
+      await api('/api/v1/classes', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Class added.', 'ok'); await refreshAll();
+    }
+  });
+  document.getElementById('acAssign').onclick = () => glassForm({
+    title: 'Assign subject', sub: 'Pick who teaches what, where.', submitLabel: 'Assign',
+    fields: `<label>Class</label><select name="classId" required>${opts(classes, 'id', c => c.name)}</select>
+      <label>Subject</label><select name="subjectId" required>${opts(subjects, 'id', s => s.name)}</select>
+      <label>Teacher</label><select name="teacherId">${opts(teachers, 'id', tlabel, 'Unassigned')}</select>`,
+    onSubmit: async b => {
+      b.classId = num(b.classId); b.subjectId = num(b.subjectId); b.teacherId = num(b.teacherId);
+      await api('/api/v1/class-subjects', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Assignment saved.', 'ok'); await renderAssignments();
+    }
+  });
 
   await refreshAll();
 }
@@ -1346,8 +1587,7 @@ async function bursarInvoices(pane) {
 }
 
 async function bursarResourcePoint(pane) {
-  pane.innerHTML = '<div class="card" id="resource"><p class="muted">Loading...</p></div>';
-  await renderResourcePoint(document.getElementById('resource'), false);
+  await renderResourcePoint(pane, false);
 }
 
 async function renderBursar(view, me) {
@@ -1416,45 +1656,27 @@ async function renderForYou(container) {
 // ---------------- Resource point (school posts payable items) ----------------
 async function renderResourcePoint(container, canApprove) {
   container.innerHTML = `
-    <h2>Resource point</h2>
-    <p class="muted">Post a payable item (books, participation, fees, other) to one student, a class, or the whole school.
-      Mark it compulsory or optional and set a deadline.${canApprove ? '' : ' Items you post are submitted to the school admin for approval before students see them.'}</p>
-    <div id="rppending"></div>
     <div id="rpm2" class="msg"></div>
-    <form id="rpf2" class="inline-form">
-      <div><label>Category</label><select name="category">
-        <option value="book">Book</option><option value="participation">Participation</option>
-        <option value="fee">Fee</option><option value="other">Other</option></select></div>
-      <div style="flex:2"><label>Title</label><input name="title" required placeholder="Biology Textbook"></div>
-      <div><label>Amount (₦)</label><input name="amountNaira" type="number" min="1" required></div>
-      <div><label>Due date</label><input name="dueDate" type="date"></div>
-      <div><label>Compulsory?</label><select name="compulsory">
-        <option value="true">Compulsory</option><option value="false">Optional</option></select></div>
-      <div style="flex:2"><label>Cover image URL</label><input name="coverImageUrl" placeholder="https://..."></div>
-      <div style="flex:2"><label>Description</label><input name="description"></div>
-      <div><label>Who pays?</label><select name="audienceType" id="rpaud">
-        <option value="ALL">Whole school</option><option value="CLASS">A class</option><option value="STUDENT">One student</option></select></div>
-      <div id="rpclasswrap" style="display:none"><label>Class</label><select name="classId" id="rpclass"></select></div>
-      <div id="rpstudwrap" style="display:none"><label>Student</label><select name="studentId" id="rpstud"></select></div>
-      <div style="flex:0"><button class="btn">Post</button></div></form>
-    <table style="margin-top:16px"><thead><tr><th></th><th>Item</th><th>Category</th><th>Amount</th><th>Tag</th><th>Due</th><th>Students</th><th>Paid</th><th>Collected</th></tr></thead>
-    <tbody id="rprows"><tr><td colspan="9" class="muted">Loading...</td></tr></tbody></table>`;
+    <div id="rppending"></div>
+    <div class="card list-card"><h2 class="lc-title">Live items</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th></th><th>Item</th><th>Category</th><th>Amount</th><th>Tag</th><th>Due</th><th>Students</th><th>Paid</th><th>Collected</th></tr></thead>
+        <tbody id="rprows"><tr><td colspan="9" class="muted">Loading...</td></tr></tbody></table></div>
+      <div class="list-foot"><button class="btn" id="rpPost"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Post an item</button>
+        ${canApprove ? '' : '<span class="subtle" style="margin-left:10px">Items you post go to the school admin for approval first.</span>'}</div></div>`;
+  if (window.lucide) lucide.createIcons({ root: container });
 
   const [classes, students] = await Promise.all([api('/api/v1/classes'), api('/api/v1/students')]);
-  document.getElementById('rpclass').innerHTML = opts(classes, 'id', c => c.name);
-  document.getElementById('rpstud').innerHTML = opts(students, 'id', s => s.lastName + ', ' + s.firstName);
-  const aud = document.getElementById('rpaud');
-  aud.onchange = () => {
-    document.getElementById('rpclasswrap').style.display = aud.value === 'CLASS' ? '' : 'none';
-    document.getElementById('rpstudwrap').style.display = aud.value === 'STUDENT' ? '' : 'none';
-  };
+
   function pendingPanel(drafts) {
     const wrap = document.getElementById('rppending');
     if (!drafts.length) { wrap.innerHTML = ''; return; }
-    wrap.innerHTML = `<div style="border-left:4px solid var(--amber);background:var(--amber-soft);border-radius:8px;padding:12px;margin-bottom:14px">
-      <h3 style="margin:0 0 8px">Payments awaiting approval <span class="pill" style="background:var(--danger-soft);color:var(--danger)">${drafts.length}</span></h3>
-      <p class="muted" style="margin:0 0 10px">${canApprove ? 'Staff posted these. Approve to make them visible to students, or reject to discard.' : 'These are waiting for the school admin to approve.'}</p>
-      <table><thead><tr><th>Item</th><th>Category</th><th>Amount</th><th>Tag</th><th>Students</th><th></th></tr></thead><tbody id="rpdraftrows"></tbody></table></div>`;
+    wrap.innerHTML = `<div class="card list-card" style="border-left:4px solid var(--amber)">
+      <h2 class="lc-title">Payments awaiting approval <span class="pill" style="background:var(--danger-soft);color:var(--danger)">${drafts.length}</span></h2>
+      <p class="muted" style="margin:0 16px 8px">${canApprove ? 'Staff posted these. Approve to make them visible to students, or reject to discard.' : 'These are waiting for the school admin to approve.'}</p>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Item</th><th>Category</th><th>Amount</th><th>Tag</th><th>Students</th><th></th></tr></thead>
+        <tbody id="rpdraftrows"></tbody></table></div></div>`;
     const tb = document.getElementById('rpdraftrows');
     tb.innerHTML = '';
     drafts.forEach(it => {
@@ -1462,9 +1684,9 @@ async function renderResourcePoint(container, canApprove) {
       tr.innerHTML = `<td>${esc(it.title)}</td><td>${catBadge(it.category)}</td><td>${naira(it.amount)}</td>
         <td>${tagPill(it.compulsory)}</td><td>${it.students}</td><td class="right"></td>`;
       if (canApprove) {
-        const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Approve';
+        const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Approve'; ok.style.cssText = 'padding:3px 10px;font-size:11px';
         ok.onclick = async () => { await api('/api/v1/payments/items/' + it.batchId + '/approve', { method: 'POST' }); loadItems(); };
-        const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.marginLeft = '6px';
+        const no = document.createElement('button'); no.className = 'btn danger'; no.textContent = 'Reject'; no.style.cssText = 'padding:3px 10px;font-size:11px;margin-left:6px';
         no.onclick = async () => { if (!(await glassConfirm('Reject "' + it.title + '"? It will be discarded.', { title: 'Reject item', danger: true, okText: 'Reject' }))) return;
           await api('/api/v1/payments/items/' + it.batchId + '/reject', { method: 'POST' }); loadItems(); };
         tr.lastElementChild.append(ok, no);
@@ -1486,27 +1708,60 @@ async function renderResourcePoint(container, canApprove) {
       <td>${tagPill(it.compulsory)}</td><td class="subtle">${esc(it.dueDate || '-')}</td>
       <td>${it.students}</td><td>${it.paidCount}/${it.students}</td><td>${naira(it.collected)}</td></tr>`).join('');
   }
-  document.getElementById('rpf2').addEventListener('submit', async ev => {
-    ev.preventDefault();
-    const m = document.getElementById('rpm2'); hideMsg(m);
-    const b = Object.fromEntries(new FormData(ev.target));
-    Object.keys(b).forEach(k => { if (b[k] === '') delete b[k]; });
-    b.amountNaira = num(b.amountNaira);
-    b.compulsory = b.compulsory === 'true';
-    if (b.audienceType === 'CLASS') b.audienceId = num(b.classId);
-    else if (b.audienceType === 'STUDENT') b.audienceId = num(b.studentId);
-    delete b.classId; delete b.studentId;
-    try {
-      const r = await api('/api/v1/payments/items', { method: 'POST', body: JSON.stringify(b) });
-      showMsg(m, '"' + r.title + '": ' + r.message, 'ok');
-      ev.target.reset();
-      document.getElementById('rpclasswrap').style.display = 'none';
-      document.getElementById('rpstudwrap').style.display = 'none';
-      loadItems();
-    } catch (e) { showMsg(m, e.message, 'err'); }
-  });
+
+  document.getElementById('rpPost').onclick = () => {
+    const ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>Post a payable item</h2>
+        <p class="subtle">Books, participation, fees or other — to one student, a class, or the whole school.${canApprove ? '' : ' It goes to the school admin for approval first.'}</p>
+        <div class="msg" data-m></div>
+        <form id="rpf2">
+          <label>Category</label><select name="category">
+            <option value="book">Book</option><option value="participation">Participation</option>
+            <option value="fee">Fee</option><option value="other">Other</option></select>
+          <label>Title</label><input name="title" required placeholder="Biology Textbook">
+          <label>Amount (₦)</label><input name="amountNaira" type="number" min="1" required>
+          <label>Due date</label><input name="dueDate" type="date">
+          <label>Compulsory?</label><select name="compulsory">
+            <option value="true">Compulsory</option><option value="false">Optional</option></select>
+          <label>Cover image URL</label><input name="coverImageUrl" placeholder="https://...">
+          <label>Description</label><input name="description">
+          <label>Who pays?</label><select name="audienceType" id="rpaud">
+            <option value="ALL">Whole school</option><option value="CLASS">A class</option><option value="STUDENT">One student</option></select>
+          <div id="rpclasswrap" style="display:none"><label>Class</label><select name="classId">${opts(classes, 'id', c => c.name)}</select></div>
+          <div id="rpstudwrap" style="display:none"><label>Student</label><select name="studentId">${opts(students, 'id', s => s.lastName + ', ' + s.firstName)}</select></div>
+          <div class="glass-actions" style="margin-top:18px">
+            <button class="btn ghost" type="button" data-x="cancel">Cancel</button>
+            <button class="btn" type="submit">Post</button>
+          </div>
+        </form>`
+    });
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    const aud = ctrl.panel.querySelector('#rpaud');
+    aud.onchange = () => {
+      ctrl.panel.querySelector('#rpclasswrap').style.display = aud.value === 'CLASS' ? '' : 'none';
+      ctrl.panel.querySelector('#rpstudwrap').style.display = aud.value === 'STUDENT' ? '' : 'none';
+    };
+    ctrl.panel.querySelector('#rpf2').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+      const b = Object.fromEntries(new FormData(ev.target));
+      Object.keys(b).forEach(k => { if (b[k] === '') delete b[k]; });
+      b.amountNaira = num(b.amountNaira);
+      b.compulsory = b.compulsory === 'true';
+      if (b.audienceType === 'CLASS') b.audienceId = num(b.classId);
+      else if (b.audienceType === 'STUDENT') b.audienceId = num(b.studentId);
+      delete b.classId; delete b.studentId;
+      try {
+        const r = await api('/api/v1/payments/items', { method: 'POST', body: JSON.stringify(b) });
+        ctrl.close();
+        showMsg(document.getElementById('rpm2'), '"' + r.title + '": ' + r.message, 'ok');
+        loadItems();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    });
+  };
   await loadItems();
-  }
+}
 
   // ---- Dot-matrix activity graph ----
   function initDotGraph() {

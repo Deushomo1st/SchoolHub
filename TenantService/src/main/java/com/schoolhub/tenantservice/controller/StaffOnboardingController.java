@@ -61,4 +61,32 @@ public class StaffOnboardingController {
         staff.rejectStaff((Long) auth.getPrincipal(), id);
         return ResponseEntity.ok().build();
     }
+
+    // Admin: manage active staff (suspend / re-activate / remove).
+    @GetMapping("/staff")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> listStaff(Authentication auth) {
+        return ResponseEntity.ok(staff.listStaff((Long) auth.getPrincipal()));
+    }
+
+    @PostMapping("/staff/{id}/suspend")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> suspendStaff(@PathVariable Long id, Authentication auth) {
+        staff.setStaffStatus((Long) auth.getPrincipal(), id, "suspended");
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/staff/{id}/activate")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> activateStaff(@PathVariable Long id, Authentication auth) {
+        staff.setStaffStatus((Long) auth.getPrincipal(), id, "active");
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/staff/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> removeStaff(@PathVariable Long id, Authentication auth) {
+        staff.deleteStaff((Long) auth.getPrincipal(), id);
+        return ResponseEntity.ok().build();
+    }
 }

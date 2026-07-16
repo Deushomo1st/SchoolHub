@@ -1135,3 +1135,5 @@ section.block { margin-bottom: 28px; }
 .list-scroll table thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 :root[data-theme="dusk"] .list-scroll table thead th { background: #10182b; }
 .list-foot { flex: none; padding: 12px 16px; border-top: 1px solid var(--line); }
+.lc-title { margin: 14px 16px 6px; }               /* heading inside a padding-less list-card */
+.pe-sub { margin: 28px 2px 2px; }                  /* sub-section heading between list groups */
