@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Padlock backdoor enforced server-side
+
+- Login page: left edge line reveals padlock; padlock arms backdoor (Google turns red) and the red Google click posts form credentials with `lock: true`
+- AuthService: PLATFORM_OWNER logins are refused without the lock flag (same generic error as a bad password — account nature not leaked); Google sign-in refuses platform owners outright
+- Google token verification now pins the `aud` claim to our client ID (previously any app's token for the same email would log in)
+- Bokeh hero blur-on-scroll (depth-of-field) replaces the old modal-backdrop scroll blur
+
 ## 2026-07-15 — Drawer navigation for all roles
 
 - Drawer is now the universal navigation container — dynamically rebuilt per role

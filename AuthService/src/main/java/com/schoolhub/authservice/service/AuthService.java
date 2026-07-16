@@ -93,9 +93,15 @@ public class AuthService {
         }
         rateLimiter.recordSuccess(identifier);
         rejectInactiveAccount(user);
+        ResolvedContext ctx = resolveLoginContext(user);
+        // Platform owners may only enter through the padlock (backdoor) path.
+        // Same generic message as a bad password so the account's nature isn't leaked.
+        if ("PLATFORM_OWNER".equals(ctx.roleName()) && !req.isLock()) {
+            throw new BadCredentialsException("Wrong username/email or password");
+        }
         user.setLastLoginAt(LocalDateTime.now());
         userRepo.save(user);
-        return issueTokenPair(user, resolveLoginContext(user));
+        return issueTokenPair(user, ctx);
     }
 
     /** Re-mint a token from a different role assignment the caller holds (multi-role/multi-school switch). */
@@ -207,9 +213,15 @@ public class AuthService {
                     "No SchoolHub account found for " + email + ". Sign up first, then sign in with Google.");
         }
         rejectInactiveAccount(user);
+        ResolvedContext ctx = resolveLoginContext(user);
+        // Platform owners never sign in via Google — pretend the account doesn't exist here.
+        if ("PLATFORM_OWNER".equals(ctx.roleName())) {
+            throw new BadCredentialsException(
+                    "No SchoolHub account found for " + email + ". Sign up first, then sign in with Google.");
+        }
         user.setLastLoginAt(LocalDateTime.now());
         userRepo.save(user);
-        return issueTokenPair(user, resolveLoginContext(user));
+        return issueTokenPair(user, ctx);
     }
 
     // ---------- Helpers ----------
@@ -331,6 +343,10 @@ public class AuthService {
                 .toList();
     }
 
+    // Not a secret — the same ID is public in login.html. It pins token audience.
+    private static final String GOOGLE_CLIENT_ID =
+            "756001532243-io5srs96js86euebruv1f0jsjnt2u63j.apps.googleusercontent.com";
+
     private GoogleUser verifyGoogleToken(String idToken) {
         try {
             String url = "https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=" + idToken;
@@ -339,6 +355,10 @@ public class AuthService {
             if (body == null || body.containsKey("error_description")) {
                 String err = body != null ? (String) body.get("error_description") : "Invalid token";
                 throw new BadCredentialsException("Google sign-in failed: " + err);
+            }
+            // The token must have been issued to OUR app, not just any Google client.
+            if (!GOOGLE_CLIENT_ID.equals(body.get("aud"))) {
+                throw new BadCredentialsException("Google sign-in failed: token was not issued for SchoolHub");
             }
             String email = (String) body.get("email");
             String name = (String) body.get("name");

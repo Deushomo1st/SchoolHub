@@ -162,25 +162,21 @@ function initTheme() {
   });
 })();
 
-// ---- Hero blur on scroll ----
+// ---- Bokeh: hero blurs as you scroll past it (depth of field) ----
 (function() {
-  var hero = document.querySelector('.hero');
-  if (!hero) return;
+  var maxBlur = 10, triggerStart = 80, triggerEnd = 400;
   window.addEventListener('scroll', function() {
-    if (window.scrollY > 50) hero.classList.add('scrolled');
-    else hero.classList.remove('scrolled');
-  });
-})();
-
-// ---- Progressive backdrop blur while modal is open ----
-(function() {
-  var maxBlur = 24, maxScroll = 600;
-  window.addEventListener('scroll', function() {
-    var m = document.querySelector('.modal-bg.show');
-    if (!m) return;
-    var blur = Math.min(maxBlur, (window.scrollY / maxScroll) * maxBlur);
-    m.style.backdropFilter = 'blur(' + blur + 'px)';
-    m.style.webkitBackdropFilter = 'blur(' + blur + 'px)';
+    var hero = document.querySelector('.hero');
+    if (!hero) return;
+    var y = window.scrollY;
+    if (y <= triggerStart) {
+      hero.style.filter = 'none';
+      hero.style.opacity = '1';
+    } else {
+      var progress = Math.min((y - triggerStart) / (triggerEnd - triggerStart), 1);
+      hero.style.filter = 'blur(' + (progress * maxBlur) + 'px)';
+      hero.style.opacity = String(1 - progress * 0.4);
+    }
   });
 })();
 

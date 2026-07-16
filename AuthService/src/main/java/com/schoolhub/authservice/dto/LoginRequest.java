@@ -13,4 +13,10 @@ public class LoginRequest {
     public void setEmail(String email) { this.email = email; }
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    // True only when the login came through the padlock (backdoor) path on the login page.
+    // PLATFORM_OWNER logins are refused without it.
+    private boolean lock;
+    public boolean isLock() { return lock; }
+    public void setLock(boolean lock) { this.lock = lock; }
 }

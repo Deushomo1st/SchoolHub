@@ -82,7 +82,7 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=10"></script>
+  <script src="/js/app.js?v=16"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');
@@ -190,6 +190,17 @@
     document.getElementById('googleBtn').addEventListener('click', function(e) {
       e.preventDefault();
       hideMsg(msg);
+      // Backdoor mode: padlock was clicked, Google is red — login with form credentials directly
+      if (googleBtn.classList.contains('backdoor')) {
+        var btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        var body = Object.fromEntries(new FormData(document.getElementById('loginForm')).entries());
+        body.lock = true;   // padlock path — the only door PLATFORM_OWNER can enter through
+        api('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) })
+          .then(function(data) { saveSession(data); maybeShowRolePicker(data.user); })
+          .catch(function(e) { showMsg(msg, e.message, 'err'); btn.disabled = false; });
+        return;
+      }
       if (initGoogle()) {
         google.accounts.id.prompt();
       } else {
