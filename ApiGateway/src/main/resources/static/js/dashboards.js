@@ -18,22 +18,18 @@ async function payInvoice(id, label) {
 
 // ---------------- Shared drawer navigation ----------------
 function confirmLogout() {
-  var modal = document.createElement('div');
-  modal.className = 'confirm-modal';
-  modal.innerHTML = '<div class="confirm-glass">'
-    + '<p>Are you sure you want to sign out?</p>'
-    + '<div class="confirm-actions">'
-    + '<button class="btn cancel">Cancel</button>'
-    + '<button class="btn danger">Sign out</button>'
-    + '</div></div>';
-  document.body.appendChild(modal);
-  modal.querySelector('.cancel').onclick = function() { modal.remove(); };
-  modal.querySelector('.danger').onclick = function() {
-    localStorage.removeItem('shToken');
-    localStorage.removeItem('shUser');
-    location.replace('/login.html');
-  };
-  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  var m = openGlassModal({
+    frost: false,                 // first-layer clear glass (see-through, no page darkening)
+    className: 'confirm-glass-panel',
+    html: '<h2>Sign out?</h2>'
+      + '<p class="subtle">You\'ll need to log in again to get back in.</p>'
+      + '<div class="glass-actions">'
+      + '<button class="btn ghost" data-x="cancel">Cancel</button>'
+      + '<button class="btn danger" data-x="ok">Sign out</button>'
+      + '</div>'
+  });
+  m.panel.querySelector('[data-x="cancel"]').onclick = m.close;
+  m.panel.querySelector('[data-x="ok"]').onclick = function () { logout(); };
 }
 
 // Mirror the active section's icon onto the drawer trigger (top-left) so you know where you are.
@@ -214,9 +210,78 @@ async function platformOverview(pane) {
   if (window.lucide) lucide.createIcons();
 }
 
-// ---- Moderators tab ----
-function platformModerators(pane) {
-  pane.innerHTML = `<div class="card"><h2>Moderators</h2><p class="muted">Loading…</p></div>`;
+// ---- Moderators tab: tilt-stack of moderator cards + schools-style search/filter ----
+async function platformModerators(pane) {
+  pane.innerHTML = `
+    <h2 style="margin-bottom:4px">Moderators</h2>
+    <p class="muted" style="margin-top:0">Platform support team. Hover a card for details; search to jump to one.</p>
+    <div class="tilt-host" id="modStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
+      <button class="act-scale-btn active" data-f="all">All</button>
+      <button class="act-scale-btn" data-f="active">Active</button>
+      <button class="act-scale-btn" data-f="suspended">Suspended</button>
+      <input id="modSearch" class="list-search" placeholder="Search moderators…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead>
+      <tbody id="modRows"><tr><td colspan="3" class="muted">Loading…</td></tr></tbody>
+    </table></div>`;
+
+  var mods = [];
+  var filter = 'all', query = '';
+  var stackHost = document.getElementById('modStack');
+
+  function statusBadge(s) { return s === 'active' ? 'holiday' : s === 'suspended' ? 'event' : 'exam'; }
+
+  function visible() {
+    return mods.filter(function (m) {
+      if (filter !== 'all' && m.status !== filter) return false;
+      if (query && (m.name + ' ' + m.email).toLowerCase().indexOf(query) === -1) return false;
+      return true;
+    });
+  }
+  function renderStack() {
+    renderTiltStack(stackHost, visible().map(function (m) {
+      return { id: m.id, name: m.name, subtitle: m.email, avatar: m.avatar, status: m.status };
+    }), {
+      showStatus: true, statusBadge: statusBadge,
+      emptyText: 'No moderators match.',
+      onClick: function (it) { highlightRow(it.id); }
+    });
+  }
+  function renderRows() {
+    var list = visible();
+    var tbody = document.getElementById('modRows');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="3" class="muted">No moderators found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(function (m) {
+      return '<tr data-id="' + m.id + '" style="cursor:pointer">'
+        + '<td><strong>' + esc(m.name) + '</strong></td>'
+        + '<td>' + esc(m.email) + '</td>'
+        + '<td><span class="badge ' + statusBadge(m.status) + '">' + esc(m.status) + '</span></td></tr>';
+    }).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(function (tr) {
+      tr.onclick = function () { highlightTiltCard(stackHost, tr.dataset.id); };
+    });
+  }
+  function highlightRow(id) {
+    var tr = document.querySelector('#modRows tr[data-id="' + id + '"]');
+    if (tr) { tr.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)'; setTimeout(function () { tr.style.background = ''; }, 1200); }
+  }
+  function refresh() { renderStack(); renderRows(); }
+
+  pane.querySelectorAll('[data-f]').forEach(function (b) {
+    b.onclick = function () {
+      pane.querySelectorAll('[data-f]').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active'); filter = b.dataset.f; refresh();
+    };
+  });
+  document.getElementById('modSearch').addEventListener('input', function (ev) {
+    query = ev.target.value.trim().toLowerCase(); refresh();
+  });
+
+  try { mods = await api('/api/v1/tenants/moderators'); }
+  catch (e) { stackHost.innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; return; }
+  refresh();
 }
 
 // ---- Schools tab ----

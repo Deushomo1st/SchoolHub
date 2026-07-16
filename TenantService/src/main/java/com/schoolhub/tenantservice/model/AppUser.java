@@ -41,6 +41,9 @@ public class AppUser {
     @Column(name = "account_status", nullable = false)
     private String accountStatus = "active";
 
+    @Column(name = "avatar", columnDefinition = "text")
+    private String avatar;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -62,6 +65,7 @@ public class AppUser {
     public Long getRoleId() { return roleId; }
     public Long getTenantId() { return tenantId; }
     public String getAccountStatus() { return accountStatus; }
+    public String getAvatar() { return avatar; }
     public void setEmail(String email) { this.email = email; }
     public void setUsername(String username) { this.username = username; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }

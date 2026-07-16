@@ -1,12 +1,18 @@
 // ---- Auth guard (skip on public pages: login, signup, index) ----
-(function() {
+function _isPublicPage() {
   var path = location.pathname.replace(/\/+$/, '').split('/').pop() || 'index.html';
-  var pub = ['login.html', 'index.html', 'staff-signup.html'];
-  if (pub.indexOf(path) !== -1) return;
+  return ['login.html', 'index.html', 'staff-signup.html'].indexOf(path) !== -1;
+}
+function _guard() {
+  if (_isPublicPage()) return;
   var token = null;
-  try { token = localStorage.getItem('shToken'); } catch(e) {}
+  try { token = localStorage.getItem('shToken'); } catch (e) {}
   if (!token) { location.replace('/login.html'); return; }
-})();
+}
+_guard();
+// Re-check when the page is shown from the browser's back/forward cache. Without this, pressing
+// Back after logout would restore the authenticated page from bfcache without re-running the guard.
+window.addEventListener('pageshow', function (e) { if (e.persisted) _guard(); });
 
 // ---- API helper ----
 async function api(path, opts) {
@@ -39,7 +45,16 @@ function requireAuth() {
 function getUser() {
   try { return JSON.parse(localStorage.getItem('shUser')); } catch(e) { return null; }
 }
-function logout() { localStorage.removeItem('shToken'); localStorage.removeItem('shUser'); location.replace('/login.html'); }
+function logout() {
+  // Best-effort server-side refresh-token revoke, then wipe the session locally.
+  try {
+    var rt = localStorage.getItem('shRefresh');
+    if (rt) fetch('/api/v1/auth/logout/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) }).catch(function () {});
+  } catch (e) {}
+  try { localStorage.removeItem('shToken'); localStorage.removeItem('shUser'); localStorage.removeItem('shRefresh'); } catch (e) {}
+  // replace() so the dashboard isn't a Back-button target; the pageshow guard covers bfcache.
+  location.replace('/login.html');
+}
 
 // ---- Escaper ----
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }

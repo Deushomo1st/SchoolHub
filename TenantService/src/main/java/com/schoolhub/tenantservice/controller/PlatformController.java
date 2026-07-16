@@ -66,6 +66,12 @@ public class PlatformController {
         return ResponseEntity.ok(platform.setStatus(id, "rejected", (Long) auth.getPrincipal()));
     }
 
+    @GetMapping("/moderators")
+    @PreAuthorize("hasAnyRole('PLATFORM_OWNER','MODERATOR')")
+    public ResponseEntity<?> listModerators() {
+        return ResponseEntity.ok(platform.listModerators());
+    }
+
     @PostMapping("/moderators")
     @PreAuthorize("hasRole('PLATFORM_OWNER')")
     public ResponseEntity<?> createModerator(@Valid @RequestBody ModeratorRequest req, Authentication auth) {

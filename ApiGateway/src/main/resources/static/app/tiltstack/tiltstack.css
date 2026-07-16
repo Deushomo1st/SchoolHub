@@ -1,0 +1,85 @@
+/* ---- TiltStack: side-scrolling glass cards on the shared picture-1 angle ---- */
+:root {
+  /* The one angle every card layout shares (picture-1 reference). */
+  --card-tilt: rotateY(34deg) rotateX(8deg);
+  --card-tilt-hover: rotateY(14deg) rotateX(3deg);
+}
+.tilt-stack {
+  display: flex; align-items: center;
+  gap: 0;
+  overflow-x: auto; overflow-y: visible;
+  perspective: 820px;
+  padding: 60px 70px 44px;
+  scroll-snap-type: x proximity;
+  cursor: grab;
+  scrollbar-width: none;
+}
+.tilt-stack::-webkit-scrollbar { display: none; }
+.tilt-stack:active { cursor: grabbing; }
+
+.tilt-card {
+  flex: 0 0 auto;
+  position: relative;
+  margin-right: -74px;                 /* heavy overlap so the panels stack like the reference */
+  scroll-snap-align: center;
+  transform-style: preserve-3d;
+  transition: transform .3s cubic-bezier(.25,1,.5,1), margin .3s, filter .3s;
+  outline: none;
+}
+.tilt-card:last-child { margin-right: 0; }
+.tc-face {
+  position: relative;
+  width: 190px; aspect-ratio: 4 / 3;
+  border-radius: 16px; overflow: hidden;
+  transform: var(--card-tilt);
+  transform-origin: center;
+  background: color-mix(in srgb, var(--brand) 12%, var(--card));
+  border: 1px solid rgba(255,255,255,.28);
+  box-shadow: 0 22px 40px rgba(2,48,71,.30), inset 0 1px 0 rgba(255,255,255,.35);
+  transition: transform .3s cubic-bezier(.25,1,.5,1), box-shadow .3s;
+}
+.tc-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tc-fallback {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 40px; font-weight: 700; color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, var(--card));
+}
+.tc-status {
+  position: absolute; bottom: 8px; left: 8px;
+  font-size: 10px; text-transform: capitalize;
+}
+
+/* Name label floats above the card, hidden until hover */
+.tc-name {
+  position: absolute; top: -8px; left: 50%;
+  transform: translate(-50%, 6px);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 6px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap;
+  opacity: 0; pointer-events: none; z-index: 6;
+  box-shadow: 0 8px 20px rgba(2,48,71,.2);
+  transition: opacity .25s, transform .25s;
+}
+.tc-name .tc-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+/* Hover / focus: the card rises out of the stack, straightens, and reveals its name */
+.tilt-card:hover, .tilt-card:focus-visible { z-index: 5; }
+.tilt-card:hover .tc-face, .tilt-card:focus-visible .tc-face {
+  transform: var(--card-tilt-hover) translateY(-16px) scale(1.05);
+  box-shadow: 0 30px 54px rgba(2,48,71,.36);
+}
+.tilt-card:hover .tc-name, .tilt-card:focus-visible .tc-name { opacity: 1; transform: translate(-50%, -6px); }
+
+/* Highlight (from a clicked search result) */
+.tilt-card.highlight .tc-face {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 55%, transparent), 0 26px 48px rgba(2,48,71,.34);
+}
+
+.tilt-empty { padding: 30px; text-align: center; color: var(--muted); }
+
+:root[data-theme="dusk"] .tc-face { box-shadow: 0 22px 44px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08); }
+:root[data-theme="dusk"] .tc-name { background: color-mix(in srgb, var(--card) 88%, transparent); }

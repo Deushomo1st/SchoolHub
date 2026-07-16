@@ -996,3 +996,13 @@ section.block { margin-bottom: 28px; }
 .account-card { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
 .account-avatar { padding: 8px 14px 0; }
 .account-info { flex: 1; min-width: 200px; }
+
+/* ---- Inline list search input (moderators / schools) ---- */
+.list-search {
+  padding: 7px 12px; border-radius: 20px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  font: inherit; font-size: 13px; outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.list-search:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent); }
+.tilt-host { min-height: 120px; }

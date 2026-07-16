@@ -1,0 +1,65 @@
+/* ---- Layered glass modal system ---- */
+.glass-modal-bg {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  opacity: 0; transition: opacity .18s ease;
+  background: transparent;                 /* layer 1: no darkening */
+}
+.glass-modal-bg.show { opacity: 1; }
+.glass-modal-bg.closing { opacity: 0; }
+
+/* Layer 2+: frosted backdrop blurs + darkens everything behind. Each stacked
+   .frost composites over the previous one, so more modals = darker + blurrier. */
+.glass-modal-bg.frost {
+  background: rgba(2, 18, 30, .40);
+  backdrop-filter: blur(9px) saturate(115%);
+  -webkit-backdrop-filter: blur(9px) saturate(115%);
+}
+:root[data-theme="dusk"] .glass-modal-bg.frost { background: rgba(0, 0, 0, .48); }
+
+/* ---- Layer-1 panel: see-through refractive glass (very transparent, glassy) ---- */
+.glass-panel {
+  position: relative;
+  min-width: 280px; max-width: min(92vw, 440px);
+  padding: 26px;
+  border-radius: 22px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--card) 28%, transparent);
+  backdrop-filter: blur(7px) saturate(200%) brightness(1.06) contrast(1.05);
+  -webkit-backdrop-filter: blur(7px) saturate(200%) brightness(1.06) contrast(1.05);
+  border: 1px solid rgba(255, 255, 255, .40);
+  box-shadow:
+    0 30px 70px rgba(2, 48, 71, .30),
+    inset 0 1px 0 rgba(255, 255, 255, .55),
+    inset 0 -14px 30px rgba(255, 255, 255, .12);
+  transform: translateY(8px) scale(.98);
+  transition: transform .22s cubic-bezier(.25,1,.5,1);
+}
+/* refraction glint — a soft moving highlight that sells the "glassy" read */
+.glass-panel::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.22), transparent 40%, transparent 70%, rgba(255,255,255,.10));
+  mix-blend-mode: screen;
+}
+.glass-modal-bg.show .glass-panel { transform: translateY(0) scale(1); }
+
+/* ---- Frost panel (layer 2+): denser, less see-through ---- */
+.glass-panel.frost {
+  background: color-mix(in srgb, var(--card) 66%, transparent);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border-color: rgba(255, 255, 255, .18);
+}
+.glass-panel.frost::before { background: linear-gradient(135deg, rgba(255,255,255,.14), transparent 55%); }
+
+:root[data-theme="dusk"] .glass-panel {
+  border-color: rgba(255, 255, 255, .16);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+:root[data-theme="dusk"] .glass-panel::before {
+  background: linear-gradient(135deg, rgba(255,255,255,.10), transparent 45%, transparent 75%, rgba(255,255,255,.05));
+}
+
+.glass-panel h2 { margin: 0 0 6px; }
+.glass-panel .subtle { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+.glass-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }

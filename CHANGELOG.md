@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-16 — Glass modal system, glass logout + back-prevention, moderator TiltStack
+
+- **Layered glass modals** (`/app/modal/`): `openGlassModal({frost})`. Layer 1 = see-through refractive glass, no page darkening (picture 3). Layer 2+ = frosted glass that blurs + darkens everything behind; each frosted backdrop composites over the last, so more modals = progressively darker/blurrier (rules 1-4). Theme-sensitive; Escape/backdrop-click close.
+- **Logout**: drawer footer sign-out now opens a layer-1 glass confirm modal; `logout()` best-effort revokes the refresh token then wipes the session. **Browser-back after logout can no longer restore the dashboard** — `location.replace` + a `pageshow` bfcache guard re-run the auth check (verified: Back stays on login).
+- **TiltStack** (`/app/tiltstack/`): side-scrolling row of glass cards at the shared picture-1 angle (`--card-tilt`, now also used by the avatar card). Hover/focus raises a card out of the stack and fades its name/subtitle in above; drag or wheel scrolls; clicking a card or a search result cross-highlights.
+- **Moderators section** rebuilt: tilt-stack of moderator cards + schools-style filter buttons + live search (filters both the stack and a table below; row↔card highlight both ways). New `GET /api/v1/tenants/moderators` (avatars included) backed by an `avatar` column on TenantService's `AppUser`.
+
 ## 2026-07-16 — Profile pictures: avatar core (design 1, part 1)
 
 - **Backend:** `avatar` TEXT column on `platform.app_user` (base64 data-URL); `PUT /api/v1/auth/me/avatar` sets/clears the caller's own picture with an image-type + ~2MB size guard; `/me` and login DTOs now carry `avatar`.

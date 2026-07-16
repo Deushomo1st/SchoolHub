@@ -105,6 +105,25 @@ public class PlatformService {
         return out;
     }
 
+    /** Platform moderators (MODERATOR role) with their profile pictures, for the moderator tilt-stack. */
+    public List<Map<String, Object>> listModerators() {
+        Long modRoleId = roleRepo.findAll().stream()
+                .filter(r -> "MODERATOR".equals(r.getName()))
+                .map(Role::getId).findFirst().orElse(null);
+        if (modRoleId == null) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (AppUser u : userRepo.findByRoleIdOrderByCreatedAtDesc(modRoleId)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", u.getId());
+            m.put("name", u.getFirstName() + " " + u.getLastName());
+            m.put("email", u.getEmail());
+            m.put("status", u.getAccountStatus());
+            m.put("avatar", u.getAvatar());
+            out.add(m);
+        }
+        return out;
+    }
+
     private static String categoryOf(String role) {
         return switch (role) {
             case "PLATFORM_OWNER", "MODERATOR" -> "Platform team";
