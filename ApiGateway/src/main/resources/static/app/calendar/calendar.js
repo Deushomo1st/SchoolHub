@@ -88,7 +88,7 @@
         view: toView, selected: toDate, min: fromDate,            // To can't be before From
         onPick: function (d) { toDate = d; if (fromDate && fromDate > toDate) fromDate = null; draw(); }, onNav: draw
       });
-      panel.querySelector('#calRange').textContent = nice(fromDate) + '  →  ' + nice(toDate);
+      panel.querySelector('#calRange').textContent = 'From' + nice(fromDate) + '  to  ' + nice(toDate);
     }
 
     panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;

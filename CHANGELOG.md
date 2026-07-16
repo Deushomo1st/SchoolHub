@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-16 — Home nav shortcuts are live glass widgets; notification badge preloads
+
+- **Bento shortcuts are now widgets:** every tile uses the shared glass recipe and surfaces a live headline — Schools (count + pending), Moderators (count), Plans (count), Designs (icon), Account (avatar) — still clickable to its sector.
+- **Notification badge is ready on refresh:** the bell now fetches the unread count on page load (and refreshes every 60s), instead of only when the panel is first opened.
+
 ## 2026-07-16 — Dual From/To calendar; tilt-card highlight fix
 
 - **Dual From/To calendar** (`/app/calendar/`): `openDualCalendar({from, to, onApply})` — two months in one glass modal (layer-3 frost over the notification panel), slightly spaced, each with its own nav (‹ › month, ▲▼ year, scroll-to-change-month). The To can't be earlier than the From and vice-versa (out-of-range days disabled). Theme-sensitive; selected day = accent circle (teal light / orange dusk). Wired to the notification calendar button — Apply filters notifications by the picked range.

@@ -145,6 +145,15 @@ function initTheme() {
     badge.textContent = unread; badge.style.display = unread ? '' : 'none';
   }
 
+  // Fetch notifications and refresh the unread badge. Called on page load (so the count is ready
+  // on refresh, before the panel is ever opened) and whenever the panel opens.
+  function fetchNotifs() {
+    var token = null; try { token = localStorage.getItem('shToken'); } catch(e) {}
+    return fetch('/api/v1/notifications', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(data) { all = data || []; updateBadge(); return all; });
+  }
+
   function openPanel() {
     var m = openGlassModal({
       frost: true,                         // layer 2: blurs + darkens the page behind
@@ -197,14 +206,15 @@ function initTheme() {
         onApply: function(f, t) { dateFrom = f; dateTo = t; calBtn.classList.toggle('active', !!(f || t)); render(); }
       });
     };
-    var token = null; try { token = localStorage.getItem('shToken'); } catch(e) {}
-    fetch('/api/v1/notifications', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
-      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(data) { all = data || []; updateBadge(); render(); })
-      .catch(function() { list.innerHTML = '<p class="muted">Could not load notifications.</p>'; });
+    render();                                  // show what we already have (badge preloaded on page load)
+    fetchNotifs().then(render).catch(function() { if (!all.length) list.innerHTML = '<p class="muted">Could not load notifications.</p>'; });
   }
 
   bell.addEventListener('click', function(e) { e.stopPropagation(); openPanel(); });
+
+  // Prime the unread badge as soon as the page loads, and keep it fresh every 60s.
+  fetchNotifs().catch(function() {});
+  setInterval(function() { fetchNotifs().catch(function() {}); }, 60000);
 })();
 
 // ---- Universal overlay dismiss: click outside any open overlay closes it ----

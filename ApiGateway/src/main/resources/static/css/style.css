@@ -946,47 +946,58 @@ section.block { margin-bottom: 28px; }
   gap: 14px;
   margin-top: 8px;
 }
+/* Every bento tile is a glass widget (shared recipe: glass-white light / glossy silver dark). */
 .bento-tile {
-  position: relative;
+  position: relative; overflow: hidden;
   display: flex; align-items: flex-start; gap: 12px;
   text-align: left; font: inherit; cursor: pointer;
   padding: 18px; min-height: 104px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-  color: var(--ink);
+  border-radius: 16px; color: var(--ink);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .18s, border-color .18s;
 }
-.bento-tile:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(2,48,71,.14);
-  border-color: var(--brand);
+.bento-tile::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: var(--glass-sheen); mix-blend-mode: screen;
 }
+.bento-tile:hover { transform: translateY(-3px); border-color: var(--brand); }
 .bento-tile.span2 { grid-column: span 2; }
 .bt-icon {
-  flex: none; width: 42px; height: 42px; border-radius: 12px;
+  flex: none; width: 40px; height: 40px; border-radius: 12px;
   display: grid; place-items: center;
-  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
   color: var(--brand);
 }
-.bt-icon svg { width: 22px; height: 22px; }
-.bt-text { display: flex; flex-direction: column; gap: 3px; }
-.bt-text strong { font-size: 16px; }
-.bt-desc { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.bt-icon svg { width: 21px; height: 21px; }
 .bt-arrow {
-  position: absolute; top: 14px; right: 14px;
   color: var(--muted); opacity: 0; transform: translate(-2px, 2px);
   transition: opacity .18s, transform .18s;
 }
 .bt-arrow svg { width: 16px; height: 16px; }
 .bento-tile:hover .bt-arrow { opacity: 1; transform: translate(0, 0); }
-/* Accent (wide) tile — the signature gradient card */
-.bento-tile.accent {
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  border-color: transparent; color: var(--brand-ink);
+
+/* ---- Widget tiles: icon+arrow row, a headline (number/avatar/icon), then label+sub ---- */
+.widget-tile { flex-direction: column; align-items: stretch; gap: 0; padding: 16px 18px; min-height: 150px; }
+.wt-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.wt-body { flex: 1; display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.wt-body-icon { color: color-mix(in srgb, var(--brand) 55%, transparent); }
+.wt-body-icon svg { width: 46px; height: 46px; }
+.wt-num { font-size: 40px; font-weight: 800; line-height: 1; color: var(--ink); letter-spacing: -.02em; }
+.wt-unit { font-size: 13px; font-weight: 600; color: var(--muted); align-self: flex-end; padding-bottom: 5px; }
+.wt-foot { display: flex; flex-direction: column; gap: 2px; }
+.wt-foot strong { font-size: 15px; }
+.wt-sub { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.wt-avatar {
+  width: 54px; height: 54px; border-radius: 14px; overflow: hidden;
+  display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand); font-size: 20px; font-weight: 700;
 }
-.bento-tile.accent .bt-icon { background: rgba(255,255,255,.18); color: var(--brand-ink); }
-.bento-tile.accent .bt-desc,
-.bento-tile.accent .bt-arrow { color: rgba(255,255,255,.85); }
-.bento-tile.accent:hover { box-shadow: 0 12px 32px rgba(2,48,71,.28); }
+.wt-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
 @media (max-width: 720px) {
   .bento { grid-template-columns: 1fr 1fr; }
   .bento-tile.span2 { grid-column: span 2; }

@@ -209,18 +209,28 @@ async function renderPlatform(view, me) {
   setTriggerIcon('layout-grid');
 }
 
-// ---- Home: bento cluster of shortcuts to every platform sector ----
+// ---- Home: bento cluster of live glass widgets, each a shortcut to its sector ----
 async function platformHome(pane, me) {
   const tiles = PLATFORM_SECTIONS.filter(s => s.id !== 'home');
-  let schools = [];
-  try { schools = await api('/api/v1/tenants'); } catch (e) {}
-  const pending = schools.filter(s => s.status === 'pending').length;
-  const stats = {
-    schools: schools.length + ' school' + (schools.length === 1 ? '' : 's') + (pending ? ' · ' + pending + ' pending' : ''),
-  };
-  // Platform owners get a live Activity Monitor widget in the wide tile (a scaled-down version of
-  // the full box: title + side numbers + graph). Everyone else gets the plain shortcut tile.
   const isOwner = (me.roleCode || me.role) === 'PLATFORM_OWNER';
+
+  // Pull the headline numbers each widget shows (all tolerant of failure).
+  const [schools, mods, plans] = await Promise.all([
+    api('/api/v1/tenants').catch(() => []),
+    api('/api/v1/tenants/moderators').catch(() => []),
+    api('/api/v1/tenants/plans').catch(() => []),
+  ]);
+  const pending = schools.filter(s => s.status === 'pending').length;
+
+  // Per-sector widget content: a headline number (+unit) and a sub-line, or a custom body.
+  const W = {
+    schools:    { num: schools.length, unit: schools.length === 1 ? 'School' : 'Schools', sub: pending ? pending + ' pending approval' : 'All approved' },
+    moderators: { num: mods.length, unit: mods.length === 1 ? 'Moderator' : 'Moderators', sub: 'Platform support team' },
+    plans:      { num: plans.length, unit: plans.length === 1 ? 'Plan' : 'Plans', sub: 'Subscription tiers & quotas' },
+    designs:    { sub: 'Themes & UI tools' },
+    account:    { avatar: true, sub: 'Your profile & password' },
+  };
+
   function tileHTML(t) {
     if (t.id === 'overview' && isOwner) {
       return `<button class="bento-tile span2 activity-widget" data-go="overview">
@@ -228,21 +238,37 @@ async function platformHome(pane, me) {
         <canvas class="mini-activity"></canvas>
       </button>`;
     }
-    return `<button class="bento-tile${t.wide ? ' span2 accent' : ''}" data-go="${t.id}">
-      <span class="bt-icon"><i data-lucide="${t.icon}"></i></span>
-      <span class="bt-text">
-        <strong>${esc(t.label)}</strong>
-        <span class="bt-desc">${esc(stats[t.id] || t.desc || '')}</span>
-      </span>
-      <span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span>
+    const w = W[t.id] || { sub: t.desc || '' };
+    let body;
+    if (w.avatar) {
+      body = `<div class="wt-body">${avatarThumb(me)}</div>`;
+    } else if (w.num != null) {
+      body = `<div class="wt-body"><span class="wt-num">${w.num}</span><span class="wt-unit">${esc(w.unit)}</span></div>`;
+    } else {
+      body = `<div class="wt-body wt-body-icon"><i data-lucide="${t.icon}"></i></div>`;
+    }
+    return `<button class="bento-tile widget-tile" data-go="${t.id}">
+      <div class="wt-head"><span class="bt-icon"><i data-lucide="${t.icon}"></i></span><span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span></div>
+      ${body}
+      <div class="wt-foot"><strong>${esc(t.label)}</strong><span class="wt-sub">${esc(w.sub)}</span></div>
     </button>`;
   }
+
   pane.innerHTML = `<div class="bento">` + tiles.map(tileHTML).join('') + `</div>`;
   pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
   if (window.lucide) lucide.createIcons({ root: pane });
 
   const cv = pane.querySelector('.activity-widget .mini-activity');
   if (cv) startMiniActivity(cv);
+}
+
+// A small round avatar thumbnail for the Account widget (picture or initials).
+function avatarThumb(u) {
+  const name = ((u && u.firstName || '') + ' ' + (u && u.lastName || '')).trim();
+  const initials = (((name.split(/\s+/)[0] || '')[0] || '') + ((name.split(/\s+/)[1] || '')[0] || '')).toUpperCase() || '?';
+  return u && u.avatar
+    ? `<span class="wt-avatar"><img src="${esc(u.avatar)}" alt="${esc(name)}"></span>`
+    : `<span class="wt-avatar wt-avatar-fallback">${esc(initials)}</span>`;
 }
 
 // Compact live sparkline of platform activity (last ~30s, per-second buckets). Self-stops when
