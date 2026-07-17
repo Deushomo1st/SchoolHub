@@ -1,7 +1,7 @@
 // ---- Auth guard (skip on public pages: login, signup, index) ----
 function _isPublicPage() {
   var path = location.pathname.replace(/\/+$/, '').split('/').pop() || 'index.html';
-  return ['login.html', 'index.html', 'staff-signup.html', 'reset-password.html'].indexOf(path) !== -1;
+  return ['login.html', 'index.html', 'signup.html', 'staff-signup.html', 'reset-password.html'].indexOf(path) !== -1;
 }
 function _guard() {
   if (_isPublicPage()) return;
@@ -337,3 +337,38 @@ if (/login\.html$/.test(location.pathname)) {
   try { localStorage.removeItem('shToken'); localStorage.removeItem('shUser'); localStorage.removeItem('shRefresh'); } catch (e) {}
   fetch('/api/v1/auth/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'warmup@warmup.local' }) }).catch(function () {});
 }
+
+// ---- Brand mark: three tilted glass book covers (the TiltStack motif) tracing an S ----
+var SH_LOGO_SVG =
+  '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SchoolHub">' +
+    '<g transform="rotate(15 41 21)">' +
+      '<rect x="29" y="6" width="24" height="30" rx="4.5" fill="var(--amber,#FFB701)" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>' +
+      '<rect x="33" y="6" width="2.4" height="30" fill="rgba(255,255,255,.5)"/>' +
+    '</g>' +
+    '<g transform="rotate(-15 23 43)">' +
+      '<rect x="11" y="28" width="24" height="30" rx="4.5" fill="var(--sky,#8ECAE6)" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>' +
+      '<rect x="15" y="28" width="2.4" height="30" fill="rgba(255,255,255,.5)"/>' +
+    '</g>' +
+    '<g transform="rotate(-5 32 32)">' +
+      '<rect x="19" y="15" width="26" height="34" rx="5" fill="var(--brand,#209EBB)" stroke="rgba(255,255,255,.6)" stroke-width="1.6"/>' +
+      '<rect x="23.5" y="15" width="2.6" height="34" fill="rgba(255,255,255,.55)"/>' +
+      '<path d="M26 15 L45 15 L45 34 Z" fill="rgba(255,255,255,.18)"/>' +
+    '</g>' +
+  '</svg>';
+window.shLogoSvg = SH_LOGO_SVG; // landing hero reuses the same mark
+
+// ---- Corner logo: fixed glass badge, bottom-left of every page; click = home ----
+(function () {
+  function mount() {
+    if (document.getElementById('shCornerLogo')) return;
+    var a = document.createElement('a');
+    a.id = 'shCornerLogo';
+    a.title = 'SchoolHub';
+    a.setAttribute('aria-label', 'SchoolHub home');
+    var authed = false; try { authed = !!localStorage.getItem('shToken'); } catch (e) {}
+    a.href = authed ? '/app.html' : '/index.html';
+    a.innerHTML = SH_LOGO_SVG;
+    document.body.appendChild(a);
+  }
+  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+})();

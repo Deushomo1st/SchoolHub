@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SchoolHub - log in</title>
-  <link rel="stylesheet" href="/css/style.css?v=51">
+  <link rel="stylesheet" href="/css/style.css?v=52">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
   <style>
     #googleBtn { transition: color .2s, text-shadow .2s; }
@@ -46,7 +46,7 @@
 </head>
 <body class="landing">
   <div class="left-accent" id="edgeLine"></div>
-  <div class="top-actions"><a class="btn secondary" href="/index.html">Sign up a school</a></div>
+  <div class="top-actions"><a class="btn secondary" href="/signup.html">Sign up a school</a></div>
 
   <div class="hero">
     <h1>Welcome back</h1>
@@ -75,7 +75,7 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=28"></script>
+  <script src="/js/app.js?v=29"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');
@@ -139,7 +139,7 @@
         } else {
           emailHint.style.display = 'block';
           emailHint.style.color = 'var(--danger, #ef4444)';
-          emailHint.innerHTML = 'No account with this email. <a href="/index.html">Sign up a school?</a>';
+          emailHint.innerHTML = 'No account with this email. <a href="/signup.html">Sign up a school?</a>';
         }
       } catch (e) { emailHint.style.display = 'none'; }
     });
