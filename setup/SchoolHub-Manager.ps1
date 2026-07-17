@@ -153,7 +153,10 @@ function Check-Secret {
     if (-not (Test-Path $SecretsFile))   { return 'missing' }
     $raw = (Get-Content -Raw -LiteralPath $SecretsFile).Trim()
     if (-not $raw)                       { return 'empty' }
-    $val = $raw -split '=' | Select-Object -Last 1
+    # The file now holds several KEY=VALUE lines (JWT + Stripe) — check the JWT line only.
+    $line = Get-Content -LiteralPath $SecretsFile | Where-Object { $_ -match '^SCHOOLHUB_JWT_SECRET=' } | Select-Object -First 1
+    if (-not $line)                      { return 'missing' }
+    $val = ($line -split '=', 2)[1]
     if ($val.Length -lt 32)              { return 'tooshort' }
     try { [Convert]::FromBase64String($val) | Out-Null } catch { return 'badbase64' }
     if ($env:SCHOOLHUB_JWT_SECRET -and $env:SCHOOLHUB_JWT_SECRET -ne $val) { return 'envmismatch' }
@@ -246,7 +249,7 @@ function Launch-All {
             Write-Host "  $($s.Name): no JAR found — run build first" -ForegroundColor Red
             continue
         }
-        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& java -jar `"$($jar.FullName)`""
+        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& java -jar `"$($jar.FullName)`""
         $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         Write-Host "  $($s.Name) launched (PID $($proc.Id), port $($s.Port))" -ForegroundColor Green
         Start-Sleep -Milliseconds 400
@@ -310,7 +313,7 @@ function Launch-One($svc) {
         Write-Host "    $($svc.Name): no JAR found — run compile first" -ForegroundColor Red
         return
     }
-    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& java -jar `"$($jar.FullName)`""
+    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& java -jar `"$($jar.FullName)`""
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
     Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
