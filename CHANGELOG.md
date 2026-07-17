@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-17 — Design rollout: librarian sector + student/guardian/bursar/teacher restyle + glass calendar
+
+Applied the design system (bento homes, tilt-stacks, glass modals) to every remaining role. Rule enforced throughout: **a tilt-stack only appears where the resource owns a picture** (book covers, resource-item covers, children's avatars) — everything else uses list/spotlight patterns.
+
+- **Librarian dashboard (new — the library backend had no UI):** bento home with live stats; **Books = tilt-stack of covers** + filter/search + table, add/edit in a glass modal that reuses the avatar drag/zoom crop for the 4:3 cover (placeholder gradient face when none); Requests = amber approval inbox (approve / glass-reject with reason); Borrowed = books out with red-ticking due badges, Return + record-fine-paid; Members = register-from-roster + suspend; Flags = escalate-to-admin. Route: `LIBRARIAN` → `renderLibrarian`.
+- **Student:** bento home (For You owed, Library out/fines/code, Calendar next event) + Me/subjects/results cards. New **Library** section: "My library" (code, books out, fines, pending requests, borrowed rows with cover thumb + due badge + Renew + Pay fine) and **The shelf** — tilt-stack of covers; a card opens a layer-1 glass book modal with availability, Borrow and Report-a-problem (flag).
+- **Guardian:** bento home with **one tile per child** (their own avatar + attendance micro-stat) plus For You/Calendar/Account. Children section: 2+ children = tilt-stack of the kids' avatar cards selecting the detail pane; a single child gets one tilted card (no one-card stack).
+- **Bursar:** bento home of money tiles (Billed/Collected/Outstanding/Unpaid) that **lock onto the invoice table pre-filtered**; invoice filter pills + search; **both `prompt()` calls replaced** with a glass record-payment modal (amount pre-filled, cash/transfer pills); issue-invoice moved into a glass form. Resource Point (bursar + admin Payments) gains a tilt-stack of posted items wearing their `coverImageUrl`.
+- **Teacher:** bento home; Attendance = class pills → student rows with a **Present/Absent/Late/Excused segment** (present pre-selected, one Save per class); Results = same row pattern with inline score inputs. Roster tilt-stack skipped — `/students` carries no pictures (the balance rule).
+- **Calendar pane (all roles):** the agenda list is now a **glass month grid** (calendar.js `renderMonthGrid`, dual-calendar chrome) with per-type event dots + today ring; a day click opens a layer-1 glass modal of that day's items; staff post via a glass form; "Upcoming" list below.
+- **Backend enablers (SchoolService):** `book.cover_image` (base64, migrated to all 5 tenant schemas); `/library/me` now returns `libraryStudentId` + `status`; enriched librarian views (student names/avatars + book titles joined in `/library/students`, `/borrow-requests/pending`, `/borrow-records/{active,overdue}`, `/flags/escalated`); new `GET /borrow-records/active`; guardian bundle carries each child's `avatar`; LIBRARIAN added to `POST /api/v1/staff` roles, to `GET /students` (member registration needs the roster) and to the admin Add-staff form.
+- **Fixes found while verifying:** the running ApiGateway JAR predated the library routes ("Unknown API resource: library") — rebuilt + relaunched both jars; For You card border was hardcoded `#e5e7eb` → `var(--line)`.
+- Verified end-to-end in the browser as librarian, student, bursar, teacher and guardian (register member → add book with cover → borrow → approve → return-due tracking; invoice → glass payment; attendance segments; calendar dot + day modal; child tilt-stack). Cache bumps: dashboards v33, style v48, calendar js v3/css v2.
+
 ## 2026-07-16 — Java 25 build fix: .mvn/jvm.config + JAR launch
 
 - **Root cause:** Java 25 module system broke the Maven wrapper (`mvnw.cmd`). `--enable-native-access=ALL-UNNAMED` is now required.

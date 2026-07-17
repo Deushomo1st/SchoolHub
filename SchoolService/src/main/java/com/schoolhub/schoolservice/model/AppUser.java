@@ -43,6 +43,10 @@ public class AppUser {
     @Column(name = "account_status", nullable = false)
     private String accountStatus = "active";
 
+    /** Profile picture (base64 data-URL), set by the user via AuthService. Read-only here. */
+    @Column(columnDefinition = "text", insertable = false, updatable = false)
+    private String avatar;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -70,4 +74,5 @@ public class AppUser {
     public void setRoleId(Long roleId) { this.roleId = roleId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
+    public String getAvatar() { return avatar; }
 }

@@ -13,7 +13,8 @@ public class BookReq {
     private String fileType;
     private BigDecimal finePerDay;
     private Integer borrowDays;
-    
+    private String coverImage;
+
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     
@@ -43,4 +44,7 @@ public class BookReq {
     
     public Integer getBorrowDays() { return borrowDays; }
     public void setBorrowDays(Integer borrowDays) { this.borrowDays = borrowDays; }
+
+    public String getCoverImage() { return coverImage; }
+    public void setCoverImage(String coverImage) { this.coverImage = coverImage; }
 }

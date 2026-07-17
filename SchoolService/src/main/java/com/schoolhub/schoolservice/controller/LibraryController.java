@@ -63,9 +63,9 @@ public class LibraryController {
 
     @GetMapping("/students")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<LibraryStudent>> listStudents(Authentication auth) {
+    public ResponseEntity<List<Map<String, Object>>> listStudents(Authentication auth) {
         assertLibrarian(auth);
-        return ResponseEntity.ok(libraryService.listStudents());
+        return ResponseEntity.ok(libraryService.listStudentsEnriched());
     }
 
     // ---- Book management (librarian only) ----
@@ -86,6 +86,7 @@ public class LibraryController {
         b.setFileType(req.getFileType());
         b.setFinePerDay(req.getFinePerDay());
         b.setBorrowDays(req.getBorrowDays());
+        b.setCoverImage(req.getCoverImage());
         return ResponseEntity.ok(libraryService.createBook(b));
     }
 
@@ -105,6 +106,7 @@ public class LibraryController {
         b.setFileType(req.getFileType());
         b.setFinePerDay(req.getFinePerDay());
         b.setBorrowDays(req.getBorrowDays());
+        b.setCoverImage(req.getCoverImage());
         return ResponseEntity.ok(libraryService.updateBook(id, b));
     }
 
@@ -155,9 +157,9 @@ public class LibraryController {
 
     @GetMapping("/borrow-requests/pending")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<BorrowRequest>> listPendingRequests(Authentication auth) {
+    public ResponseEntity<List<Map<String, Object>>> listPendingRequests(Authentication auth) {
         assertLibrarian(auth);
-        return ResponseEntity.ok(libraryService.listPendingRequests());
+        return ResponseEntity.ok(libraryService.listPendingRequestsEnriched());
     }
 
     @GetMapping("/borrow-requests/my")
@@ -188,9 +190,17 @@ public class LibraryController {
 
     @GetMapping("/borrow-records/overdue")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<BorrowRecord>> listOverdue(Authentication auth) {
+    public ResponseEntity<List<Map<String, Object>>> listOverdue(Authentication auth) {
         assertLibrarian(auth);
-        return ResponseEntity.ok(libraryService.listOverdue());
+        return ResponseEntity.ok(libraryService.listRecordsEnriched(List.of("overdue")));
+    }
+
+    /** Every book currently out (active + overdue) — the librarian's Borrowed panel. */
+    @GetMapping("/borrow-records/active")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<Map<String, Object>>> listActive(Authentication auth) {
+        assertLibrarian(auth);
+        return ResponseEntity.ok(libraryService.listRecordsEnriched(List.of("active", "overdue")));
     }
 
     // ---- Book flags (student/librarian flags, librarian escalates, admin decides) ----
@@ -216,9 +226,9 @@ public class LibraryController {
 
     @GetMapping("/flags/escalated")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<BookFlag>> listEscalatedFlags(Authentication auth) {
+    public ResponseEntity<List<Map<String, Object>>> listEscalatedFlags(Authentication auth) {
         assertLibrarian(auth);
-        return ResponseEntity.ok(libraryService.listEscalatedFlags());
+        return ResponseEntity.ok(libraryService.listOpenFlagsEnriched());
     }
 
     @GetMapping("/flags/pending")

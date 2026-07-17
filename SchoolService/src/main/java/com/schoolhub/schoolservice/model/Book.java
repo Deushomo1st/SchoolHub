@@ -44,6 +44,10 @@ public class Book {
     @Column(name = "borrow_days")
     private Integer borrowDays;
 
+    /** Cover picture (base64 data-URL, cropped 4:3 like avatars) — what the tilt-stack shows. */
+    @Column(name = "cover_image", columnDefinition = "text")
+    private String coverImage;
+
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 
@@ -76,6 +80,8 @@ public class Book {
     public void setFinePerDay(BigDecimal finePerDay) { this.finePerDay = finePerDay; }
     public Integer getBorrowDays() { return borrowDays; }
     public void setBorrowDays(Integer borrowDays) { this.borrowDays = borrowDays; }
+    public String getCoverImage() { return coverImage; }
+    public void setCoverImage(String coverImage) { this.coverImage = coverImage; }
     public Long getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(Long uploadedBy) { this.uploadedBy = uploadedBy; }
     public LocalDateTime getCreatedAt() { return createdAt; }

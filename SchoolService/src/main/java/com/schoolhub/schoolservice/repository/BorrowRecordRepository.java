@@ -11,6 +11,7 @@ public interface BorrowRecordRepository extends JpaRepository<BorrowRecord, Long
     List<BorrowRecord> findByLibraryStudentIdOrderByBorrowDateDesc(Long libraryStudentId);
     List<BorrowRecord> findByLibraryStudentIdAndStatus(Long libraryStudentId, String status);
     List<BorrowRecord> findByStatus(String status);
+    List<BorrowRecord> findByStatusInOrderByDueDateAsc(java.util.Collection<String> statuses);
     long countByStatus(String status);
     
     @Query("SELECT COUNT(b) FROM BorrowRecord b WHERE b.libraryStudentId = :libraryStudentId AND b.status IN ('active', 'overdue')")

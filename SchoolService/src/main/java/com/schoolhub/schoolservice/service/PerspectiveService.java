@@ -30,6 +30,7 @@ public class PerspectiveService {
     private final FeeService feeService;
     private final EnrollmentService enrollmentService;
     private final CohortRepository cohortRepo;
+    private final AppUserRepository appUserRepo;
 
     public PerspectiveService(TeacherRepository teacherRepo, StudentRepository studentRepo,
                               GuardianRepository guardianRepo, SchoolClassRepository classRepo,
@@ -37,7 +38,9 @@ public class PerspectiveService {
                               AssessmentRepository assessmentRepo, ResultRepository resultRepo,
                               AttendanceRepository attendanceRepo, StudentGuardianRepository linkRepo,
                               CalendarEventRepository eventRepo, FeeService feeService,
-                              EnrollmentService enrollmentService, CohortRepository cohortRepo) {
+                              EnrollmentService enrollmentService, CohortRepository cohortRepo,
+                              AppUserRepository appUserRepo) {
+        this.appUserRepo = appUserRepo;
         this.feeService = feeService;
         this.teacherRepo = teacherRepo;
         this.studentRepo = studentRepo;
@@ -134,6 +137,9 @@ public class PerspectiveService {
             Student s = child.get();
             Map<String, Object> c = new LinkedHashMap<>();
             c.put("student", s);
+            // The child's own profile picture (set from their login) — powers the guardian tilt cards.
+            c.put("avatar", s.getUserId() == null ? null
+                    : appUserRepo.findById(s.getUserId()).map(AppUser::getAvatar).orElse(null));
             c.put("relationship", link.getRelationship());
             c.put("className", resolveClassName(s));
             c.put("results", resultRows(s.getId()));

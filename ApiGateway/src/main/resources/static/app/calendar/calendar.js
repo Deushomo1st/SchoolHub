@@ -10,12 +10,14 @@
   function same(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
   function nice(d) { return d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '…'; }
 
-  // Render one month into `host`. cfg: { view:{y,m}, selected, min, max, onPick(date), onNav() }
+  // Render one month into `host`. cfg: { view:{y,m}, selected, min, max, onPick(date), onNav(),
+  //   marks: { 'YYYY-MM-DD': ['event','exam',...] } — coloured dots under the day number. }
   function renderMonth(host, cfg) {
     var y = cfg.view.y, m = cfg.view.m;
     var startWd = (new Date(y, m, 1).getDay() + 6) % 7;   // week starts Monday
     var days = new Date(y, m + 1, 0).getDate();
     var prev = new Date(y, m, 0).getDate();
+    var todayIso = iso(new Date());
 
     var cells = '';
     for (var i = 0; i < startWd; i++) cells += '<span class="cal-day muted-day">' + (prev - startWd + 1 + i) + '</span>';
@@ -23,7 +25,13 @@
       var date = new Date(y, m, d);
       var off = (cfg.min && date < day0(cfg.min)) || (cfg.max && date > day0(cfg.max));
       var sel = same(date, cfg.selected);
-      cells += '<button type="button" class="cal-day' + (sel ? ' sel' : '') + (off ? ' disabled' : '') + '" data-d="' + d + '"' + (off ? ' disabled' : '') + '>' + d + '</button>';
+      var dIso = iso(date);
+      var marks = cfg.marks && cfg.marks[dIso];
+      var dots = marks ? '<span class="cal-dots">' + marks.slice(0, 3).map(function (t) {
+        return '<span class="cal-dot dot-' + t + '"></span>'; }).join('') + '</span>' : '';
+      cells += '<button type="button" class="cal-day' + (sel ? ' sel' : '') + (off ? ' disabled' : '')
+        + (dIso === todayIso ? ' today' : '') + (marks ? ' has-marks' : '')
+        + '" data-d="' + d + '"' + (off ? ' disabled' : '') + '>' + d + dots + '</button>';
     }
     var trail = (7 - (startWd + days) % 7) % 7;
     for (var t = 1; t <= trail; t++) cells += '<span class="cal-day muted-day">' + t + '</span>';
@@ -51,6 +59,9 @@
       b.onclick = function () { cfg.onPick(new Date(y, m, parseInt(b.dataset.d, 10))); };
     });
   }
+
+  // Single-month glass grid (the agenda calendar uses this) — same chrome as the dual picker.
+  window.renderMonthGrid = renderMonth;
 
   window.openDualCalendar = function (opts) {
     opts = opts || {};

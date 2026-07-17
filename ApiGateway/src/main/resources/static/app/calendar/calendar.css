@@ -40,6 +40,19 @@
 .cal-day.muted-day { color: color-mix(in srgb, var(--ink) 28%, transparent); pointer-events: none; }
 .cal-day.disabled { color: color-mix(in srgb, var(--ink) 20%, transparent); pointer-events: none; cursor: default; }
 
+/* ---- Event marks + today (single-month agenda grid) ---- */
+.cal-day { position: relative; }
+.cal-day.today:not(.sel) { box-shadow: inset 0 0 0 1.5px var(--brand); }
+.cal-dots { position: absolute; bottom: 12%; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; pointer-events: none; }
+.cal-dot { width: 4px; height: 4px; border-radius: 50%; }
+.cal-dot.dot-event { background: var(--brand); }
+.cal-dot.dot-announcement { background: var(--amber, #FFB701); }
+.cal-dot.dot-holiday { background: var(--ok, #2e9e5b); }
+.cal-dot.dot-exam { background: var(--danger, #d64545); }
+
+/* The agenda calendar (a card, not a modal) reuses the same chrome at a wider size. */
+.agenda-cal { max-width: 380px; margin: 0 auto; }
+
 .dual-cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
 #calRange { font-size: 13px; font-weight: 600; color: var(--ink); }
 

@@ -97,11 +97,13 @@ public class StudentService {
         return ids;
     }
 
-    /** ADMIN / PRINCIPAL (ROLE_ADMIN) and BURSAR see the whole school; teachers are scoped to their classes. */
+    /** ADMIN / PRINCIPAL (ROLE_ADMIN), BURSAR and LIBRARIAN (member registration) see the whole
+     *  school; teachers are scoped to their classes. */
     private boolean seesAllStudents() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_BURSAR"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_BURSAR")
+                        || a.getAuthority().equals("ROLE_LIBRARIAN"));
     }
 
     private Set<Long> teacherClassIds() {

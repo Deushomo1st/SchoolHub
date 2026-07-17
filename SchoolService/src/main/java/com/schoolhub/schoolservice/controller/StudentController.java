@@ -19,8 +19,9 @@ public class StudentController {
     }
 
     // Student PII is staff-only. Students/guardians see their own data via /api/v1/me/*.
+    // LIBRARIAN needs the roster to register library members.
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','BURSAR')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','BURSAR','LIBRARIAN')")
     public ResponseEntity<?> list() {
         return ResponseEntity.ok(studentService.list());
     }

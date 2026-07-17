@@ -8,4 +8,5 @@ public interface BookFlagRepository extends JpaRepository<BookFlag, Long> {
     List<BookFlag> findByBookId(Long bookId);
     List<BookFlag> findByEscalatedTrue();
     List<BookFlag> findByAdminDecisionIsNullAndEscalatedTrue();
+    List<BookFlag> findByAdminDecisionIsNull();
 }

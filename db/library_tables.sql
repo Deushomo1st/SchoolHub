@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS library_fine_rule (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Cover picture (base64 data-URL) — added after the initial rollout, hence ALTER.
+ALTER TABLE book ADD COLUMN IF NOT EXISTS cover_image TEXT;
+
 -- Seed default fine rules
 INSERT INTO library_fine_rule (rule_type, value) VALUES
     ('fine_per_day', 50.00),

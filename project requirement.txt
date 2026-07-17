@@ -1,0 +1,96 @@
+School management system 
+Customer-facing features
+User account & profile
+•	Register/login (via email, otp, google/facebook)
+•	Manage student/parent profile (personal details, contact info, student’s academic data)
+•	View academic history (grades, attendance, timetable)
+•	Add or manage multiple students (for parents with more than one child)
+•	Manage communication preferences (receive notifications about assignments, grades, events)
+Course & subject browsing
+•	Browse by categories: subjects, grade levels, extracurricular activities
+•	Filter by:
+o	Grade level (e.g., primary, secondary, higher secondary)
+o	Subject (e.g., mathematics, science, history, languages)
+o	Teacher (e.g., search by subject teacher for private sessions)
+o	Time slot availability (e.g., morning or afternoon sessions)
+•	Smart search with auto-suggestions (search by subject, teacher, or grade)
+Timetable & schedule
+•	View class schedules (students can view their daily or weekly class schedules)
+•	View teacher availability (parents/students can view available times for teacher meetings)
+•	Track extracurricular activities (sports, music, clubs, etc.)
+•	Set reminders for classes/exams/assignments (push notifications or email alerts)
+Student details page
+•	High-res images (student photo)
+•	Academic details (grades, assignments, progress reports, subject-wise performance)
+•	Attendance record (daily attendance, leave requests, sick leave)
+•	Behavior & conduct reports (teacher evaluations, discipline records)
+•	Notifications & messages from teachers (remarks, updates, and alerts)
+•	View results and exams (marks, grade point average, and rankings)
+Fees & payment
+•	View fee structure (tuition fees, extracurricular charges, exam fees, etc.)
+•	Pay fees online (via payment gateways like stripe, razorpay, upi, credit/debit cards)
+•	Track payment history (previous fees, upcoming dues, invoices)
+•	Apply for financial aid (for students with scholarships or fee waivers)
+•	Set up recurring payments (automatic payments for monthly fees)
+•	Generate payment receipts (print or email receipts after payments)
+Notifications & alerts
+•	Receive notifications (for assignments, upcoming exams, grade updates)
+•	Sms/email alerts (for emergency school closures, events, parent-teacher meetings)
+•	Push notifications (for school events, activities, class changes)
+Student attendance
+•	Mark attendance (students mark attendance or can view attendance for the day)
+•	View attendance history (students and parents can track attendance rates and absences)
+•	Request leave (students/parents can submit leave requests for specific dates)
+•	Notification of absences (automatic notifications if a student is marked absent)
+________________________________________
+Admin panel features
+Student & enrollment management
+•	Add/edit/delete student profiles (basic details, contact info, academic history)
+•	Manage student admissions (register new students, transfer students)
+•	Track student progress (grades, attendance, report cards)
+•	Assign subjects & classes (link students to specific subjects, teachers, and grades)
+•	Assign extracurricular activities (manage club memberships, sports teams, etc.)
+
+Teacher & staff management
+•	Add/edit/delete teacher profiles (teacher details, subjects taught, schedule)
+•	Assign teaching subjects (link teachers to relevant subjects and classes)
+•	Manage staff schedules (view and update staff working hours, class schedules)
+•	Track staff performance (e.g., teacher evaluations, training records)
+Class & subject management
+•	Create/manage courses and subjects (assign subjects to specific grade levels)
+•	Create/assign class schedules (assign teachers to time slots and classrooms)
+•	Manage class divisions (e.g., a, b, c for a specific grade)
+Attendance & leave management
+•	Mark student attendance (for each class or day)
+•	Track teacher attendance (manage leave requests, sick days, and absences)
+•	Manage leave approvals (approve/deny leave requests for students and teachers)
+•	Generate attendance reports (for students, classes, and teachers)
+Exams & grading
+•	Create/manage exams (assignments, quizzes, midterms, final exams)
+•	Assign grading criteria (e.g., letter grades, marks out of 100)
+•	Grade submission (teachers can input grades for exams and assignments)
+•	Generate report cards (automatically generate grade sheets for students)
+•	Track student performance (analyze results, identify students in need of support)
+•	Publish results (publish grades for exams, assignments, or term results)
+Fee management
+•	Set fee structure (tuition fees, activity charges, exam fees, etc.)
+•	Track student fee payments (view payment status, generate invoices, mark payments as received)
+•	Create and manage payment schedules (due dates for term fees, monthly installments)
+•	Generate fee receipts (for each payment made by parents)
+•	Send payment reminders (email/sms notifications for upcoming payments)
+•	Generate financial reports (track income, outstanding fees, financial aid, scholarships)
+Parent-teacher communication
+•	Manage parent-teacher meetings (schedule and track appointments)
+•	Send notifications (upcoming meetings, academic progress reports, behavior feedback)
+•	Enable messaging (secure messaging between parents and teachers)
+•	View meeting histories (track past meetings, notes, follow-up actions)
+Events & calendar management
+•	Manage school events (sports day, field trips, cultural events)
+•	Create event schedules (time, date, location, participants)
+•	Track event attendance (students, teachers, and parents can rsvp)
+•	Publish events calendar (for parents, students, and staff to view school events)
+Analytics & reporting
+•	Generate student performance reports (grades, attendance, behavior)
+•	Monitor school-wide performance (exam results, attendance rates)
+•	Track teacher performance (grades, feedback from students, and evaluations)
+•	Financial reports (school income, expenses, fee collections)

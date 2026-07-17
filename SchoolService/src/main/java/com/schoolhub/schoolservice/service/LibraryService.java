@@ -137,6 +137,11 @@ public class LibraryService {
         b.setFileType(updated.getFileType());
         b.setFinePerDay(updated.getFinePerDay());
         b.setBorrowDays(updated.getBorrowDays());
+        // Only touch the cover when the request carries one ("" clears it) — edits without a
+        // new picture keep the existing cover.
+        if (updated.getCoverImage() != null) {
+            b.setCoverImage(updated.getCoverImage().isEmpty() ? null : updated.getCoverImage());
+        }
         b = bookRepo.save(b);
         audit.record("BOOK_UPDATED", "id=" + id);
         return b;
@@ -398,6 +403,121 @@ public class LibraryService {
         return fineRuleRepo.findAll();
     }
 
+    // ---- Enriched views for the librarian dashboard (joins platform.app_user for names/avatars
+    //      and book for titles — the raw entities only carry ids) ----
+
+    private Map<Long, AppUser> usersById(Collection<Long> ids) {
+        Map<Long, AppUser> m = new HashMap<>();
+        appUserRepo.findAllById(ids).forEach(u -> m.put(u.getId(), u));
+        return m;
+    }
+
+    private Map<Long, LibraryStudent> libStudentsById(Collection<Long> ids) {
+        Map<Long, LibraryStudent> m = new HashMap<>();
+        studentRepo.findAllById(ids).forEach(s -> m.put(s.getId(), s));
+        return m;
+    }
+
+    private Map<Long, Book> booksById(Collection<Long> ids) {
+        Map<Long, Book> m = new HashMap<>();
+        bookRepo.findAllById(ids).forEach(b -> m.put(b.getId(), b));
+        return m;
+    }
+
+    private static String fullName(AppUser u) {
+        return u == null ? "Unknown" : (u.getFirstName() + " " + u.getLastName()).trim();
+    }
+
+    public List<Map<String, Object>> listStudentsEnriched() {
+        List<LibraryStudent> list = studentRepo.findAll();
+        Map<Long, AppUser> users = usersById(list.stream().map(LibraryStudent::getUserId).toList());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (LibraryStudent ls : list) {
+            AppUser u = users.get(ls.getUserId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", ls.getId());
+            row.put("userId", ls.getUserId());
+            row.put("libraryCode", ls.getLibraryCode());
+            row.put("status", ls.getStatus());
+            row.put("name", fullName(u));
+            row.put("email", u == null ? null : u.getEmail());
+            row.put("avatar", u == null ? null : u.getAvatar());
+            out.add(row);
+        }
+        return out;
+    }
+
+    public List<Map<String, Object>> listPendingRequestsEnriched() {
+        List<BorrowRequest> reqs = listPendingRequests();
+        Map<Long, LibraryStudent> students = libStudentsById(reqs.stream().map(BorrowRequest::getLibraryStudentId).distinct().toList());
+        Map<Long, AppUser> users = usersById(students.values().stream().map(LibraryStudent::getUserId).toList());
+        Map<Long, Book> books = booksById(reqs.stream().map(BorrowRequest::getBookId).distinct().toList());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (BorrowRequest r : reqs) {
+            LibraryStudent ls = students.get(r.getLibraryStudentId());
+            Book b = books.get(r.getBookId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", r.getId());
+            row.put("bookId", r.getBookId());
+            row.put("bookTitle", b == null ? "?" : b.getTitle());
+            row.put("studentName", fullName(ls == null ? null : users.get(ls.getUserId())));
+            row.put("libraryCode", ls == null ? null : ls.getLibraryCode());
+            row.put("requestedAt", r.getRequestedAt());
+            row.put("status", r.getStatus());
+            out.add(row);
+        }
+        return out;
+    }
+
+    /** Borrow records in the given statuses, oldest due date first, with names + titles joined. */
+    public List<Map<String, Object>> listRecordsEnriched(Collection<String> statuses) {
+        List<BorrowRecord> recs = recordRepo.findByStatusInOrderByDueDateAsc(statuses);
+        Map<Long, LibraryStudent> students = libStudentsById(recs.stream().map(BorrowRecord::getLibraryStudentId).distinct().toList());
+        Map<Long, AppUser> users = usersById(students.values().stream().map(LibraryStudent::getUserId).toList());
+        Map<Long, Book> books = booksById(recs.stream().map(BorrowRecord::getBookId).distinct().toList());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (BorrowRecord r : recs) {
+            LibraryStudent ls = students.get(r.getLibraryStudentId());
+            Book b = books.get(r.getBookId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", r.getId());
+            row.put("bookId", r.getBookId());
+            row.put("bookTitle", b == null ? "?" : b.getTitle());
+            row.put("studentName", fullName(ls == null ? null : users.get(ls.getUserId())));
+            row.put("libraryCode", ls == null ? null : ls.getLibraryCode());
+            row.put("borrowDate", r.getBorrowDate());
+            row.put("dueDate", r.getDueDate());
+            row.put("renewedCount", r.getRenewedCount());
+            row.put("fineCharged", r.getFineCharged());
+            row.put("finePaid", r.getFinePaid());
+            row.put("status", r.getStatus());
+            out.add(row);
+        }
+        return out;
+    }
+
+    /** Open flags (no admin decision yet) for the librarian's Flags panel. */
+    public List<Map<String, Object>> listOpenFlagsEnriched() {
+        List<BookFlag> flags = flagRepo.findByAdminDecisionIsNull();
+        Map<Long, AppUser> users = usersById(flags.stream().map(BookFlag::getFlaggedBy).distinct().toList());
+        Map<Long, Book> books = booksById(flags.stream().map(BookFlag::getBookId).distinct().toList());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (BookFlag f : flags) {
+            Book b = books.get(f.getBookId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", f.getId());
+            row.put("bookId", f.getBookId());
+            row.put("bookTitle", b == null ? "?" : b.getTitle());
+            row.put("flagType", f.getFlagType());
+            row.put("comment", f.getComment());
+            row.put("flaggedByName", fullName(users.get(f.getFlaggedBy())));
+            row.put("escalated", f.getEscalated());
+            row.put("createdAt", f.getCreatedAt());
+            out.add(row);
+        }
+        return out;
+    }
+
     // ---- Helpers ----
 
     private String generateCode() {
@@ -438,6 +558,8 @@ public class LibraryService {
                 .orElseThrow(() -> new EntityNotFoundException("Library student not found"));
         
         Map<String, Object> info = new HashMap<>();
+        info.put("libraryStudentId", student.getId());
+        info.put("status", student.getStatus());
         info.put("libraryCode", student.getLibraryCode());
         info.put("activeBorrows", recordRepo.countActiveBorrows(student.getId()));
         info.put("totalFines", recordRepo.sumUnpaidFines(student.getId()));

@@ -136,43 +136,103 @@ function roleAccountPane(pane) {
   };
 }
 
-// ---------------- Calendar (shared agenda) ----------------
+// ---------------- Shared date helpers ----------------
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Red-ticking countdown for any due date (library loans, etc.) — mirrors the For You badge.
+function dueBadgeFor(dueDate, settled) {
+  if (!dueDate) return '<span class="subtle">No deadline</span>';
+  if (settled) return '<span class="subtle">Returned</span>';
+  const d = Math.round((new Date(String(dueDate).slice(0, 10)) - new Date(isoDate(new Date()))) / 86400000);
+  const red = 'color:var(--danger);font-weight:700';
+  if (d < 0) return `<span style="${red}">Overdue by ${-d} day${-d === 1 ? '' : 's'}</span>`;
+  if (d === 0) return `<span style="${red}">Due today</span>`;
+  if (d <= 3) return `<span style="${red}">${d} day${d === 1 ? '' : 's'} left</span>`;
+  return `<span class="subtle">Due in ${d} days</span>`;
+}
+
+// ---------------- Calendar (shared agenda: glass month grid + upcoming list) ----------------
 async function renderCalendar(container, canCreate) {
   container.innerHTML = `
     <h2>Calendar &amp; announcements</h2>
-    ${canCreate ? `<div id="evmsg" class="msg"></div>
-    <form id="evform" class="inline-form">
-      <div style="flex:2"><label>Title</label><input name="title" required></div>
-      <div><label>Type</label><select name="eventType">
-        <option value="event">Event</option><option value="announcement">Announcement</option>
-        <option value="holiday">Holiday</option><option value="exam">Exam</option></select></div>
-      <div><label>Date</label><input name="startDate" type="date" required></div>
-      <div><label>Audience</label><select name="audience">
-        <option value="all">Everyone</option><option value="staff">Staff</option>
-        <option value="students">Students</option><option value="guardians">Guardians</option></select></div>
-      <div style="flex:0"><button class="btn">Post</button></div>
-    </form>` : ''}
+    <div id="evmsg" class="msg"></div>
+    <div class="agenda-cal"><div id="agCal"></div></div>
+    <div class="subtle" style="display:flex;gap:14px;justify-content:center;margin:10px 0 4px;font-size:11px;flex-wrap:wrap">
+      <span><span class="cal-dot dot-event" style="display:inline-block;margin-right:4px"></span>Event</span>
+      <span><span class="cal-dot dot-announcement" style="display:inline-block;margin-right:4px"></span>Announcement</span>
+      <span><span class="cal-dot dot-holiday" style="display:inline-block;margin-right:4px"></span>Holiday</span>
+      <span><span class="cal-dot dot-exam" style="display:inline-block;margin-right:4px"></span>Exam</span>
+    </div>
+    ${canCreate ? '<div style="text-align:center;margin:10px 0"><button class="btn" id="evAdd"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Post an event</button></div>' : ''}
+    <h3 style="margin:18px 0 6px">Upcoming</h3>
     <div id="evlist"><p class="muted">Loading…</p></div>`;
+  if (window.lucide) lucide.createIcons({ root: container });
 
-  async function load() {
-    const events = await api('/api/v1/events');
+  let events = [];
+  const now = new Date();
+  const view = { y: now.getFullYear(), m: now.getMonth() };
+
+  function evRow(e) {
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <span class="badge ${esc(e.eventType)}">${esc(e.eventType)}</span>
+      <strong style="margin-left:8px">${esc(e.title)}</strong>
+      <span class="subtle"> · ${fmt(e.startDate)} · ${esc(e.audience)}</span>
+      ${e.description ? `<div class="subtle">${esc(e.description)}</div>` : ''}</div>`;
+  }
+  function drawCal() {
+    const marks = {};
+    events.forEach(e => {
+      const d = String(e.startDate || '').slice(0, 10);
+      if (d) (marks[d] = marks[d] || []).push(e.eventType);
+    });
+    renderMonthGrid(document.getElementById('agCal'), {
+      view, marks,
+      onNav: drawCal,
+      onPick: d => {                       // day click → layer-1 glass modal with that day's items
+        const dIso = isoDate(d);
+        const todays = events.filter(e => String(e.startDate || '').slice(0, 10) === dIso);
+        const ctrl = openGlassModal({
+          className: 'confirm-glass-panel',
+          html: `<h2>${d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h2>
+            ${todays.length ? todays.map(evRow).join('') : '<p class="subtle">Nothing on this day.</p>'}
+            <div class="glass-actions"><button class="btn ghost" data-x="close">Close</button></div>`
+        });
+        ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
+      },
+    });
+  }
+  function renderList() {
+    const today = isoDate(new Date());
     const list = document.getElementById('evlist');
-    if (!events.length) { list.innerHTML = '<p class="muted">Nothing on the calendar yet.</p>'; return; }
-    list.innerHTML = events.map(e => `
-      <div style="padding:12px 0;border-bottom:1px solid var(--line)">
-        <span class="badge ${esc(e.eventType)}">${esc(e.eventType)}</span>
-        <strong style="margin-left:8px">${esc(e.title)}</strong>
-        <span class="subtle"> · ${fmt(e.startDate)} · ${esc(e.audience)}</span>
-        ${e.description ? `<div class="subtle">${esc(e.description)}</div>` : ''}
-      </div>`).join('');
+    const up = events.filter(e => String(e.startDate || '').slice(0, 10) >= today)
+      .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+    if (up.length) { list.innerHTML = up.map(evRow).join(''); return; }
+    const past = events.slice().sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))).slice(0, 5);
+    list.innerHTML = past.length
+      ? '<p class="subtle" style="margin:4px 0">Nothing ahead — recent items:</p>' + past.map(evRow).join('')
+      : '<p class="muted">Nothing on the calendar yet.</p>';
+  }
+  async function load() {
+    events = await api('/api/v1/events').catch(() => []);
+    drawCal(); renderList();
   }
   if (canCreate) {
-    const f = document.getElementById('evform'), m = document.getElementById('evmsg');
-    f.addEventListener('submit', async ev => {
-      ev.preventDefault(); hideMsg(m);
-      const b = Object.fromEntries(new FormData(f));
-      try { await api('/api/v1/events', { method: 'POST', body: JSON.stringify(b) }); f.reset(); load(); }
-      catch (e) { showMsg(m, e.message, 'err'); }
+    document.getElementById('evAdd').onclick = () => glassForm({
+      title: 'Post an event', submitLabel: 'Post',
+      fields: `<label>Title</label><input name="title" required>
+        <label>Type</label><select name="eventType">
+          <option value="event">Event</option><option value="announcement">Announcement</option>
+          <option value="holiday">Holiday</option><option value="exam">Exam</option></select>
+        <label>Date</label><input name="startDate" type="date" required>
+        <label>Audience</label><select name="audience">
+          <option value="all">Everyone</option><option value="staff">Staff</option>
+          <option value="students">Students</option><option value="guardians">Guardians</option></select>
+        <label>Description</label><input name="description">`,
+      onSubmit: async b => {
+        await api('/api/v1/events', { method: 'POST', body: JSON.stringify(b) });
+        showMsg(document.getElementById('evmsg'), 'Posted.', 'ok'); await load();
+      }
     });
   }
   await load();
@@ -1163,14 +1223,14 @@ async function adminPeople(pane) {
 
   // ---- Add / manage modals (all glass) ----
   document.getElementById('peAddStaff').onclick = () => glassForm({
-    title: 'Add staff', sub: 'School admin, principal or bursar with a temporary password you share.',
+    title: 'Add staff', sub: 'School admin, principal, bursar or librarian with a temporary password you share.',
     submitLabel: 'Add staff',
     fields: `<label>First name</label><input name="firstName" required>
       <label>Last name</label><input name="lastName" required>
       <label>Email</label><input name="email" type="email" required>
       <label>Temporary password (min 8)</label><input name="password" type="password" minlength="8" required>
       <label>Role</label><select name="role">
-        <option value="PRINCIPAL">Principal</option><option value="ADMIN">School admin</option><option value="BURSAR">Bursar</option></select>`,
+        <option value="PRINCIPAL">Principal</option><option value="ADMIN">School admin</option><option value="BURSAR">Bursar</option><option value="LIBRARIAN">Librarian</option></select>`,
     onSubmit: async b => {
       await api('/api/v1/staff', { method: 'POST', body: JSON.stringify(b) });
       showMsg(msg, 'Staff member added.', 'ok'); await loadStaff();
@@ -1360,130 +1420,196 @@ async function adminAcademics(pane) {
 }
 
 // ---------------- Teacher ----------------
+const TEACHER_SECTIONS = [
+  { id: 'home',       icon: 'layout-grid',     label: 'Home' },
+  { id: 'attendance', icon: 'clipboard-check', label: 'Attendance', desc: 'Mark today, class by class' },
+  { id: 'results',    icon: 'file-bar-chart',  label: 'Results',    desc: 'Record assessment scores' },
+  { id: 'calendar',   icon: 'calendar-days',   label: 'Calendar',   desc: 'School agenda & announcements' },
+  { id: 'account',    icon: 'circle-user',     label: 'Account',    desc: 'Your profile & password' },
+];
+
 var _teacherData = null;
-async function teacherDashboard(pane) {
+async function teacherHome(pane, me) {
   if (!_teacherData) _teacherData = await api('/api/v1/me/teacher');
   const d = _teacherData;
-  const me = getUser();
-  pane.innerHTML = `
-    <div class="card"><h1>Welcome, ${esc(me.firstName)}</h1>
-      <p class="muted">Staff no. ${esc(d.profile.staffNo)} · ${d.assignments.length} subject assignment(s)</p></div>
+  const events = await api('/api/v1/events').catch(() => []);
+  const today = isoDate(new Date());
+  const next = events.filter(e => (e.startDate || '') >= today)
+    .sort((x, y) => String(x.startDate).localeCompare(String(y.startDate)))[0];
+  const classCount = new Set(d.assignments.map(a => a.className)).size;
+
+  const tiles = TEACHER_SECTIONS.filter(s => s.id !== 'home');
+  const W = {
+    attendance: { sub: 'Mark today\'s register' },
+    results:    { num: d.assignments.length, unit: d.assignments.length === 1 ? 'Assignment' : 'Assignments', sub: 'Subjects you teach' },
+    calendar:   { sub: next ? next.title + ' · ' + fmt(next.startDate) : 'Nothing scheduled ahead' },
+    account:    { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>
     <div class="card"><h2>My teaching</h2>
+      <p class="muted" style="margin-top:0">Staff no. ${esc(d.profile.staffNo)} · ${classCount} class${classCount === 1 ? '' : 'es'}</p>
       ${d.assignments.length ? `<table><thead><tr><th>Class</th><th>Subject</th></tr></thead><tbody>${
         d.assignments.map(a => `<tr><td>${esc(a.className || '-')}</td><td>${esc(a.subjectName || '-')}</td></tr>`).join('')
       }</tbody></table>` : '<p class="muted">No classes assigned yet - ask your admin.</p>'}</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  if (window.lucide) lucide.createIcons({ root: pane });
 }
 
+// Attendance: pick a class (pills), every student is a row with a Present/Absent/Late/Excused
+// segment — tap to set, one Save for the class. Present is pre-selected.
 async function teacherAttendance(pane) {
   pane.innerHTML = `<div class="card"><h2>Mark attendance</h2><div id="atm" class="msg"></div>
-      <div class="inline-form"><div><label>Class</label><select id="atclass"></select></div>
-        <div><label>Date</label><input id="atdate" type="date"></div>
-        <div style="flex:0"><button class="btn" id="atload">Load students</button></div></div>
-      <div id="atbody"></div></div>`;
+      <div class="filter-bar" id="atClasses" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap"></div>
+      <div class="inline-form" style="margin-bottom:8px"><div><label>Date (blank = today)</label><input id="atdate" type="date"></div></div>
+      <div id="atbody"><p class="muted">Pick a class.</p></div></div>`;
   const classes = await api('/api/v1/classes');
-  document.getElementById('atclass').innerHTML = opts(classes, 'id', c => c.name);
-  document.getElementById('atload').onclick = async () => {
-    const classId = num(document.getElementById('atclass').value);
-    if (!classId) return;
+  const bar = document.getElementById('atClasses');
+  if (!classes.length) { bar.innerHTML = '<p class="muted">No classes yet.</p>'; return; }
+  bar.innerHTML = classes.map(c => `<button class="act-scale-btn" data-cls="${c.id}">${esc(c.name)}</button>`).join('');
+
+  const STATES = ['present', 'absent', 'late', 'excused'];
+  async function loadClass(classId) {
+    bar.querySelectorAll('[data-cls]').forEach(b => b.classList.toggle('active', num(b.dataset.cls) === classId));
     const students = (await api('/api/v1/students')).filter(s => s.classId === classId);
     const body = document.getElementById('atbody');
-    if (!students.length) { body.innerHTML = '<p class="muted">No students in that class.</p>'; return; }
-    body.innerHTML = `<table><thead><tr><th>Student</th><th>Status</th></tr></thead><tbody>${students.map(s =>
-      `<tr data-id="${s.id}"><td>${esc(s.lastName)}, ${esc(s.firstName)}</td><td>
-        <select class="atst"><option>present</option><option>absent</option><option>late</option><option>excused</option></select>
-      </td></tr>`).join('')}</tbody></table><button class="btn" id="atsave">Save attendance</button>`;
+    if (!students.length) { body.innerHTML = '<p class="muted">No students in that class (or not yours to mark).</p>'; return; }
+    body.innerHTML = students.map(s => `
+      <div class="att-row" data-id="${s.id}">
+        <span class="att-name">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+        <span class="seg-pills">${STATES.map((st, i) =>
+          `<button type="button" class="seg-pill seg-${st}${i === 0 ? ' active' : ''}" data-st="${st}">${st}</button>`).join('')}</span>
+      </div>`).join('')
+      + `<button class="btn" id="atsave" style="margin-top:12px">Save attendance</button>`;
+    body.querySelectorAll('.att-row').forEach(row => {
+      row.querySelectorAll('.seg-pill').forEach(p => p.onclick = () => {
+        row.querySelectorAll('.seg-pill').forEach(x => x.classList.remove('active'));
+        p.classList.add('active');
+      });
+    });
     document.getElementById('atsave').onclick = async () => {
       const date = document.getElementById('atdate').value || null;
       const m = document.getElementById('atm'); hideMsg(m);
       try {
-        for (const tr of body.querySelectorAll('tr[data-id]')) {
+        for (const row of body.querySelectorAll('.att-row')) {
           await api('/api/v1/attendance', { method: 'POST', body: JSON.stringify({
-            studentId: num(tr.dataset.id), classId, onDate: date, status: tr.querySelector('.atst').value }) });
+            studentId: num(row.dataset.id), classId, onDate: date,
+            status: row.querySelector('.seg-pill.active').dataset.st }) });
         }
-        showMsg(m, 'Attendance saved.', 'ok');
+        showMsg(m, 'Attendance saved for ' + students.length + ' student' + (students.length === 1 ? '' : 's') + '.', 'ok');
       } catch (e) { showMsg(m, e.message, 'err'); }
     };
-  };
+  }
+  bar.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => loadClass(num(b.dataset.cls)));
 }
 
 async function teacherResults(pane) {
   pane.innerHTML = `<div class="card"><h2>Record results</h2><div id="rsm" class="msg"></div>
+      <div class="filter-bar" id="rsClasses" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap"></div>
       <div class="inline-form">
-        <div><label>Class</label><select id="rsclass"></select></div>
         <div><label>Subject</label><select id="rssubj"></select></div>
         <div><label>Assessment</label><input id="rstitle" placeholder="First CA"></div>
-        <div><label>Out of</label><input id="rsmax" type="number" value="100" style="max-width:90px"></div>
-        <div style="flex:0"><button class="btn" id="rsload">Load students</button></div></div>
-      <div id="rsbody"></div></div>`;
+        <div><label>Out of</label><input id="rsmax" type="number" value="100" style="max-width:90px"></div></div>
+      <div id="rsbody"><p class="muted">Pick a class.</p></div></div>`;
   if (!_teacherData) _teacherData = await api('/api/v1/me/teacher');
   const d = _teacherData;
-  const classes = await api('/api/v1/classes');
-  const subjects = await api('/api/v1/subjects');
-  document.getElementById('rsclass').innerHTML = opts(classes, 'id', c => c.name);
+  const [classes, subjects] = await Promise.all([api('/api/v1/classes'), api('/api/v1/subjects')]);
   document.getElementById('rssubj').innerHTML = opts(subjects, 'id', s => s.name);
-  document.getElementById('rsload').onclick = async () => {
-    const classId = num(document.getElementById('rsclass').value);
-    const subjectId = num(document.getElementById('rssubj').value);
-    if (!classId || !subjectId) return;
+  const bar = document.getElementById('rsClasses');
+  if (!classes.length) { bar.innerHTML = '<p class="muted">No classes yet.</p>'; return; }
+  bar.innerHTML = classes.map(c => `<button class="act-scale-btn" data-cls="${c.id}">${esc(c.name)}</button>`).join('');
+
+  async function loadClass(classId) {
+    bar.querySelectorAll('[data-cls]').forEach(b => b.classList.toggle('active', num(b.dataset.cls) === classId));
     const students = (await api('/api/v1/students')).filter(s => s.classId === classId);
     const body = document.getElementById('rsbody');
     if (!students.length) { body.innerHTML = '<p class="muted">No students in that class.</p>'; return; }
-    body.innerHTML = `<table><thead><tr><th>Student</th><th>Score</th></tr></thead><tbody>${students.map(s =>
-      `<tr data-id="${s.id}"><td>${esc(s.lastName)}, ${esc(s.firstName)}</td>
-       <td><input class="rssc" type="number" style="max-width:100px"></td></tr>`).join('')}</tbody></table>
-      <button class="btn" id="rssave">Save results</button>`;
+    body.innerHTML = students.map(s => `
+      <div class="att-row" data-id="${s.id}">
+        <span class="att-name">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+        <input class="rssc" type="number" placeholder="—" style="max-width:90px">
+      </div>`).join('')
+      + `<button class="btn" id="rssave" style="margin-top:12px">Save results</button>`;
     document.getElementById('rssave').onclick = async () => {
       const m = document.getElementById('rsm'); hideMsg(m);
+      const subjectId = num(document.getElementById('rssubj').value);
       const title = document.getElementById('rstitle').value.trim();
       const max = num(document.getElementById('rsmax').value) || 100;
+      if (!subjectId) { showMsg(m, 'Pick the subject first.', 'err'); return; }
       if (!title) { showMsg(m, 'Give the assessment a title first.', 'err'); return; }
       try {
         let link = (await api('/api/v1/class-subjects?classId=' + classId)).find(cs => cs.subjectId === subjectId);
         if (!link) link = await api('/api/v1/class-subjects', { method: 'POST', body: JSON.stringify({ classId, subjectId, teacherId: d.profile.id }) });
         const asm = await api('/api/v1/assessments', { method: 'POST', body: JSON.stringify({ classSubjectId: link.id, title, maxScore: max }) });
-        for (const tr of body.querySelectorAll('tr[data-id]')) {
-          const sc = tr.querySelector('.rssc').value;
+        let saved = 0;
+        for (const row of body.querySelectorAll('.att-row')) {
+          const sc = row.querySelector('.rssc').value;
           if (sc === '') continue;
-          await api('/api/v1/results', { method: 'POST', body: JSON.stringify({ assessmentId: asm.id, studentId: num(tr.dataset.id), score: num(sc) }) });
+          await api('/api/v1/results', { method: 'POST', body: JSON.stringify({ assessmentId: asm.id, studentId: num(row.dataset.id), score: num(sc) }) });
+          saved++;
         }
-        showMsg(m, 'Results saved.', 'ok');
+        showMsg(m, saved + ' result' + (saved === 1 ? '' : 's') + ' saved.', 'ok');
       } catch (e) { showMsg(m, e.message, 'err'); }
     };
-  };
+  }
+  bar.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => loadClass(num(b.dataset.cls)));
 }
 
 async function renderTeacher(view, me) {
   _teacherData = null;
-  rebuildDrawer([
-    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
-    { id: 'attendance', icon: 'clipboard-check', label: 'Attendance' },
-    { id: 'results', icon: 'file-bar-chart', label: 'Results' },
-    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-  ]);
+  rebuildDrawer(TEACHER_SECTIONS);
   wireDrawerNav({
-    dashboard: teacherDashboard,
+    home: pane => teacherHome(pane, me),
     attendance: teacherAttendance,
     results: teacherResults,
     calendar: pane => renderCalendar(wrapCard(pane), true),
     account: roleAccountPane,
     logout: confirmLogout,
   });
-  await teacherDashboard(view);
+  await teacherHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
 }
 
 // ---------------- Student ----------------
+const STUDENT_SECTIONS = [
+  { id: 'home',     icon: 'layout-grid',    label: 'Home' },
+  { id: 'foryou',   icon: 'wallet',         label: 'For You',  desc: 'Everything you owe, deadlines in red' },
+  { id: 'library',  icon: 'library-big',    label: 'Library',  desc: 'Browse, borrow & your books' },
+  { id: 'calendar', icon: 'calendar-days',  label: 'Calendar', desc: 'School agenda & announcements' },
+  { id: 'account',  icon: 'circle-user',    label: 'Account',  desc: 'Your profile & password' },
+];
+
 var _studentData = null;
-async function studentDashboard(pane) {
+async function studentHome(pane, me) {
   if (!_studentData) _studentData = await api('/api/v1/me/student');
   const d = _studentData;
-  const me = getUser();
   const a = d.attendance || { total: 0, present: 0, absent: 0, late: 0 };
-  pane.innerHTML = `
-    <div class="card"><h1>Hi, ${esc(me.firstName)}</h1>
-      <p class="muted">Class: <strong>${esc(d.className || 'Not assigned')}</strong> · Admission ${esc(d.profile.admissionNo)}</p></div>
-    <div class="card"><h2>Attendance</h2><div class="stats">
-      ${stat(a.present, 'Present')}${stat(a.absent, 'Absent')}${stat(a.late, 'Late')}${stat(a.total, 'Days recorded')}</div></div>
+  const [foryou, lib, events] = await Promise.all([
+    api('/api/v1/me/foryou').catch(() => null),
+    api('/api/v1/library/me').catch(() => null),          // 404 until the librarian registers you
+    api('/api/v1/events').catch(() => []),
+  ]);
+  const today = isoDate(new Date());
+  const next = events.filter(e => (e.startDate || '') >= today)
+    .sort((x, y) => String(x.startDate).localeCompare(String(y.startDate)))[0];
+  const attPct = a.total ? Math.round(a.present / a.total * 100) : null;
+
+  const tiles = STUDENT_SECTIONS.filter(s => s.id !== 'home');
+  const W = {
+    foryou:   foryou ? { num: naira(foryou.totalOutstanding), unit: '',
+                sub: foryou.compulsoryOutstanding > 0 ? naira(foryou.compulsoryOutstanding) + ' compulsory due' : 'Nothing compulsory due' }
+              : { sub: 'Everything you owe' },
+    library:  lib ? { num: lib.activeBorrows || 0, unit: (lib.activeBorrows === 1 ? 'Book' : 'Books') + ' out',
+                sub: Number(lib.totalFines) > 0 ? naira(lib.totalFines) + ' in fines' : 'Code ' + (lib.libraryCode || '') }
+              : { sub: 'Browse & borrow' },
+    calendar: { sub: next ? next.title + ' · ' + fmt(next.startDate) : 'Nothing scheduled ahead' },
+    account:  { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>
+    <div class="card"><h2>Me</h2>
+      <p class="muted" style="margin-top:0">Class <strong>${esc(d.className || 'Not assigned')}</strong> · Admission ${esc(d.profile.admissionNo)}</p>
+      <div class="stats">${attPct != null ? stat(attPct + '%', 'Attendance') : ''}${stat(a.present, 'Present')}${stat(a.absent, 'Absent')}${stat(a.late, 'Late')}</div></div>
     <div class="card"><h2>My subjects</h2>
       ${(d.subjects || []).length ? `<table><thead><tr><th>Subject</th><th>Teacher</th></tr></thead><tbody>${
         d.subjects.map(s => `<tr><td>${esc(s.subjectName)}</td><td>${esc(s.teacherName)}</td></tr>`).join('')
@@ -1493,6 +1619,8 @@ async function studentDashboard(pane) {
         d.results.map(r => `<tr><td>${esc(r.subject || '-')}</td><td>${esc(r.assessment || '-')}</td><td>${esc(r.term || '-')}</td>
           <td><strong>${r.score}</strong> / ${r.maxScore}</td></tr>`).join('')
       }</tbody></table>` : '<p class="muted">No results recorded yet.</p>'}</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  if (window.lucide) lucide.createIcons({ root: pane });
 }
 
 async function studentForYou(pane) {
@@ -1500,35 +1628,247 @@ async function studentForYou(pane) {
   await renderForYou(document.getElementById('foryou'));
 }
 
+// Student library: browse the shelf (tilt-stack of covers), borrow via a glass modal, track own books.
+async function studentLibrary(pane) {
+  pane.innerHTML = `
+    <div id="slMsg" class="msg"></div>
+    <div id="slMine"></div>
+    <h2 class="pe-sub">The shelf</h2>
+    <div class="tilt-host" id="slStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
+      <input id="slSearch" class="list-search" placeholder="Search title or author…" style="flex:1;min-width:160px">
+    </div>`;
+  const msg = document.getElementById('slMsg');
+  let books = [], query = '', lib = null, myRecords = [], myRequests = [];
+
+  const bookById = id => books.find(b => b.id === id) || {};
+
+  function renderShelf() {
+    const list = books.filter(b => !query || (b.title + ' ' + b.author + ' ' + (b.category || '')).toLowerCase().indexOf(query) !== -1);
+    renderTiltStack(document.getElementById('slStack'), list.map(b => ({
+      id: b.id, name: b.title, subtitle: b.author, avatar: b.coverImage,
+      status: (b.availableCopies || 0) > 0 ? 'available' : 'all out',
+    })), {
+      showStatus: true, statusBadge: s => s === 'available' ? 'holiday' : 'event',
+      emptyText: 'No books match.',
+      onClick: it => openBook(bookById(it.id)),
+    });
+  }
+
+  function openBook(b) {
+    const pendingHere = myRequests.some(r => r.bookId === b.id && r.status === 'pending');
+    const canBorrow = lib && lib.status === 'active' && (b.availableCopies || 0) > 0 && !pendingHere;
+    const ctrl = openGlassModal({
+      className: 'book-glass-panel',
+      html: `<div class="book-detail">
+          <span class="lb-cover big">${b.coverImage ? '<img src="' + esc(b.coverImage) + '" alt="cover">' : '<i data-lucide="book"></i>'}</span>
+          <div style="flex:1;min-width:0">
+            <h2 style="margin:0 0 2px">${esc(b.title)}</h2>
+            <p class="subtle" style="margin:0 0 10px">${esc(b.author)}${b.category ? ' · ' + esc(b.category) : ''}</p>
+            ${b.description ? '<p class="muted" style="margin:0 0 10px">' + esc(b.description) + '</p>' : ''}
+            <p class="subtle" style="margin:0">${(b.availableCopies || 0) > 0 ? b.availableCopies + ' of ' + b.totalCopies + ' available' : 'All copies are out'}
+              ${b.borrowDays ? ' · ' + b.borrowDays + '-day loan' : ''}${b.finePerDay != null ? ' · ' + naira(b.finePerDay) + '/day late' : ''}</p>
+            ${pendingHere ? '<p class="subtle" style="margin:8px 0 0;color:var(--amber)">Your request is with the librarian.</p>' : ''}
+            ${!lib ? '<p class="subtle" style="margin:8px 0 0">Ask the librarian to register you before you can borrow.</p>' : ''}
+          </div>
+        </div>
+        <div class="glass-actions" style="margin-top:16px">
+          <button class="btn ghost" data-x="flag">Report a problem</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost" data-x="close">Close</button>
+          ${canBorrow ? '<button class="btn" data-x="borrow">Borrow</button>' : ''}
+        </div>`
+    });
+    if (window.lucide) lucide.createIcons({ root: ctrl.panel });
+    ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('[data-x="flag"]').onclick = () => glassForm({
+      title: 'Report a problem', sub: '"' + b.title + '" — the librarian reviews every report.', submitLabel: 'Report',
+      fields: `<label>Problem</label><select name="flagType">
+          <option value="damaged">Damaged</option><option value="inappropriate">Inappropriate</option>
+          <option value="missing">Missing</option><option value="other">Other</option></select>
+        <label>Details</label><input name="comment">`,
+      onSubmit: async body => {
+        body.bookId = b.id;
+        await api('/api/v1/library/flags', { method: 'POST', body: JSON.stringify(body) });
+        showMsg(msg, 'Reported — thank you.', 'ok');
+      }
+    });
+    const borrowBtn = ctrl.panel.querySelector('[data-x="borrow"]');
+    if (borrowBtn) borrowBtn.onclick = async () => {
+      try {
+        await api('/api/v1/library/borrow-requests', { method: 'POST', body: JSON.stringify({ libraryStudentId: lib.libraryStudentId, bookId: b.id }) });
+        ctrl.close(); showMsg(msg, '"' + b.title + '" requested — the librarian will confirm.', 'ok');
+        await loadMine();
+      } catch (e) { ctrl.close(); showMsg(msg, e.message, 'err'); }
+    };
+  }
+
+  function renderMine() {
+    const host = document.getElementById('slMine');
+    if (!lib) {
+      host.innerHTML = `<div class="card"><h2>My library</h2>
+        <p class="muted" style="margin:0">You're not a library member yet — ask the librarian to register you, then borrow from the shelf below.</p></div>`;
+      return;
+    }
+    const out = myRecords.filter(r => r.status === 'active' || r.status === 'overdue');
+    const pending = myRequests.filter(r => r.status === 'pending');
+    const fines = Number(lib.totalFines || 0);
+    host.innerHTML = `<div class="card"><h2>My library</h2>
+      <div class="stats">${stat(lib.libraryCode || '-', 'My code')}${stat(out.length, 'Books out')}${stat(naira(fines), 'Fines')}</div>
+      ${pending.length ? '<p class="subtle" style="margin:10px 0 0;color:var(--amber)">' + pending.length + ' request' + (pending.length === 1 ? '' : 's') + ' with the librarian: ' + pending.map(r => esc(bookById(r.bookId).title || '#' + r.bookId)).join(', ') + '</p>' : ''}
+      <div style="margin-top:12px" id="slMyBooks"></div></div>`;
+    const wrap = document.getElementById('slMyBooks');
+    if (!out.length) { wrap.innerHTML = '<p class="muted" style="margin:0">Nothing borrowed right now.</p>'; return; }
+    wrap.innerHTML = out.map(r => {
+      const b = bookById(r.bookId);
+      const fine = Number(r.fineCharged || 0);
+      return `<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <span class="lb-cover">${b.coverImage ? '<img src="' + esc(b.coverImage) + '" alt="">' : '<i data-lucide="book"></i>'}</span>
+        <div style="flex:1;min-width:0"><strong>${esc(b.title || 'Book #' + r.bookId)}</strong>
+          <div class="subtle">Borrowed ${fmt(r.borrowDate)}${r.renewedCount ? ' · renewed ×' + r.renewedCount : ''}
+            ${fine > 0 ? ' · fine ' + naira(fine) + (r.finePaid ? ' (paid)' : '') : ''}</div></div>
+        <div style="text-align:right;white-space:nowrap">${dueBadgeFor(r.dueDate)}<br>
+          ${fine > 0 && !r.finePaid ? '<button class="btn warn" data-payfine="' + r.id + '" style="padding:3px 10px;font-size:11px;margin-top:6px">Pay fine</button>' : ''}
+          <button class="btn secondary" data-renew="${r.id}" style="padding:3px 10px;font-size:11px;margin-top:6px;margin-left:4px">Renew</button></div>
+      </div>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons({ root: wrap });
+    wrap.querySelectorAll('[data-renew]').forEach(btn => btn.onclick = async () => {
+      try { const r = await api('/api/v1/library/borrow-records/' + btn.dataset.renew + '/renew', { method: 'PUT' }); showMsg(msg, 'Renewed — now due ' + fmt(r.dueDate) + '.', 'ok'); await loadMine(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+    wrap.querySelectorAll('[data-payfine]').forEach(btn => btn.onclick = async () => {
+      const r = myRecords.find(x => String(x.id) === btn.dataset.payfine);
+      if (!(await glassConfirm('Pay ' + naira(r.fineCharged) + ' fine now? (simulated)', { title: 'Pay fine', okText: 'Pay now' }))) return;
+      try { await api('/api/v1/library/borrow-records/' + r.id + '/pay-fine', { method: 'POST' }); showMsg(msg, 'Fine paid.', 'ok'); await loadMine(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+  }
+
+  async function loadMine() {
+    lib = await api('/api/v1/library/me').catch(() => null);
+    if (lib && lib.libraryStudentId != null) {
+      [myRecords, myRequests] = await Promise.all([
+        api('/api/v1/library/borrow-records/my?libraryStudentId=' + lib.libraryStudentId).catch(() => []),
+        api('/api/v1/library/borrow-requests/my?libraryStudentId=' + lib.libraryStudentId).catch(() => []),
+      ]);
+    } else { myRecords = []; myRequests = []; }
+    renderMine();
+  }
+
+  document.getElementById('slSearch').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); renderShelf(); });
+  books = await api('/api/v1/library/books').catch(() => []);
+  await loadMine();
+  renderShelf();
+}
+
 async function renderStudent(view, me) {
   _studentData = null;
-  rebuildDrawer([
-    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
-    { id: 'foryou', icon: 'wallet', label: 'For You' },
-    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-  ]);
+  rebuildDrawer(STUDENT_SECTIONS);
   wireDrawerNav({
-    dashboard: studentDashboard,
+    home: pane => studentHome(pane, me),
     foryou: studentForYou,
+    library: studentLibrary,
     calendar: pane => renderCalendar(wrapCard(pane), false),
     account: roleAccountPane,
     logout: confirmLogout,
   });
-  await studentDashboard(view);
+  await studentHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
 }
 
 // ---------------- Guardian (parent) ----------------
+const GUARDIAN_SECTIONS = [
+  { id: 'home',     icon: 'layout-grid',   label: 'Home' },
+  { id: 'children', icon: 'baby',          label: 'Children', desc: 'Each child’s attendance & results' },
+  { id: 'foryou',   icon: 'wallet',        label: 'For You',  desc: 'Everything owed across your children' },
+  { id: 'calendar', icon: 'calendar-days', label: 'Calendar', desc: 'School agenda & announcements' },
+  { id: 'account',  icon: 'circle-user',   label: 'Account',  desc: 'Your profile & password' },
+];
+
 var _guardianData = null;
-async function guardianDashboard(pane) {
+var _guardianChildId = null;     // which child the Children pane spotlights
+
+async function guardianHome(pane, me) {
   if (!_guardianData) _guardianData = await api('/api/v1/me/guardian');
   const d = _guardianData;
-  const me = getUser();
-  pane.innerHTML = `
-    <div class="card"><h1>Hello, ${esc(me.firstName)}</h1>
-      <p class="muted">Tracking ${d.children.length} child${d.children.length === 1 ? '' : 'ren'}.</p></div>
-    ${d.children.length ? d.children.map(c => childCard(c)).join('') :
-      '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>'}`;
+  const [foryou, events] = await Promise.all([
+    api('/api/v1/me/foryou').catch(() => null),
+    api('/api/v1/events').catch(() => []),
+  ]);
+  const today = isoDate(new Date());
+  const next = events.filter(e => (e.startDate || '') >= today)
+    .sort((x, y) => String(x.startDate).localeCompare(String(y.startDate)))[0];
+
+  // One tile per child (their own picture), then the section widgets.
+  const childTiles = d.children.map(c => {
+    const s = c.student, a = c.attendance || { total: 0, present: 0 };
+    const name = s.firstName + ' ' + s.lastName;
+    const pct = a.total ? Math.round(a.present / a.total * 100) + '% attendance' : 'No attendance yet';
+    const face = c.avatar
+      ? `<span class="wt-avatar"><img src="${esc(c.avatar)}" alt="${esc(name)}"></span>`
+      : `<span class="wt-avatar wt-avatar-fallback">${esc(((s.firstName[0] || '') + (s.lastName[0] || '')).toUpperCase())}</span>`;
+    return `<button class="bento-tile widget-tile" data-child="${s.id}">
+      <div class="wt-head"><span class="bt-icon"><i data-lucide="baby"></i></span><span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span></div>
+      <div class="wt-body">${face}</div>
+      <div class="wt-foot"><strong>${esc(name)}</strong><span class="wt-sub">${esc(c.className || 'No class')} · ${esc(pct)}</span></div>
+    </button>`;
+  }).join('');
+
+  const tiles = GUARDIAN_SECTIONS.filter(s => s.id !== 'home' && s.id !== 'children');
+  const W = {
+    foryou:   foryou ? { num: naira(foryou.totalOutstanding), unit: '',
+                sub: foryou.compulsoryOutstanding > 0 ? naira(foryou.compulsoryOutstanding) + ' compulsory due' : 'Nothing compulsory due' }
+              : { sub: 'Everything owed' },
+    calendar: { sub: next ? next.title + ' · ' + fmt(next.startDate) : 'Nothing scheduled ahead' },
+    account:  { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + childTiles
+    + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>`
+    + (!d.children.length ? '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>' : '');
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  pane.querySelectorAll('[data-child]').forEach(b => b.onclick = () => { _guardianChildId = num(b.dataset.child); openSection('children'); });
+  if (window.lucide) lucide.createIcons({ root: pane });
+}
+
+// Children: 2+ → a tilt-stack of the kids' own pictures selects who's shown; 1 → their card, always shown.
+async function guardianChildren(pane) {
+  if (!_guardianData) _guardianData = await api('/api/v1/me/guardian');
+  const kids = _guardianData.children;
+  if (!kids.length) { pane.innerHTML = '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>'; return; }
+
+  const many = kids.length > 1;
+  pane.innerHTML = (many
+    ? '<div class="tilt-host" id="gcStack"></div>'
+    : '<div class="gc-single" id="gcSingle"></div>')
+    + '<div id="gcDetail"></div>';
+
+  const selected = () => kids.find(c => c.student.id === _guardianChildId) || kids[0];
+
+  function detail() {
+    const c = selected();
+    _guardianChildId = c.student.id;
+    document.getElementById('gcDetail').innerHTML = childCard(c);
+  }
+  if (many) {
+    renderTiltStack(document.getElementById('gcStack'), kids.map(c => ({
+      id: c.student.id,
+      name: c.student.firstName + ' ' + c.student.lastName,
+      subtitle: (c.className || 'No class') + ' · ' + (c.relationship || 'child'),
+      avatar: c.avatar,
+    })), {
+      highlightId: selected().student.id,
+      onClick: it => { _guardianChildId = it.id; detail(); },
+    });
+  } else {
+    const c = kids[0], s = c.student;
+    document.getElementById('gcSingle').innerHTML =
+      avatarCard({ src: c.avatar, name: s.firstName + ' ' + s.lastName });
+    if (window.lucide) lucide.createIcons({ root: pane });
+  }
+  detail();
 }
 
 async function guardianForYou(pane) {
@@ -1537,21 +1877,20 @@ async function guardianForYou(pane) {
 }
 
 async function renderGuardian(view, me) {
-  _guardianData = null;
-  rebuildDrawer([
-    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
-    { id: 'foryou', icon: 'wallet', label: 'For You' },
-    { id: 'calendar', icon: 'calendar-days', label: 'Calendar' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-  ]);
+  _guardianData = null; _guardianChildId = null;
+  rebuildDrawer(GUARDIAN_SECTIONS);
   wireDrawerNav({
-    dashboard: guardianDashboard,
+    home: pane => guardianHome(pane, me),
+    children: guardianChildren,
     foryou: guardianForYou,
     calendar: pane => renderCalendar(wrapCard(pane), false),
     account: roleAccountPane,
     logout: confirmLogout,
   });
-  await guardianDashboard(view);
+  await guardianHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
 }
 
 function childCard(c) {
@@ -1565,65 +1904,165 @@ function childCard(c) {
       c.results.map(r => `<tr><td>${esc(r.subject || '-')}</td><td>${esc(r.assessment || '-')}</td>
         <td><strong>${r.score}</strong> / ${r.maxScore}</td></tr>`).join('')
     }</tbody></table>` : '<p class="muted">No results recorded yet.</p>'}
-    <p class="subtle" style="margin-top:14px">Fees and other payments for this child are in the <strong>For You</strong> panel above.</p></div>`;
+    <p class="subtle" style="margin-top:14px">Fees and other payments for this child are in <strong>For You</strong>.</p></div>`;
 }
 
 // ---------------- Bursar (fees) ----------------
+const BURSAR_SECTIONS = [
+  { id: 'home',     icon: 'layout-grid', label: 'Home' },
+  { id: 'invoices', icon: 'receipt',     label: 'Invoices',       desc: 'Billing, payments & who still owes' },
+  { id: 'resource', icon: 'store',       label: 'Resource Point', desc: 'Payable items you post to students' },
+  { id: 'account',  icon: 'circle-user', label: 'Account',        desc: 'Your profile & password' },
+];
+
+var _invoiceFilter = 'all';        // set by a home stat tile before it opens Invoices
+
+async function bursarHome(pane, me) {
+  const [s, items] = await Promise.all([
+    api('/api/v1/fees/summary').catch(() => ({})),
+    api('/api/v1/payments/items').catch(() => []),
+  ]);
+  // Money tiles lock onto the invoice table filtered to what the number means.
+  const money = [
+    { label: 'Billed', value: naira(s.billed), sub: 'Everything invoiced', filter: 'all', icon: 'receipt' },
+    { label: 'Collected', value: naira(s.collected), sub: 'Already in', filter: 'paid', icon: 'circle-check' },
+    { label: 'Outstanding', value: naira(s.outstanding), sub: 'Still owed', filter: 'open', icon: 'hourglass' },
+    { label: 'Unpaid invoices', value: s.unpaid ?? 0, sub: 'Not a kobo yet', filter: 'unpaid', icon: 'circle-alert' },
+  ].map(t => `<button class="bento-tile widget-tile" data-inv="${t.filter}">
+      <div class="wt-head"><span class="bt-icon"><i data-lucide="${t.icon}"></i></span><span class="bt-arrow"><i data-lucide="arrow-up-right"></i></span></div>
+      <div class="wt-body"><span class="wt-num">${t.value}</span></div>
+      <div class="wt-foot"><strong>${t.label}</strong><span class="wt-sub">${t.sub}</span></div>
+    </button>`).join('');
+
+  const live = items.filter(i => i.status !== 'draft').length;
+  const tiles = BURSAR_SECTIONS.filter(t => t.id !== 'home' && t.id !== 'invoices');
+  const W = {
+    resource: { num: live, unit: live === 1 ? 'Item' : 'Items', sub: 'Live payable items' },
+    account:  { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + money
+    + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  pane.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => { _invoiceFilter = b.dataset.inv; openSection('invoices'); });
+  if (window.lucide) lucide.createIcons({ root: pane });
+}
+
 async function bursarInvoices(pane) {
   pane.innerHTML = `
-    <div class="card"><h1>Fees</h1><p class="muted">Invoices and payments for the school.</p><div class="stats" id="fstats"></div></div>
-    <div class="card"><h2>Issue an invoice</h2><div id="invm" class="msg"></div>
-      <form id="invf" class="inline-form">
-        <div><label>Student</label><select name="studentId" id="invstudent" required></select></div>
-        <div style="flex:2"><label>Title</label><input name="title" required placeholder="Term 1 School Fees"></div>
-        <div><label>Term</label><input name="term" placeholder="Term 1"></div>
-        <div><label>Amount (₦)</label><input name="amountNaira" type="number" min="1" required></div>
-        <div><label>Due date</label><input name="dueDate" type="date"></div>
-        <div style="flex:0"><button class="btn">Issue</button></div></form></div>
-    <div class="card"><h2>Invoices</h2><div id="paym" class="msg"></div>
-      <table><thead><tr><th>Student</th><th>Title</th><th>Term</th><th>Amount</th><th>Paid</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
-      <tbody id="invrows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>`;
+    <div class="card"><div class="stats" id="fstats"></div></div>
+    <div id="invm" class="msg"></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
+      <button class="act-scale-btn" data-if="all">All</button>
+      <button class="act-scale-btn" data-if="open">Owing</button>
+      <button class="act-scale-btn" data-if="unpaid">Unpaid</button>
+      <button class="act-scale-btn" data-if="paid">Paid</button>
+      <input id="invSearch" class="list-search" placeholder="Search student or title…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Student</th><th>Title</th><th>Term</th><th>Amount</th><th>Paid</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
+        <tbody id="invrows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody></table></div>
+      <div class="list-foot"><button class="btn" id="invIssue"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Issue an invoice</button></div></div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
 
-  const students = await api('/api/v1/students');
-  document.getElementById('invstudent').innerHTML = opts(students, 'id', s => s.lastName + ', ' + s.firstName);
+  const msg = document.getElementById('invm');
+  let invoices = [], students = [], query = '';
+  let filter = _invoiceFilter; _invoiceFilter = 'all';       // consume the home tile's lock-on, once
 
-  async function loadSummary() {
-    const s = await api('/api/v1/fees/summary');
-    document.getElementById('fstats').innerHTML =
-      stat(naira(s.billed), 'Billed') + stat(naira(s.collected), 'Collected') + stat(naira(s.outstanding), 'Outstanding') + stat(s.unpaid, 'Unpaid');
+  const matches = i => {
+    if (filter === 'open' && !(i.outstanding > 0 && i.status !== 'cancelled')) return false;
+    if (filter === 'unpaid' && i.status !== 'unpaid') return false;
+    if (filter === 'paid' && i.status !== 'paid') return false;
+    if (query && (i.student + ' ' + i.title + ' ' + (i.term || '')).toLowerCase().indexOf(query) === -1) return false;
+    return true;
+  };
+  function markFilter() {
+    pane.querySelectorAll('[data-if]').forEach(b => b.classList.toggle('active', b.dataset.if === filter));
   }
-  async function loadInvoices() {
-    const inv = await api('/api/v1/invoices');
+  function render() {
+    const list = invoices.filter(matches);
     const tb = document.getElementById('invrows');
-    if (!inv.length) { tb.innerHTML = '<tr><td colspan="8" class="muted">No invoices yet.</td></tr>'; return; }
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="muted">' + (invoices.length ? 'No invoices match.' : 'No invoices yet.') + '</td></tr>'; return; }
     tb.innerHTML = '';
-    inv.forEach(i => {
+    list.forEach(i => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${esc(i.student)}</td><td>${esc(i.title)}</td><td>${esc(i.term)}</td>
         <td>${naira(i.amount)}</td><td>${naira(i.paid)}</td><td>${naira(i.outstanding)}</td>
         <td><span class="badge ${feeBadge(i.status)}">${esc(i.status)}</span></td><td class="right"></td>`;
       if (i.outstanding > 0 && i.status !== 'cancelled') {
         const btn = document.createElement('button');
-        btn.className = 'btn secondary'; btn.textContent = 'Record payment';
+        btn.className = 'btn secondary'; btn.textContent = 'Record payment'; btn.style.cssText = 'padding:3px 10px;font-size:11px';
         btn.onclick = () => recordPayment(i);
         tr.lastElementChild.appendChild(btn);
       }
       tb.appendChild(tr);
     });
   }
-  async function recordPayment(i) {
-    const m = document.getElementById('paym'); hideMsg(m);
-    const amt = prompt('Record payment for ' + i.student + ' (' + i.title + ').\nOutstanding ' + naira(i.outstanding) + '. Amount (₦):', i.outstanding);
-    if (amt === null) return;
-    const amount = num(amt);
-    if (!amount || amount <= 0) { showMsg(m, 'Enter a valid amount.', 'err'); return; }
-    const method = (prompt('Method: cash or transfer', 'cash') || 'cash').toLowerCase();
-    try { await api('/api/v1/payments', { method: 'POST', body: JSON.stringify({ invoiceId: i.id, amountNaira: amount, method }) }); showMsg(m, 'Payment recorded.', 'ok'); loadInvoices(); loadSummary(); }
-    catch (e) { showMsg(m, e.message, 'err'); }
+
+  // Glass modal instead of the old prompt() pair: amount pre-filled, method as pills.
+  function recordPayment(i) {
+    let method = 'cash';
+    const ctrl = openGlassModal({
+      className: 'confirm-glass-panel',
+      html: `<h2>Record payment</h2>
+        <p class="subtle">${esc(i.student)} · ${esc(i.title)} — outstanding ${naira(i.outstanding)}.</p>
+        <div class="msg" data-m></div>
+        <label>Amount (₦)</label><input type="number" min="1" data-amt value="${i.outstanding}">
+        <label style="margin-top:10px">Method</label>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button type="button" class="act-scale-btn active" data-meth="cash">Cash</button>
+          <button type="button" class="act-scale-btn" data-meth="transfer">Transfer</button>
+        </div>
+        <div class="glass-actions" style="margin-top:18px">
+          <button class="btn ghost" data-x="cancel">Cancel</button>
+          <button class="btn" data-x="save">Record</button>
+        </div>`
+    });
+    ctrl.panel.querySelectorAll('[data-meth]').forEach(b => b.onclick = () => {
+      ctrl.panel.querySelectorAll('[data-meth]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active'); method = b.dataset.meth;
+    });
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('[data-x="save"]').onclick = async () => {
+      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+      const amount = num(ctrl.panel.querySelector('[data-amt]').value);
+      if (!amount || amount <= 0) { showMsg(m, 'Enter a valid amount.', 'err'); return; }
+      try {
+        await api('/api/v1/payments', { method: 'POST', body: JSON.stringify({ invoiceId: i.id, amountNaira: amount, method }) });
+        ctrl.close(); showMsg(msg, 'Payment recorded.', 'ok'); await load();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    };
   }
 
-  wireForm('invf', 'invm', '/api/v1/invoices', b => { b.studentId = num(b.studentId); b.amountNaira = num(b.amountNaira); }, () => { loadInvoices(); loadSummary(); });
-  await loadSummary(); await loadInvoices();
+  document.getElementById('invIssue').onclick = () => glassForm({
+    title: 'Issue an invoice', submitLabel: 'Issue',
+    fields: `<label>Student</label><select name="studentId" required>${opts(students, 'id', s => s.lastName + ', ' + s.firstName)}</select>
+      <label>Title</label><input name="title" required placeholder="Term 1 School Fees">
+      <label>Term</label><input name="term" placeholder="Term 1">
+      <label>Amount (₦)</label><input name="amountNaira" type="number" min="1" required>
+      <label>Due date</label><input name="dueDate" type="date">`,
+    onSubmit: async b => {
+      b.studentId = num(b.studentId); b.amountNaira = num(b.amountNaira);
+      await api('/api/v1/invoices', { method: 'POST', body: JSON.stringify(b) });
+      showMsg(msg, 'Invoice issued.', 'ok'); await load();
+    }
+  });
+
+  pane.querySelectorAll('[data-if]').forEach(b => b.onclick = () => { filter = b.dataset.if; markFilter(); render(); });
+  document.getElementById('invSearch').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); render(); });
+  markFilter();
+
+  async function load() {
+    const [sum, inv, studs] = await Promise.all([
+      api('/api/v1/fees/summary'), api('/api/v1/invoices'), students.length ? students : api('/api/v1/students'),
+    ]);
+    students = studs;
+    document.getElementById('fstats').innerHTML =
+      stat(naira(sum.billed), 'Billed') + stat(naira(sum.collected), 'Collected') + stat(naira(sum.outstanding), 'Outstanding') + stat(sum.unpaid, 'Unpaid');
+    invoices = inv;
+    render();
+  }
+  await load();
 }
 
 async function bursarResourcePoint(pane) {
@@ -1631,18 +2070,393 @@ async function bursarResourcePoint(pane) {
 }
 
 async function renderBursar(view, me) {
-  rebuildDrawer([
-    { id: 'invoices', icon: 'receipt', label: 'Invoices' },
-    { id: 'resource', icon: 'store', label: 'Resource Point' },
-    { id: 'account', icon: 'circle-user', label: 'Account' },
-  ]);
+  rebuildDrawer(BURSAR_SECTIONS);
   wireDrawerNav({
+    home: pane => bursarHome(pane, me),
     invoices: bursarInvoices,
     resource: bursarResourcePoint,
     account: roleAccountPane,
     logout: confirmLogout,
   });
-  await bursarInvoices(view);
+  await bursarHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
+}
+
+// ---------------- Librarian ----------------
+const LIB_SECTIONS = [
+  { id: 'home',     icon: 'layout-grid',     label: 'Home' },
+  { id: 'books',    icon: 'library-big',     label: 'Books',    desc: 'Catalog, covers & copies' },
+  { id: 'requests', icon: 'inbox',           label: 'Requests', desc: 'Borrow requests awaiting you' },
+  { id: 'borrowed', icon: 'book-open-check', label: 'Borrowed', desc: 'Books out, returns & fines' },
+  { id: 'members',  icon: 'users',           label: 'Members',  desc: 'Registered borrowers' },
+  { id: 'flags',    icon: 'flag',            label: 'Flags',    desc: 'Reported problems & escalation' },
+  { id: 'account',  icon: 'circle-user',     label: 'Account',  desc: 'Your profile & password' },
+];
+
+async function librarianHome(pane, me) {
+  const tiles = LIB_SECTIONS.filter(s => s.id !== 'home');
+  const [stats, flags] = await Promise.all([
+    api('/api/v1/library/stats').catch(() => ({})),
+    api('/api/v1/library/flags/escalated').catch(() => []),
+  ]);
+  const newFlags = flags.filter(f => !f.escalated).length;
+  const W = {
+    books:    { num: stats.totalBooks || 0, unit: stats.totalBooks === 1 ? 'Book' : 'Books', sub: 'In the catalog' },
+    requests: { num: stats.pendingRequests || 0, unit: stats.pendingRequests === 1 ? 'Request' : 'Requests',
+                sub: stats.pendingRequests ? 'Awaiting your decision' : 'Nothing waiting on you' },
+    borrowed: { num: stats.activeBorrows || 0, unit: 'Out',
+                sub: stats.overdueBorrows ? stats.overdueBorrows + ' overdue' : 'None overdue' },
+    members:  { num: stats.totalStudents || 0, unit: stats.totalStudents === 1 ? 'Member' : 'Members', sub: 'Registered borrowers' },
+    flags:    { num: flags.length, unit: flags.length === 1 ? 'Flag' : 'Flags',
+                sub: newFlags ? newFlags + ' new to review' : 'All escalated or clear' },
+    account:  { avatar: true, sub: 'Your profile & password' },
+  };
+  pane.innerHTML = `<div class="bento">` + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>`;
+  pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
+  if (window.lucide) lucide.createIcons({ root: pane });
+}
+
+// Books: tilt-stack of covers + search + table, add/edit in a glass modal with a crop-upload cover.
+async function librarianBooks(pane) {
+  pane.innerHTML = `
+    <div id="lbMsg" class="msg"></div>
+    <div class="tilt-host" id="lbStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
+      <button class="act-scale-btn active" data-f="all">All</button>
+      <button class="act-scale-btn" data-f="available">Available</button>
+      <button class="act-scale-btn" data-f="out">All out</button>
+      <input id="lbSearch" class="list-search" placeholder="Search title or author…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Copies</th><th>Loan</th><th></th></tr></thead>
+        <tbody id="lbRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot"><button class="btn" id="lbAdd"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add a book</button></div>
+    </div>
+    <div class="card" id="lbRules"><h2>Library rules</h2><p class="muted" style="margin:0">Loading…</p></div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
+
+  const msg = document.getElementById('lbMsg');
+  const stackHost = document.getElementById('lbStack');
+  let books = [], filter = 'all', query = '';
+  const smallBtn = 'padding:3px 10px;font-size:11px';
+
+  const visible = () => books.filter(b => {
+    const avail = (b.availableCopies || 0) > 0;
+    if (filter === 'available' && !avail) return false;
+    if (filter === 'out' && avail) return false;
+    if (query && (b.title + ' ' + b.author + ' ' + (b.category || '')).toLowerCase().indexOf(query) === -1) return false;
+    return true;
+  });
+
+  function render() {
+    renderTiltStack(stackHost, visible().map(b => ({
+      id: b.id, name: b.title, subtitle: b.author, avatar: b.coverImage,
+      status: (b.availableCopies || 0) > 0 ? (b.availableCopies + ' of ' + b.totalCopies) : 'all out',
+    })), {
+      showStatus: true,
+      statusBadge: s => s === 'all out' ? 'event' : 'holiday',
+      emptyText: 'No books match.',
+      onClick: it => {
+        const tr = document.querySelector('#lbRows tr[data-id="' + it.id + '"]');
+        if (tr) { tr.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)'; setTimeout(() => tr.style.background = '', 1200); tr.scrollIntoView({ block: 'nearest' }); }
+      }
+    });
+    const list = visible();
+    const tbody = document.getElementById('lbRows');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted">No books found.</td></tr>'; return; }
+    tbody.innerHTML = list.map(b => `<tr data-id="${b.id}" style="cursor:pointer">
+      <td><strong>${esc(b.title)}</strong></td><td>${esc(b.author)}</td><td class="subtle">${esc(b.category || '-')}</td>
+      <td>${b.availableCopies}/${b.totalCopies}</td>
+      <td class="subtle">${b.borrowDays ? b.borrowDays + 'd' : 'default'}${b.finePerDay != null ? ' · ' + naira(b.finePerDay) + '/day' : ''}</td>
+      <td class="right">
+        <button class="btn ghost" data-edit="${b.id}" style="${smallBtn}">Edit</button>
+        <button class="btn ghost danger-text" data-del="${b.id}" style="${smallBtn};margin-left:4px">Remove</button></td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+      tr.onclick = ev => { if (ev.target.closest('button')) return; highlightTiltCard(stackHost, tr.dataset.id); };
+    });
+    tbody.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => bookModal(books.find(b => String(b.id) === btn.dataset.edit)));
+    tbody.querySelectorAll('[data-del]').forEach(btn => btn.onclick = async () => {
+      const b = books.find(x => String(x.id) === btn.dataset.del);
+      if (!(await glassConfirm('Remove "' + b.title + '" from the catalog?', { title: 'Remove book', danger: true, okText: 'Remove' }))) return;
+      try { await api('/api/v1/library/books/' + b.id, { method: 'DELETE' }); showMsg(msg, 'Removed.', 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+  }
+
+  // Add/edit — a glass form with the avatar crop-modal reused for the 4:3 cover.
+  function bookModal(b) {
+    let cover = (b && b.coverImage) || '';
+    const ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>${b ? 'Edit book' : 'Add a book'}</h2>
+        <p class="subtle">The cover is what the shelf shows — give every book one.</p>
+        <div class="msg" data-m></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span class="lb-cover" data-cover>${cover ? '<img src="' + esc(cover) + '" alt="cover">' : '<i data-lucide="image-plus"></i>'}</span>
+          <button class="btn secondary" type="button" data-x="cover">${cover ? 'Change cover' : 'Choose cover'}</button>
+        </div>
+        <form>
+          <label>Title</label><input name="title" required value="${esc(b?.title || '')}">
+          <label>Author</label><input name="author" required value="${esc(b?.author || '')}">
+          <label>Category</label><input name="category" value="${esc(b?.category || '')}" placeholder="Fiction, Science…">
+          <label>ISBN</label><input name="isbn" value="${esc(b?.isbn || '')}">
+          <label>Copies</label><input name="totalCopies" type="number" min="1" value="${b?.totalCopies || 1}">
+          <label>Borrow days (blank = school default)</label><input name="borrowDays" type="number" min="1" value="${b?.borrowDays || ''}">
+          <label>Fine per day ₦ (blank = school default)</label><input name="finePerDay" type="number" min="0" value="${b?.finePerDay != null ? b.finePerDay : ''}">
+          <label>Description</label><input name="description" value="${esc(b?.description || '')}">
+          <div class="glass-actions" style="margin-top:18px">
+            <button class="btn ghost" type="button" data-x="cancel">Cancel</button>
+            <button class="btn" type="submit">${b ? 'Save' : 'Add book'}</button>
+          </div>
+        </form>`
+    });
+    if (window.lucide) lucide.createIcons({ root: ctrl.panel });
+    ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
+    ctrl.panel.querySelector('[data-x="cover"]').onclick = () => openAvatarUpload({
+      current: cover || null,
+      onSave: dataUrl => {
+        cover = dataUrl || '';
+        ctrl.panel.querySelector('[data-cover]').innerHTML = cover ? '<img src="' + cover + '" alt="cover">' : '<i data-lucide="image-plus"></i>';
+        ctrl.panel.querySelector('[data-x="cover"]').textContent = cover ? 'Change cover' : 'Choose cover';
+        if (window.lucide) lucide.createIcons({ root: ctrl.panel });
+      }
+    });
+    ctrl.panel.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+      const body = Object.fromEntries(new FormData(ev.target));
+      body.totalCopies = num(body.totalCopies) || 1;
+      body.borrowDays = num(body.borrowDays);
+      body.finePerDay = num(body.finePerDay);
+      body.coverImage = cover;                          // '' clears, data-URL sets
+      try {
+        await api('/api/v1/library/books' + (b ? '/' + b.id : ''), { method: b ? 'PUT' : 'POST', body: JSON.stringify(body) });
+        ctrl.close(); showMsg(msg, b ? 'Saved.' : 'Book added.', 'ok'); await load();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    });
+  }
+  document.getElementById('lbAdd').onclick = () => bookModal(null);
+
+  pane.querySelectorAll('[data-f]').forEach(btn => btn.onclick = () => {
+    pane.querySelectorAll('[data-f]').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active'); filter = btn.dataset.f; render();
+  });
+  document.getElementById('lbSearch').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); render(); });
+
+  async function load() {
+    books = await api('/api/v1/library/books');
+    render();
+    const rules = await api('/api/v1/library/fine-rules').catch(() => []);
+    const label = { fine_per_day: 'Fine per day', max_borrow_days: 'Borrow days', max_books_per_student: 'Books per member' };
+    document.getElementById('lbRules').innerHTML = '<h2>Library rules</h2><div class="stats">'
+      + rules.map(r => stat(r.ruleType === 'fine_per_day' ? naira(r.value) : Math.round(r.value), label[r.ruleType] || r.ruleType)).join('')
+      + '</div><p class="subtle" style="margin:10px 0 0">School defaults — a book\'s own loan settings override them. The school admin changes these.</p>';
+  }
+  await load();
+}
+
+// Requests: amber approval inbox (same pattern as pending staff / payment approvals).
+async function librarianRequests(pane) {
+  pane.innerHTML = `
+    <div id="lrMsg" class="msg"></div>
+    <div class="card list-card" style="border-left:4px solid var(--amber)">
+      <h2 class="lc-title">Borrow requests</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Member</th><th>Book</th><th>Requested</th><th></th></tr></thead>
+        <tbody id="lrRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table></div></div>`;
+  const msg = document.getElementById('lrMsg');
+  async function load() {
+    const reqs = await api('/api/v1/library/borrow-requests/pending');
+    const tb = document.getElementById('lrRows');
+    if (!reqs.length) { tb.innerHTML = '<tr><td colspan="4" class="muted">Nothing waiting on you.</td></tr>'; return; }
+    tb.innerHTML = reqs.map(r => `<tr>
+      <td><strong>${esc(r.studentName)}</strong> <span class="subtle">· ${esc(r.libraryCode || '')}</span></td>
+      <td>${esc(r.bookTitle)}</td>
+      <td class="subtle">${esc(String(r.requestedAt || '').replace('T', ' ').slice(0, 16))}</td>
+      <td class="right">
+        <button class="btn" data-ok="${r.id}" style="padding:3px 10px;font-size:11px">Approve</button>
+        <button class="btn danger" data-no="${r.id}" style="padding:3px 10px;font-size:11px;margin-left:6px">Reject</button></td></tr>`).join('');
+    tb.querySelectorAll('[data-ok]').forEach(b => b.onclick = async () => {
+      try { await api('/api/v1/library/borrow-requests/' + b.dataset.ok + '/approve', { method: 'PUT' }); showMsg(msg, 'Approved — the book is out.', 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+    tb.querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
+      const r = reqs.find(x => String(x.id) === b.dataset.no);
+      glassForm({
+        title: 'Reject request', sub: r.studentName + ' → ' + r.bookTitle, submitLabel: 'Reject',
+        fields: '<label>Reason (the member sees this)</label><input name="reason" required>',
+        onSubmit: async body => {
+          await api('/api/v1/library/borrow-requests/' + r.id + '/reject', { method: 'PUT', body: JSON.stringify(body) });
+          showMsg(msg, 'Rejected.', 'ok'); await load();
+        }
+      });
+    });
+  }
+  await load();
+}
+
+// Borrowed: everything out, oldest due first; return + record fine payments.
+async function librarianBorrowed(pane) {
+  pane.innerHTML = `
+    <div id="loMsg" class="msg"></div>
+    <div class="card"><div class="stats" id="loStats"></div></div>
+    <div class="card list-card">
+      <h2 class="lc-title">Books out</h2>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Book</th><th>Member</th><th>Borrowed</th><th>Due</th><th>Fine</th><th></th></tr></thead>
+        <tbody id="loRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+      </table></div></div>`;
+  const msg = document.getElementById('loMsg');
+  async function load() {
+    const recs = await api('/api/v1/library/borrow-records/active');
+    const overdue = recs.filter(r => r.status === 'overdue');
+    const finesDue = recs.reduce((s, r) => s + (!r.finePaid ? Number(r.fineCharged || 0) : 0), 0);
+    document.getElementById('loStats').innerHTML =
+      stat(recs.length, 'Out') + stat(overdue.length, 'Overdue') + stat(naira(finesDue), 'Fines unpaid');
+    const tb = document.getElementById('loRows');
+    if (!recs.length) { tb.innerHTML = '<tr><td colspan="6" class="muted">Nothing is out right now.</td></tr>'; return; }
+    tb.innerHTML = recs.map(r => `<tr>
+      <td><strong>${esc(r.bookTitle)}</strong>${r.renewedCount ? ' <span class="subtle">· renewed ×' + r.renewedCount + '</span>' : ''}</td>
+      <td>${esc(r.studentName)} <span class="subtle">· ${esc(r.libraryCode || '')}</span></td>
+      <td class="subtle">${fmt(r.borrowDate)}</td>
+      <td>${dueBadgeFor(r.dueDate)}</td>
+      <td>${Number(r.fineCharged) > 0 ? naira(r.fineCharged) + (r.finePaid ? ' <span class="subtle">paid</span>' : ' <span style="color:var(--danger);font-weight:700">unpaid</span>') : '<span class="subtle">-</span>'}</td>
+      <td class="right">
+        ${Number(r.fineCharged) > 0 && !r.finePaid ? '<button class="btn secondary" data-fine="' + r.id + '" style="padding:3px 10px;font-size:11px">Fine paid</button>' : ''}
+        <button class="btn" data-ret="${r.id}" style="padding:3px 10px;font-size:11px;margin-left:4px">Return</button></td></tr>`).join('');
+    tb.querySelectorAll('[data-ret]').forEach(b => b.onclick = async () => {
+      const r = recs.find(x => String(x.id) === b.dataset.ret);
+      if (!(await glassConfirm('Return "' + r.bookTitle + '" from ' + r.studentName + '? Any overdue fine is charged now.', { title: 'Return book', okText: 'Return' }))) return;
+      try {
+        const done = await api('/api/v1/library/borrow-records/' + r.id + '/return', { method: 'PUT' });
+        showMsg(msg, 'Returned.' + (Number(done.fineCharged) > 0 ? ' Fine charged: ' + naira(done.fineCharged) + '.' : ''), 'ok');
+        await load();
+      } catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+    tb.querySelectorAll('[data-fine]').forEach(b => b.onclick = async () => {
+      const r = recs.find(x => String(x.id) === b.dataset.fine);
+      if (!(await glassConfirm('Record ' + naira(r.fineCharged) + ' fine as paid by ' + r.studentName + '?', { title: 'Fine payment', okText: 'Mark paid' }))) return;
+      try { await api('/api/v1/library/borrow-records/' + r.id + '/pay-fine', { method: 'POST' }); showMsg(msg, 'Fine recorded as paid.', 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+  }
+  await load();
+}
+
+// Members: registered borrowers + register-from-roster modal.
+async function librarianMembers(pane) {
+  pane.innerHTML = `
+    <div id="lmMsg" class="msg"></div>
+    <div class="filter-bar" style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
+      <input id="lmSearch" class="list-search" placeholder="Search members…" style="flex:1;min-width:160px">
+    </div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Member</th><th>Email</th><th>Code</th><th>Status</th><th></th></tr></thead>
+        <tbody id="lmRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+      <div class="list-foot"><button class="btn" id="lmAdd"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Register a member</button></div>
+    </div>`;
+  if (window.lucide) lucide.createIcons({ root: pane });
+  const msg = document.getElementById('lmMsg');
+  let members = [], query = '';
+
+  function render() {
+    const list = members.filter(m => !query || (m.name + ' ' + (m.email || '') + ' ' + m.libraryCode).toLowerCase().indexOf(query) !== -1);
+    const tb = document.getElementById('lmRows');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="muted">No members yet — register students from the school roster.</td></tr>'; return; }
+    tb.innerHTML = list.map(m => `<tr>
+      <td>${m.avatar ? '<img class="mini-av" src="' + esc(m.avatar) + '" alt="">' : ''}<strong>${esc(m.name)}</strong></td>
+      <td class="subtle">${esc(m.email || '-')}</td>
+      <td><span class="pill">${esc(m.libraryCode)}</span></td>
+      <td><span class="badge ${m.status === 'active' ? 'holiday' : 'event'}">${esc(m.status)}</span></td>
+      <td class="right">${m.status === 'active' ? '<button class="btn ghost danger-text" data-susp="' + m.id + '" style="padding:3px 10px;font-size:11px">Suspend</button>' : ''}</td></tr>`).join('');
+    tb.querySelectorAll('[data-susp]').forEach(b => b.onclick = async () => {
+      const m = members.find(x => String(x.id) === b.dataset.susp);
+      if (!(await glassConfirm('Suspend ' + m.name + ' from borrowing?', { title: 'Suspend member', danger: true, okText: 'Suspend' }))) return;
+      try { await api('/api/v1/library/students/' + m.id + '/suspend', { method: 'PUT' }); showMsg(msg, 'Suspended.', 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+  }
+  document.getElementById('lmSearch').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); render(); });
+
+  document.getElementById('lmAdd').onclick = async () => {
+    const roster = await api('/api/v1/students').catch(() => []);
+    const taken = new Set(members.map(m => m.userId));
+    const candidates = roster.filter(s => s.userId && !taken.has(s.userId));
+    if (!candidates.length) { showMsg(msg, 'Every student with a login is already registered.', 'ok'); return; }
+    glassForm({
+      title: 'Register a member', sub: 'Gives the student a library code so they can borrow.', submitLabel: 'Register',
+      fields: '<label>Student</label><select name="userId" required>' + opts(candidates, 'userId', s => s.lastName + ', ' + s.firstName) + '</select>',
+      onSubmit: async b => {
+        const made = await api('/api/v1/library/students', { method: 'POST', body: JSON.stringify({ userId: num(b.userId) }) });
+        showMsg(msg, 'Registered — code ' + made.libraryCode + '.', 'ok'); await load();
+      }
+    });
+  };
+
+  async function load() { members = await api('/api/v1/library/students'); render(); }
+  await load();
+}
+
+// Flags: reported problems; librarian escalates, the school admin decides.
+async function librarianFlags(pane) {
+  pane.innerHTML = `
+    <div id="lfMsg" class="msg"></div>
+    <div class="card list-card" style="border-left:4px solid var(--amber)">
+      <h2 class="lc-title">Reported problems</h2>
+      <p class="muted" style="margin:0 16px 8px">Escalating sends a flag to the school admin, who decides whether the book stays.</p>
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Book</th><th>Problem</th><th>Reported by</th><th>Status</th><th></th></tr></thead>
+        <tbody id="lfRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table></div></div>`;
+  const msg = document.getElementById('lfMsg');
+  async function load() {
+    const flags = await api('/api/v1/library/flags/escalated');
+    const tb = document.getElementById('lfRows');
+    if (!flags.length) { tb.innerHTML = '<tr><td colspan="5" class="muted">No open flags.</td></tr>'; return; }
+    tb.innerHTML = flags.map(f => `<tr>
+      <td><strong>${esc(f.bookTitle)}</strong></td>
+      <td><span class="pill">${esc(f.flagType)}</span>${f.comment ? ' <span class="subtle">' + esc(f.comment) + '</span>' : ''}</td>
+      <td class="subtle">${esc(f.flaggedByName)}</td>
+      <td>${f.escalated ? '<span class="badge announcement">with admin</span>' : '<span class="badge exam">new</span>'}</td>
+      <td class="right">${f.escalated ? '' : '<button class="btn" data-esc="' + f.id + '" style="padding:3px 10px;font-size:11px">Escalate</button>'}</td></tr>`).join('');
+    tb.querySelectorAll('[data-esc]').forEach(b => b.onclick = async () => {
+      const f = flags.find(x => String(x.id) === b.dataset.esc);
+      if (!(await glassConfirm('Escalate the "' + f.flagType + '" flag on "' + f.bookTitle + '" to the school admin?', { title: 'Escalate flag', okText: 'Escalate' }))) return;
+      try { await api('/api/v1/library/flags/' + f.id + '/escalate', { method: 'PUT' }); showMsg(msg, 'Escalated — the admin has been notified.', 'ok'); await load(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
+    });
+  }
+  await load();
+}
+
+async function renderLibrarian(view, me) {
+  rebuildDrawer(LIB_SECTIONS);
+  wireDrawerNav({
+    home: pane => librarianHome(pane, me),
+    books: librarianBooks,
+    requests: librarianRequests,
+    borrowed: librarianBorrowed,
+    members: librarianMembers,
+    flags: librarianFlags,
+    account: roleAccountPane,
+    logout: confirmLogout,
+  });
+  await librarianHome(view, me);
+  var homeItem = document.querySelector('.drawer-item[data-nav="home"]');
+  if (homeItem) homeItem.classList.add('active');
+  setTriggerIcon('layout-grid');
+  try {
+    var restore = sessionStorage.getItem('shReloadSection');
+    sessionStorage.removeItem('shReloadSection');
+    if (restore && restore !== 'home' && document.querySelector('.drawer-item[data-nav="' + restore + '"]')) openSection(restore);
+  } catch (e) {}
 }
 
 // ---------------- For You (student / guardian payment obligations) ----------------
@@ -1667,7 +2481,7 @@ function tagPill(compulsory) {
 function obligationCard(it, showStudent) {
   const cover = it.coverImageUrl
     ? `<img src="${esc(it.coverImageUrl)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-right:12px" onerror="this.style.display='none'">` : '';
-  return `<div style="display:flex;align-items:flex-start;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px">
+  return `<div style="display:flex;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px">
     ${cover}
     <div style="flex:1">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1697,6 +2511,7 @@ async function renderForYou(container) {
 async function renderResourcePoint(container, canApprove) {
   container.innerHTML = `
     <div id="rpm2" class="msg"></div>
+    <div class="tilt-host" id="rpStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div id="rppending"></div>
     <div class="card list-card"><h2 class="lc-title">Live items</h2>
       <div class="list-scroll sleek-scroll"><table>
@@ -1707,6 +2522,20 @@ async function renderResourcePoint(container, canApprove) {
   if (window.lucide) lucide.createIcons({ root: container });
 
   const [classes, students] = await Promise.all([api('/api/v1/classes'), api('/api/v1/students')]);
+
+  // Posted items as a tilt-stack — each card wears its cover image (the picture the students see).
+  function renderStack(list) {
+    renderTiltStack(document.getElementById('rpStack'), list.map(it => ({
+      id: it.batchId, name: it.title,
+      subtitle: naira(it.amount) + (it.status === 'draft' ? '' : ' · ' + it.paidCount + '/' + it.students + ' paid'),
+      avatar: it.coverImageUrl,
+      status: it.status === 'draft' ? 'pending' : it.category,
+    })), {
+      showStatus: true,
+      statusBadge: s => s === 'pending' ? 'exam' : 'event',
+      emptyText: 'Nothing posted yet.',
+    });
+  }
 
   function pendingPanel(drafts) {
     const wrap = document.getElementById('rppending');
@@ -1738,6 +2567,7 @@ async function renderResourcePoint(container, canApprove) {
   }
   async function loadItems() {
     const list = await api('/api/v1/payments/items');
+    renderStack(list);
     pendingPanel(list.filter(it => it.status === 'draft'));
     const live = list.filter(it => it.status !== 'draft');
     const tb = document.getElementById('rprows');

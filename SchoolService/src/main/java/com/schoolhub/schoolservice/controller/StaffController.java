@@ -16,7 +16,7 @@ import java.util.Set;
 @RequestMapping("/api/v1/staff")
 public class StaffController {
 
-    private static final Set<String> ALLOWED = Set.of("ADMIN", "PRINCIPAL", "BURSAR");
+    private static final Set<String> ALLOWED = Set.of("ADMIN", "PRINCIPAL", "BURSAR", "LIBRARIAN");
 
     private final AccountProvisioning provisioning;
 
