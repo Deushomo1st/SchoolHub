@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SchoolHub - log in</title>
-  <link rel="stylesheet" href="/css/style.css?v=42">
+  <link rel="stylesheet" href="/css/style.css?v=49">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
   <style>
     #googleBtn { transition: color .2s, text-shadow .2s; }
@@ -74,7 +74,7 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=20"></script>
+  <script src="/js/app.js?v=26"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');
@@ -160,28 +160,33 @@
     });
 
     // ---- Google sign-in ----
-    var googleReady = false;
+    var tokenClient = null;
     function initGoogle() {
-      if (googleReady) return true;
-      if (!window.google || !google.accounts || !google.accounts.id) return false;
-      google.accounts.id.initialize({
+      if (tokenClient) return true;
+      if (!window.google || !google.accounts || !google.accounts.oauth2) return false;
+      tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: '756001532243-io5srs96js86euebruv1f0jsjnt2u63j.apps.googleusercontent.com',
-        callback: handleGoogleResponse,
-        auto_select: false
+        scope: 'email profile',
+        callback: handleGoogleToken
       });
-      googleReady = true;
-      console.log('Google Identity Services initialized');
+      console.log('Google OAuth popup ready');
       return true;
     }
     window.onGoogleLibraryLoad = initGoogle;
 
-    function handleGoogleResponse(response) {
+    function handleGoogleToken(response) {
       var btn = document.getElementById('submitBtn');
       btn.disabled = true;
+      if (response.error) {
+        showMsg(msg, 'Google sign-in was cancelled.', 'err');
+        btn.disabled = false;
+        return;
+      }
+      // Send access_token to backend for verification
       fetch('/api/v1/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: response.credential })
+        body: JSON.stringify({ code: response.access_token })
       }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.error) { showMsg(msg, data.message || data.error, 'err'); btn.disabled = false; return; }
         saveSession(data);
@@ -194,12 +199,34 @@
 
     document.getElementById('googleBtn').addEventListener('click', function(e) {
       e.preventDefault();
-      // When red (padlock armed) Google is only an INDICATOR that verification is bypassed — not a
-      // login button. Logging in is done with the Log in button. So do nothing here in bypass mode.
-      if (googleBtn.classList.contains('backdoor')) return;
       hideMsg(msg);
+
+      // Lock backdoor (padlock armed, Google red): bypass Google entirely.
+      // Logs in ANY role by email — no password, no Google verification.
+      // For local dev/testing with fake accounts.
+      if (googleBtn.classList.contains('backdoor')) {
+        var email = document.querySelector('input[name="email"]').value.trim();
+        if (!email) { showMsg(msg, 'Enter an email first, then click Google.', 'err'); return; }
+        var btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        fetch('/api/v1/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lock: true, email: email })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+          if (data.error) { showMsg(msg, data.message || data.error, 'err'); btn.disabled = false; return; }
+          saveSession(data);
+          maybeShowRolePicker(data.user);
+        }).catch(function(e) {
+          showMsg(msg, 'Login failed.', 'err');
+          btn.disabled = false;
+        });
+        return;
+      }
+
+      // Normal Google sign-in via OAuth popup
       if (initGoogle()) {
-        google.accounts.id.prompt();
+        tokenClient.requestAccessToken();
       } else {
         showMsg(msg, 'Google sign-in is loading… try again in a moment.', 'err');
       }

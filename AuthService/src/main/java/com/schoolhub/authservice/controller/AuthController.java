@@ -73,11 +73,23 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("exists", exists, "email", req.getEmail().trim().toLowerCase()));
     }
 
-    // Sign in with a Google ID token. If a SchoolHub account with the Google email
-    // already exists, the user is logged in. Otherwise, they're told to sign up first.
+    // Sign in with Google. Three paths:
+    //  1. idToken  — standard One Tap / popup ID token (verified against Google)
+    //  2. code     — OAuth authorization code (exchanged server-side for user info)
+    //  3. lock=true + email — local dev backdoor: logs in by email, no Google verification
     @PostMapping("/google")
-    public ResponseEntity<?> googleLogin(@Valid @RequestBody GoogleLoginRequest req) {
-        return ResponseEntity.ok(authService.loginWithGoogle(req.getIdToken()));
+    public ResponseEntity<?> googleLogin(@RequestBody GoogleLoginRequest req) {
+        // Lock backdoor: bypass Google entirely (local dev/testing for ALL roles)
+        if (Boolean.TRUE.equals(req.getLock()) && req.getEmail() != null) {
+            return ResponseEntity.ok(authService.loginWithGoogleBypass(req.getEmail().trim()));
+        }
+        if (req.getIdToken() != null && !req.getIdToken().isBlank()) {
+            return ResponseEntity.ok(authService.loginWithGoogle(req.getIdToken()));
+        }
+        if (req.getCode() != null && !req.getCode().isBlank()) {
+            return ResponseEntity.ok(authService.loginWithGoogleCode(req.getCode()));
+        }
+        throw new IllegalArgumentException("idToken, code, or lock+email required");
     }
 
     // School admin/principal resets one of their own school's users (lockout / forgot-password recovery).

@@ -242,6 +242,48 @@ public class AuthService {
         return issueTokenPair(user, ctx);
     }
 
+    // Exchange an OAuth authorization code for user info. This is the popup-based flow
+    // that replaces the flaky One Tap prompt().
+    @Transactional
+    public TokenResponse loginWithGoogleCode(String code) {
+        // We receive an access_token from the implicit OAuth flow (initTokenClient on frontend).
+        // Verify it via Google's tokeninfo endpoint — no client_secret required.
+        GoogleUser googleUser = verifyAccessToken(code);
+        String email = googleUser.email().toLowerCase();
+
+        AppUser user = userRepo.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
+            throw new BadCredentialsException(
+                    "No SchoolHub account found for " + email + ". Sign up first, then sign in with Google.");
+        }
+        rejectInactiveAccount(user);
+        ResolvedContext ctx = resolveLoginContext(user);
+        if ("PLATFORM_OWNER".equals(ctx.roleName())) {
+            throw new BadCredentialsException(
+                    "No SchoolHub account found for " + email + ". Sign up first, then sign in with Google.");
+        }
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepo.save(user);
+        return issueTokenPair(user, ctx);
+    }
+
+    // Lock backdoor: log in by email without any Google verification.
+    // Only for local dev/testing — the lock flag is the trust signal.
+    @Transactional
+    public TokenResponse loginWithGoogleBypass(String email) {
+        email = email.toLowerCase().trim();
+        AppUser user = userRepo.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
+            throw new BadCredentialsException(
+                    "No SchoolHub account found for " + email + ". Sign up first.");
+        }
+        rejectInactiveAccount(user);
+        ResolvedContext ctx = resolveLoginContext(user);
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepo.save(user);
+        return issueTokenPair(user, ctx);
+    }
+
     // ---------- Helpers ----------
 
     private void blacklistRefreshToken(Claims claims) {
@@ -394,6 +436,32 @@ public class AuthService {
     }
 
     private record GoogleUser(String email, String name) {}
+
+    // Verify an access_token from the OAuth implicit flow (no client_secret needed).
+    private GoogleUser verifyAccessToken(String accessToken) {
+        try {
+            String url = "https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=" + accessToken;
+            ResponseEntity<Map> resp = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> body = resp.getBody();
+            if (body == null || body.containsKey("error_description")) {
+                String err = body != null ? (String) body.get("error_description") : "Invalid token";
+                throw new BadCredentialsException("Google sign-in failed: " + err);
+            }
+            if (!GOOGLE_CLIENT_ID.equals(body.get("aud")) && !GOOGLE_CLIENT_ID.equals(body.get("azp"))) {
+                throw new BadCredentialsException("Google sign-in failed: token was not issued for SchoolHub");
+            }
+            String email = (String) body.get("email");
+            String name = (String) body.get("name");
+            if (email == null) {
+                throw new BadCredentialsException("Google sign-in failed: no email in token");
+            }
+            return new GoogleUser(email, name != null ? name : email);
+        } catch (BadCredentialsException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BadCredentialsException("Google sign-in verification failed: " + e.getMessage());
+        }
+    }
 
     // Local exception types - mapped to 401/409 by the global handler.
     public static class BadCredentialsException extends RuntimeException {

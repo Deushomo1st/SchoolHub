@@ -457,51 +457,8 @@ h2 { font-size: 18px; margin: 0 0 14px; }
     inset 0 -1px 0 rgba(0,0,0,.15);
 }
 
-/* ---- Confirmation modal ---- */
-.confirm-modal {
-  position: fixed; inset: 0; z-index: 200;
-  background: transparent;
-  backdrop-filter: blur(12px) brightness(0.45);
-  -webkit-backdrop-filter: blur(12px) brightness(0.45);
-  display: grid; place-items: center;
-}
-.confirm-glass {
-  background: linear-gradient(180deg,
-    rgba(90,90,90,.45) 0%, rgba(50,50,50,.35) 30%,
-    rgba(30,30,30,.45) 70%, rgba(17,17,17,.5) 100%);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 20px;
-  padding: 32px 36px;
-  min-width: 280px;
-  max-width: 92vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  text-align: center;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.1),
-    inset 0 -1px 0 rgba(0,0,0,.25),
-    0 20px 60px rgba(0,0,0,.5);
-  position: relative; overflow: hidden;
-  color: rgba(255,255,255,.9);
-}
-/* Glossy top reflection */
-.confirm-glass::before {
-  content: ""; position: absolute; top: 0; left: 5%; width: 90%; height: 35%;
-  background: linear-gradient(180deg, rgba(255,255,255,.08), transparent);
-  border-radius: 20px 20px 0 0; pointer-events: none;
-}
-.confirm-glass p { margin: 0 0 24px; font-size: 15px; }
-.confirm-actions { display: flex; gap: 12px; justify-content: center; }
-.confirm-actions .btn.cancel {
-  background: rgba(128,128,128,.15); color: var(--ink);
-}
-.confirm-actions .btn.cancel:hover { background: rgba(128,128,128,.25); }
-.confirm-actions .btn.danger {
-  background: #ff4d4d; color: #fff; border: none;
-}
-.confirm-actions .btn.danger:hover { background: #e63939; }
+/* Legacy .confirm-modal / .confirm-glass removed — glassConfirm/glassAlert
+   (modal.js, --glass-* tokens) are the only confirm surfaces. */
 
 @keyframes bellSwing {
   0%, 100% { transform: rotate(0); }
@@ -511,70 +468,9 @@ h2 { font-size: 18px; margin: 0 0 14px; }
   80%      { transform: rotate(0); }
 }
 
-/* Dropdown / glassy modal — centered, grows from bell */
-.notif-dropdown {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: none; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.12); backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-.notif-dropdown.show { display: flex; }
-.notif-glass {
-  width: 560px; max-width: 94vw; max-height: 78vh;
-  display: flex; flex-direction: column;
-  background: var(--form-surface, rgba(255,255,255,.62));
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-  border: 1px solid rgba(255,255,255,.5); border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.6);
-  overflow: hidden;
-  animation: notifGrow .35s cubic-bezier(.34,1.56,.64,1);
-  transform-origin: top right;
-}
-.notif-glass.shrinking {
-  animation: notifShrink .25s cubic-bezier(.4,0,.6,1) forwards;
-}
-@keyframes notifGrow {
-  from { transform: scale(.3); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-@keyframes notifShrink {
-  from { transform: scale(1); opacity: 1; }
-  to   { transform: scale(.3); opacity: 0; }
-}
-:root[data-theme="dusk"] .notif-dropdown { background: rgba(0,0,0,.35); }
-:root[data-theme="dusk"] .notif-glass {
-  background: rgba(10,12,18,.72); border-color: rgba(255,255,255,.10);
-  box-shadow: 0 20px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
-}
-.notif-toolbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 16px 10px; border-bottom: 1px solid rgba(0,0,0,.08);
-}
-:root[data-theme="dusk"] .notif-toolbar { border-bottom-color: rgba(255,255,255,.08); }
-.notif-actions { display: flex; gap: 6px; }
-.notif-icon {
-  width: 30px; height: 30px; border-radius: 8px; border: none; cursor: pointer;
-  background: rgba(0,0,0,.05); font-size: 14px; display: flex; align-items: center; justify-content: center;
-  transition: background .15s; color: var(--ink);
-}
-.notif-icon svg { width: 16px; height: 16px; }
-.notif-icon:hover { background: rgba(0,0,0,.1); }
-:root[data-theme="dusk"] .notif-icon { background: rgba(255,255,255,.06); }
-:root[data-theme="dusk"] .notif-icon:hover { background: rgba(255,255,255,.12); }
-.notif-search, .notif-dates { padding: 10px 16px; border-bottom: 1px solid rgba(0,0,0,.06); display: flex; gap: 8px; align-items: center; }
-.notif-search input { flex: 1; padding: 6px 10px; font-size: 13px; border-radius: 8px; }
-.notif-filter-badge {
-  padding: 6px 16px; font-size: 12px; color: var(--brand); font-weight: 600;
-  text-align: center; border-bottom: 1px solid rgba(0,0,0,.06);
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.notif-filter-badge button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
-.notif-filter-badge button:hover { color: var(--danger); }
-:root[data-theme="dusk"] .notif-filter-badge { border-bottom-color: rgba(255,255,255,.06); }
-.notif-dates input { padding: 6px 8px; font-size: 12px; border-radius: 8px; width: 130px; }
-.notif-dates .muted { font-size: 12px; }
-.notif-list { flex: 1; overflow-y: auto; }
+/* Legacy .notif-dropdown / .notif-glass toolbar removed — the bell opens a
+   layer-2 frost glass modal (openGlassModal in app.js). .notif-item below is
+   still the row style that panel renders. */
 .notif-item { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,.05); cursor: pointer; font-size: 13px; transition: background .15s, box-shadow .15s; border-left: 3px solid transparent; }
 .notif-item:hover { background: rgba(0,0,0,.03); border-left: 3px solid var(--brand); box-shadow: 0 0 12px rgba(0,0,0,.08); }
 .notif-item.unread { border-left: 3px solid var(--brand); background: rgba(32,158,187,.04); }
@@ -585,62 +481,8 @@ h2 { font-size: 18px; margin: 0 0 14px; }
 :root[data-theme="dusk"] .btn.danger { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
 .notif-item .notif-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-/* Wider date-range modal — stacks above notifications */
-.date-glass { width: 560px; max-width: 96vw; }
-#dateModal { z-index: 32; }
-#dateModal.notif-dropdown { background: rgba(0,0,0,.16); }
-
-/* ---- Dual-month calendar ---- */
-.cal-header { display: flex; align-items: center; padding: 14px 12px 8px; }
-.cal-nav {
-  background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted);
-  padding: 4px 10px; line-height: 1; transition: color .15s;
-}
-.cal-nav:hover { color: var(--ink); }
-.cal-month { flex: 1; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: .02em; }
-.cal-spacer { width: 32px; flex: none; }
-
-/* Glowing connector line */
-.cal-link { display: flex; justify-content: center; padding: 0 16px 4px; }
-.cal-line {
-  width: 100%; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--brand), transparent);
-  filter: drop-shadow(0 0 3px var(--brand));
-}
-:root[data-theme="dusk"] .cal-line {
-  background: linear-gradient(90deg, transparent, var(--teal), transparent);
-  filter: drop-shadow(0 0 6px var(--teal));
-}
-
-.cal-body { display: flex; gap: 16px; padding: 0 12px; position: relative; }
-.cal-body::before {
-  content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
-  width: 1px;
-  background: linear-gradient(180deg, transparent, var(--brand), transparent);
-  filter: drop-shadow(0 0 3px var(--brand));
-}
-:root[data-theme="dusk"] .cal-body::before {
-  background: linear-gradient(180deg, transparent, var(--teal), transparent);
-  filter: drop-shadow(0 0 6px var(--teal));
-}
-.cal-month-grid { flex: 1; min-width: 0; }
-.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 10px; color: var(--muted); padding: 4px 0; }
-.cal-days { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; gap: 2px; }
-.cal-day {
-  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; cursor: pointer; border-radius: 50%; color: var(--ink);
-  transition: background .15s, color .15s;
-}
-.cal-day:hover { background: var(--accent-soft); }
-.cal-day.other-month { color: var(--line); }
-.cal-day.selected { background: var(--brand); color: #fff; font-weight: 700; }
-.cal-day.in-range { background: var(--brand-soft, rgba(32,158,187,.18)); color: var(--ink); border-radius: 50%; }
-.cal-day.start-end { background: var(--brand); color: #fff; font-weight: 700; }
-:root[data-theme="dusk"] .cal-day.selected { background: var(--teal); color: #0a0c12; }
-:root[data-theme="dusk"] .cal-day.in-range { background: rgba(255,144,0,.18); }
-:root[data-theme="dusk"] .cal-day.start-end { background: var(--teal); color: #0a0c12; }
-
-.cal-footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 14px; }
+/* Legacy #dateModal date-range picker removed — openDualCalendar (calendar.js/css)
+   owns all .cal-* styling now, so the two .cal-day recipes no longer collide. */
 
 /* Superseded: .hero-greeting (sticky+mask). The dashboard now uses the same
    .landing .hero rack-focus pattern as the signup/login pages. */
@@ -854,13 +696,8 @@ a.stat:hover .l { color: var(--brand); }
 }
 .card.flash { animation: flash-ring 1.3s ease-out; }
 
-/* modal */
-.modal-bg { position: fixed; inset: 0; background: rgba(2, 48, 71, .3); display: none; align-items: center; justify-content: center; z-index: 50; }
-:root[data-theme="dusk"] .modal-bg { background: rgba(0, 0, 0, .4); }
-.modal-bg.show { display: flex; }
-.modal { background: var(--card); border-radius: var(--radius); padding: 24px; min-width: 340px; max-width: 520px; width: auto; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(2, 48, 71, .28); }
-.modal h2 { margin-top: 0; }
-.modal .msg { word-wrap: break-word; white-space: normal; }
+/* Legacy solid .modal / .modal-bg removed — every modal goes through
+   openGlassModal (glass tokens); no solid-colour modal surfaces exist. */
 
 /* card grid */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }

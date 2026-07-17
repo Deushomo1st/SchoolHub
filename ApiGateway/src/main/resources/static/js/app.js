@@ -230,26 +230,8 @@ function initTheme() {
 // ---- Universal overlay dismiss: click outside any open overlay closes it ----
 (function() {
   document.addEventListener('click', function(e) {
-    // Date-range picker modal
-    var dateModal = document.getElementById('dateModal');
-    if (dateModal && dateModal.classList.contains('show')) {
-      var glass = dateModal.querySelector('.notif-glass');
-      if (glass && !glass.contains(e.target)) dateModal.classList.remove('show');
-    }
-
-    // 3. Password-change modal — full-screen backdrop, dismiss on backdrop click
-    var pwd = document.getElementById('pwdModal');
-    if (pwd && pwd.classList.contains('show')) {
-      var inner = pwd.querySelector('.modal');
-      if (inner && !inner.contains(e.target) && typeof closePwd === 'function') closePwd();
-    }
-
-    // 4. Confirm modals (logout, etc.) — backdrop click removes
-    document.querySelectorAll('.confirm-modal').forEach(function(m) {
-      if (e.target === m) m.remove();
-    });
-
-    // 5. Floating drawer — click anywhere outside closes it
+    // Glass modals handle their own backdrop dismiss (modal.js); only the drawer needs help here.
+    // Floating drawer — click anywhere outside closes it
     var drawer = document.getElementById('floatingDrawer');
     var trigger = document.getElementById('drawerTrigger');
     if (drawer && (drawer.classList.contains('stage1') || drawer.classList.contains('stage2'))) {

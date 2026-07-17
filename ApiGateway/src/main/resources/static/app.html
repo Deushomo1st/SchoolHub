@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SchoolHub</title>
-  <link rel="stylesheet" href="/css/style.css?v=48">
+  <link rel="stylesheet" href="/css/style.css?v=49">
   <link rel="stylesheet" href="/app/drawer/drawer.css?v=3">
   <link rel="stylesheet" href="/app/avatar/avatar.css?v=4">
   <link rel="stylesheet" href="/app/modal/modal.css?v=7">
@@ -33,55 +33,9 @@
       </div>
     </div>
 
-    <div class="notif-dropdown" id="notifDropdown">
-      <div class="notif-glass">
-        <div class="notif-toolbar">
-          <strong>Notifications</strong>
-          <div class="notif-actions">
-            <button class="notif-icon" id="notifSearchBtn" title="Search"><i data-lucide="search"></i></button>
-            <button class="notif-icon" id="notifDateBtn" title="Filter by date"><i data-lucide="calendar-days"></i></button>
-          </div>
-        </div>
-        <div class="notif-search" id="notifSearch" style="display:none">
-          <input placeholder="Search notifications…" id="notifSearchInput">
-        </div>
-        <div class="notif-filter-badge" id="notifFilterBadge" style="display:none"></div>
-        <div class="notif-dates" id="notifDates" style="display:none">
-          <input type="date" id="notifDateFrom"> <span class="muted">to</span> <input type="date" id="notifDateTo">
-          <button class="btn" id="notifDateApply" style="padding:4px 10px;font-size:12px">Apply</button>
-        </div>
-        <div class="notif-list" id="notifList"><p class="muted">Loading…</p></div>
-      </div>
-    </div>
   </div>
-
-  <!-- Date-range picker modal -->
-  <div class="notif-dropdown" id="dateModal">
-    <div class="notif-glass date-glass">
-      <div class="cal-header">
-        <button class="cal-nav" id="calPrevL">&lsaquo;</button>
-        <span class="cal-month" id="calLeftTitle"></span>
-        <button class="cal-nav" id="calNextL">&rsaquo;</button>
-        <span class="cal-spacer"></span>
-        <button class="cal-nav" id="calPrevR">&lsaquo;</button>
-        <span class="cal-month" id="calRightTitle"></span>
-        <button class="cal-nav" id="calNextR">&rsaquo;</button>
-      </div>
-      <div class="cal-link"><div class="cal-line"></div></div>
-      <div class="cal-body">
-        <div class="cal-month-grid" id="calLeft"></div>
-        <div class="cal-month-grid" id="calRight"></div>
-      </div>
-      <div class="cal-footer">
-        <span class="muted" style="font-size:12px" id="calInfo">Select a date range</span>
-        <div style="display:flex;gap:8px">
-          <button class="btn danger" id="calCancel" style="padding:6px 14px;font-size:12px">Cancel</button>
-          <button class="btn secondary" id="calClear" style="padding:6px 14px;font-size:12px">Clear</button>
-          <button class="btn" id="calApply" style="padding:6px 14px;font-size:12px">Apply</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Legacy solid notification dropdown + date-range picker removed:
+       the bell and calendar filter live in the glass modal system now. -->
 
   <div class="hero">
     <h1 id="greeting">Welcome</h1>
@@ -96,7 +50,7 @@
   </main>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <script src="/js/app.js?v=25"></script>
+  <script src="/js/app.js?v=26"></script>
   <script src="/app/drawer/drawer.js?v=5"></script>
   <script src="/app/modal/modal.js?v=2"></script>
   <script src="/app/avatar/avatar.js?v=1"></script>
