@@ -228,16 +228,48 @@ async function renderCalendar(container, canCreate) {
     <div id="evlist"><p class="muted">Loading…</p></div>`;
   if (window.lucide) lucide.createIcons({ root: container });
 
-  let events = [];
+  let events = [], fwTargets = [];
   const now = new Date();
   const view = { y: now.getFullYear(), m: now.getMonth() };
+  const FW_LABEL = { guardians: 'Parents', children: 'My children', students: 'Students', teachers: 'Teachers' };
 
   function evRow(e) {
-    return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
-      <span class="badge ${esc(e.eventType)}">${esc(e.eventType)}</span>
-      <strong style="margin-left:8px">${esc(e.title)}</strong>
-      <span class="subtle"> · ${fmt(e.startDate)} · ${esc(e.audience)}</span>
-      ${e.description ? `<div class="subtle">${esc(e.description)}</div>` : ''}</div>`;
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <span class="badge ${esc(e.eventType)}">${esc(e.eventType)}</span>
+        <strong style="margin-left:8px">${esc(e.title)}</strong>
+        <span class="subtle"> · ${fmt(e.startDate)} · ${esc(String(e.audience || 'all').replace(/,/g, ' + '))}</span>
+        ${e.description ? `<div class="subtle">${esc(e.description)}</div>` : ''}
+      </div>
+      ${fwTargets.length ? `<button class="btn ghost" data-fw="${e.id}" style="padding:3px 10px;font-size:11px;flex:none">Forward</button>` : ''}
+    </div>`;
+  }
+
+  // Any recipient can push an event on to their reachables (role decides who that is).
+  function wireForwards(root) {
+    root.querySelectorAll('[data-fw]').forEach(b => b.onclick = () => openForward(num(b.dataset.fw)));
+  }
+  function openForward(id) {
+    const e = events.find(x => x.id === id);
+    if (!e) return;
+    const ctrl = openGlassModal({
+      frost: true,
+      className: 'confirm-glass-panel',
+      html: `<h2>Forward event</h2>
+        <p class="subtle">"${esc(e.title)}" · ${fmt(e.startDate)} — send a notification to…</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          ${fwTargets.map(t => `<button class="act-scale-btn" data-t="${t}">${esc(FW_LABEL[t] || t)}</button>`).join('')}
+        </div>
+        <div class="glass-actions"><button class="btn ghost" data-x="c">Cancel</button></div>`
+    });
+    ctrl.panel.querySelector('[data-x="c"]').onclick = ctrl.close;
+    ctrl.panel.querySelectorAll('[data-t]').forEach(b => b.onclick = async () => {
+      try {
+        const r = await api('/api/v1/events/' + id + '/forward', { method: 'POST', body: JSON.stringify({ to: b.dataset.t }) });
+        ctrl.close();
+        await glassAlert('Forwarded to ' + r.sent + ' ' + (FW_LABEL[r.target] || r.target).toLowerCase() + '.', { title: 'Event forwarded' });
+      } catch (err) { ctrl.close(); await glassAlert(err.message, { title: 'Could not forward' }); }
+    });
   }
   function drawCal() {
     const marks = {};
@@ -258,6 +290,7 @@ async function renderCalendar(container, canCreate) {
             <div class="glass-actions"><button class="btn ghost" data-x="close">Close</button></div>`
         });
         ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
+        wireForwards(ctrl.panel);
       },
     });
   }
@@ -266,14 +299,18 @@ async function renderCalendar(container, canCreate) {
     const list = document.getElementById('evlist');
     const up = events.filter(e => String(e.startDate || '').slice(0, 10) >= today)
       .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
-    if (up.length) { list.innerHTML = up.map(evRow).join(''); return; }
+    if (up.length) { list.innerHTML = up.map(evRow).join(''); wireForwards(list); return; }
     const past = events.slice().sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))).slice(0, 5);
     list.innerHTML = past.length
       ? '<p class="subtle" style="margin:4px 0">Nothing ahead — recent items:</p>' + past.map(evRow).join('')
       : '<p class="muted">Nothing on the calendar yet.</p>';
+    wireForwards(list);
   }
   async function load() {
-    events = await api('/api/v1/events').catch(() => []);
+    [events, fwTargets] = await Promise.all([
+      api('/api/v1/events').catch(() => []),
+      api('/api/v1/events/forward-targets').catch(() => []),
+    ]);
     drawCal(); renderList();
   }
   if (canCreate) {
@@ -284,11 +321,21 @@ async function renderCalendar(container, canCreate) {
           <option value="event">Event</option><option value="announcement">Announcement</option>
           <option value="holiday">Holiday</option><option value="exam">Exam</option></select>
         <label>Date</label><input name="startDate" type="date" required>
-        <label>Audience</label><select name="audience">
-          <option value="all">Everyone</option><option value="staff">Staff</option>
-          <option value="students">Students</option><option value="guardians">Guardians</option></select>
+        <label>Audience (pick any)</label>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 6px">
+          <label style="font-weight:400;display:flex;gap:6px;align-items:center"><input type="checkbox" name="audAll" checked> Everyone</label>
+          <label style="font-weight:400;display:flex;gap:6px;align-items:center"><input type="checkbox" name="audStaff"> Staff</label>
+          <label style="font-weight:400;display:flex;gap:6px;align-items:center"><input type="checkbox" name="audStudents"> Students</label>
+          <label style="font-weight:400;display:flex;gap:6px;align-items:center"><input type="checkbox" name="audGuardians"> Guardians</label>
+        </div>
         <label>Description</label><input name="description">`,
       onSubmit: async b => {
+        const picked = [];
+        if (b.audStaff) picked.push('staff');
+        if (b.audStudents) picked.push('students');
+        if (b.audGuardians) picked.push('guardians');
+        b.audience = (b.audAll || !picked.length) ? 'all' : picked.join(',');
+        delete b.audAll; delete b.audStaff; delete b.audStudents; delete b.audGuardians;
         await api('/api/v1/events', { method: 'POST', body: JSON.stringify(b) });
         showMsg(document.getElementById('evmsg'), 'Posted.', 'ok'); await load();
       }

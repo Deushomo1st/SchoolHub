@@ -118,8 +118,7 @@ CREATE TABLE IF NOT EXISTS calendar_event (
     description TEXT,
     event_type  VARCHAR(20) NOT NULL DEFAULT 'event'
                 CHECK (event_type IN ('event','announcement','holiday','exam')),
-    audience    VARCHAR(16) NOT NULL DEFAULT 'all'
-                CHECK (audience IN ('all','staff','students','guardians')),
+    audience    VARCHAR(64) NOT NULL DEFAULT 'all',   -- single group or comma list ('staff,students'); validated in EventService
     start_date  DATE NOT NULL,
     end_date    DATE,
     created_by  BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,

@@ -51,6 +51,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/logout/refresh",
                                 "/api/v1/auth/check-email",
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
                                 "/api/v1/auth/google",
                                 "/api/v1/auth/setup/status",
                                 "/api/v1/auth/setup/bootstrap"

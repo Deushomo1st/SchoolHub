@@ -1,7 +1,7 @@
 // ---- Auth guard (skip on public pages: login, signup, index) ----
 function _isPublicPage() {
   var path = location.pathname.replace(/\/+$/, '').split('/').pop() || 'index.html';
-  return ['login.html', 'index.html', 'staff-signup.html'].indexOf(path) !== -1;
+  return ['login.html', 'index.html', 'staff-signup.html', 'reset-password.html'].indexOf(path) !== -1;
 }
 function _guard() {
   if (_isPublicPage()) return;

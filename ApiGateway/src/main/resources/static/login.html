@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SchoolHub - log in</title>
-  <link rel="stylesheet" href="/css/style.css?v=50">
+  <link rel="stylesheet" href="/css/style.css?v=51">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('shTheme')||'light'}catch(e){}</script>
   <style>
     #googleBtn { transition: color .2s, text-shadow .2s; }
@@ -68,13 +68,14 @@
         </div>
         <div id="emailHint" class="inline-hint" style="display:none;margin-top:6px;font-size:12px"></div>
       </form>
-      <p class="muted" style="margin-top:18px">Joining as staff with a code? <a href="/staff-signup.html">Sign up here</a>.</p>
+      <p class="muted" style="margin-top:18px">Joining as staff with a code? <a href="/staff-signup.html">Sign up here</a>.
+        <a href="#" id="forgotLink" style="float:right">Forgot password?</a></p>
     </div>
   </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="/js/app.js?v=27"></script>
+  <script src="/js/app.js?v=28"></script>
   <script>
     const msg = document.getElementById('msg');
     const emailHint = document.getElementById('emailHint');
@@ -103,6 +104,20 @@
         edgeLine.classList.remove('active');
         sideLock.classList.remove('show');
       }
+    });
+
+    // ---- Forgot password: emails a one-shot reset link (neutral response either way) ----
+    document.getElementById('forgotLink').addEventListener('click', async function(e) {
+      e.preventDefault(); hideMsg(msg);
+      var email = document.querySelector('#loginForm [name="email"]').value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        showMsg(msg, 'Type your email in the box above first, then click "Forgot password?".', 'err');
+        return;
+      }
+      try {
+        var r = await api('/api/v1/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: email }) });
+        showMsg(msg, r.message, 'ok');
+      } catch (err) { showMsg(msg, err.message, 'err'); }
     });
 
     // ---- Email existence check on blur ----

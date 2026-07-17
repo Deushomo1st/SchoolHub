@@ -18,24 +18,28 @@ public class NotificationController {
         this.service = service;
     }
 
+    // Self-scoped: the service filters by the caller's own user id, so every signed-in
+    // role reads its own inbox (library approvals, forwarded events, ... land here).
     @GetMapping
-    @PreAuthorize("hasAnyRole('PLATFORM_OWNER','MODERATOR')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> list() { return ResponseEntity.ok(service.listMine()); }
 
     @PatchMapping("/{id}/read")
-    @PreAuthorize("hasAnyRole('PLATFORM_OWNER','MODERATOR')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> markRead(@PathVariable Long id) {
         return ResponseEntity.ok(service.markRead(id));
     }
 
     @PostMapping("/{id}/read")
-    @PreAuthorize("hasAnyRole('PLATFORM_OWNER','MODERATOR')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> markReadPost(@PathVariable Long id) {
         return ResponseEntity.ok(service.markRead(id));
     }
 
-    /** Programmatic: create a notification for a specific user. Internal use only. */
+    /** Programmatic: create a notification for a specific user (admin tooling only —
+     *  regular flows notify via the service layer, and users must not spam each other). */
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> create(@RequestBody Map<String, Object> req) {
         Long recipientUserId = req.get("recipientUserId") instanceof Number n ? n.longValue() : null;
         Long tenantId = req.get("tenantId") instanceof Number n ? n.longValue() : null;

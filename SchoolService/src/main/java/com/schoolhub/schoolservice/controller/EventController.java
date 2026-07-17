@@ -33,4 +33,17 @@ public class EventController {
         events.delete(id);
         return ResponseEntity.ok().build();
     }
+
+    /** Who the caller may forward events to (drives the Forward modal's options). */
+    @GetMapping("/forward-targets")
+    public ResponseEntity<?> forwardTargets() {
+        return ResponseEntity.ok(events.allowedTargets());
+    }
+
+    /** Forward an event to the caller's reachables (role-gated in the service). */
+    @PostMapping("/{id}/forward")
+    public ResponseEntity<?> forward(@PathVariable Long id,
+                                     @RequestBody java.util.Map<String, String> body) {
+        return ResponseEntity.ok(events.forward(id, body.get("to")));
+    }
 }

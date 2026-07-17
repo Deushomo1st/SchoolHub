@@ -15,9 +15,12 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.schoolhub.authservice.service.PasswordResetService passwordReset;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService,
+                          com.schoolhub.authservice.service.PasswordResetService passwordReset) {
         this.authService = authService;
+        this.passwordReset = passwordReset;
     }
 
     @PostMapping("/login")
@@ -64,6 +67,20 @@ public class AuthController {
         Long userId = (Long) authentication.getPrincipal();
         authService.changePassword(userId, req.getCurrentPassword(), req.getNewPassword());
         return ResponseEntity.ok(Map.of("message", "Password updated"));
+    }
+
+    // Forgot password (public). Always the same neutral answer — no account enumeration.
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+        passwordReset.requestReset(body.get("email"));
+        return ResponseEntity.ok(Map.of("message", "If that email has an account, a reset link is on its way."));
+    }
+
+    // Complete the reset with the emailed token (public).
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
+        passwordReset.reset(body.get("token"), body.get("newPassword"));
+        return ResponseEntity.ok(Map.of("message", "Password updated — log in with the new one."));
     }
 
     // Check if an email is already registered (public — used by login/signup forms).

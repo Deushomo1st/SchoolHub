@@ -177,9 +177,16 @@ a:hover { text-decoration: none; }
 .container { max-width: 960px; margin: 0 auto; padding: 28px; }
 .narrow { max-width: 460px; }
 
+/* Every content panel is glass in BOTH themes (frost density so text stays legible over
+   the ambient blobs) — no flat white/black surfaces anywhere. Dusk has its own deeper
+   recipe further up; this covers light. */
 .card {
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--glass-bg-frost, var(--card));
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border, var(--line));
+  border-radius: var(--radius);
   padding: 24px; margin-bottom: 20px;
+  box-shadow: var(--glass-shadow-soft, none);
 }
 h1 { font-size: 26px; margin: 0 0 6px; }
 h2 { font-size: 18px; margin: 0 0 14px; }
@@ -682,7 +689,11 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 
 /* stat cards */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 14px; margin-bottom: 8px; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; text-align: center; }
+.stat {
+  background: var(--glass-bg, var(--card));
+  border: 1px solid var(--glass-border, var(--line));
+  border-radius: var(--radius); padding: 16px; text-align: center;
+}
 .stat .n { font-size: 30px; font-weight: 700; color: var(--brand); }
 .stat .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 a.stat { display: block; text-decoration: none; cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .1s; }
@@ -900,6 +911,7 @@ section.block { margin-bottom: 28px; }
   --glass-sheen:    linear-gradient(135deg, rgba(255,255,255,.26), transparent 42%, transparent 72%, rgba(255,255,255,.10));
   --glass-blur:     blur(16px) saturate(160%);
   --glass-shadow:   0 30px 70px rgba(2,48,71,.26), inset 0 1px 0 rgba(255,255,255,.6);
+  --glass-shadow-soft: 0 10px 30px rgba(2,48,71,.10), inset 0 1px 0 rgba(255,255,255,.5);   /* page cards */
 }
 :root[data-theme="dusk"] {
   /* glossy silver: a cool metallic diagonal over a dark translucent base */
@@ -909,6 +921,7 @@ section.block { margin-bottom: 28px; }
   --glass-sheen:    linear-gradient(135deg, rgba(244,247,253,.28), transparent 40%, transparent 72%, rgba(205,213,227,.14));
   --glass-blur:     blur(18px) saturate(150%);
   --glass-shadow:   0 30px 70px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -16px 34px rgba(175,186,208,.10);
+  --glass-shadow-soft: 0 12px 30px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);    /* page cards */
 }
 
 /* ---- Plans & Pricing sector (glass pricing cards) ---- */
@@ -969,8 +982,9 @@ section.block { margin-bottom: 28px; }
 /* A card whose list scrolls internally, with a pinned footer of actions below it. */
 .list-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .list-scroll { max-height: 46vh; overflow-y: auto; padding: 4px 4px; }
-.list-scroll table thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
-:root[data-theme="dusk"] .list-scroll table thead th { background: #10182b; }
+/* Sticky headers keep a near-opaque wash (they must mask scrolling rows) but read as glass. */
+.list-scroll table thead th { position: sticky; top: 0; z-index: 1; background: color-mix(in srgb, var(--card) 90%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+:root[data-theme="dusk"] .list-scroll table thead th { background: color-mix(in srgb, #10182b 90%, transparent); }
 .list-foot { flex: none; padding: 12px 16px; border-top: 1px solid var(--line); }
 .lc-title { margin: 14px 16px 6px; }               /* heading inside a padding-less list-card */
 .pe-sub { margin: 28px 2px 2px; }                  /* sub-section heading between list groups */

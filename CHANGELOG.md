@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-17 — Forgot password, multi-audience events + forwarding, glass everywhere, notifications unblocked
+
+- **Forgot password (email):** login gains "Forgot password?" → `POST /auth/forgot-password` mints a one-shot 30-min token (`platform.password_reset`) and emails the link (SMTP via `SMTP_HOST/PORT/USER/PASS` env; without SMTP the link is logged to the AuthService console — dev fallback). New public `reset-password.html` completes it. Neutral responses (no account enumeration); token verified one-shot.
+- **Events:** "Post an event" audience is now **multi-select** (checkboxes → comma list, e.g. `staff,guardians`; column widened, CHECK dropped, validated in EventService). **Any recipient can forward an event** to their reachables via a Forward button (upcoming list + day modal): student → own guardians, guardian → own children, teacher/bursar/librarian → students + guardians, admin → students + guardians + teachers. Forwards land as notifications; disallowed targets 403.
+- **Fixed while verifying: school users could never read notifications** — `/api/v1/notifications` was gated `PLATFORM_OWNER/MODERATOR` although the service is self-scoped. Now `isAuthenticated()` (own inbox only), so the bell badge finally works for every school role (library approvals, forwarded events...). The raw `POST /notifications` tool is ADMIN-gated (was open to any user).
+- **Glass sweep:** light-theme `.card` and `.stat` now read the `--glass-*` recipe (new `--glass-shadow-soft` token for page panels) — no flat white/black panel remains in either theme, across every role and section; sticky table headers keep a near-opaque wash (they must mask scrolling rows) but blur what passes beneath.
+- Verified: reset flow end-to-end (request → token → new password logs in → token reuse rejected), multi-audience stored, student→guardian forward delivers the parent a notification, student→teachers denied, glass computed styles confirmed in-browser.
+
 ## 2026-07-17 — Stripe integration: Billing (school subscriptions) + Invoicing (fees, NGN) with a simulation padlock
 
 - **Fee payments are real now (test mode):** "Pay now" creates an NGN Stripe invoice (kobo = ₦×100 at the gateway boundary only) and opens Stripe's **hosted invoice page**. Payment recording is double-covered: an `invoice.paid` **webhook** (signature-verified, tenant routed via `{schema, feeInvoiceId}` metadata) *and* **lazy sync** in `listInvoices`/`forYou`, so dev runs work without `stripe listen`. Part-payments/waivers void + reissue the Stripe invoice at the current outstanding amount. Payment method `stripe` added to `fee_payment`.
