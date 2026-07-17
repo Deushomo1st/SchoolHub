@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/health", "/actuator/**").permitAll()
                         // Public self-service signup + catalog (the public marketing site calls these)
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/signup", "/api/v1/tenants/staff-signup", "/api/v1/activity/ping").permitAll()
+                        // Stripe webhooks carry no JWT — authenticity is the signature check.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tenants/stripe/webhook").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenants/templates", "/api/v1/tenants/plans").permitAll()
                         .anyRequest().authenticated()
                 )

@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS fee_invoice (
     batch_id     VARCHAR(36),
     amount_naira INTEGER NOT NULL,
     due_date     DATE,
+    stripe_invoice_id VARCHAR(64),
     status       VARCHAR(12) NOT NULL DEFAULT 'unpaid'
                  CHECK (status IN ('draft','unpaid','partial','paid','cancelled')),
     created_by   BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,
@@ -154,7 +155,7 @@ CREATE TABLE IF NOT EXISTS fee_payment (
     id           BIGSERIAL PRIMARY KEY,
     invoice_id   BIGINT NOT NULL REFERENCES fee_invoice(id) ON DELETE CASCADE,
     amount_naira INTEGER NOT NULL,
-    method       VARCHAR(16) NOT NULL DEFAULT 'cash' CHECK (method IN ('cash','transfer','paystack')),
+    method       VARCHAR(16) NOT NULL DEFAULT 'cash' CHECK (method IN ('cash','transfer','paystack','stripe')),
     reference    VARCHAR(64),
     recorded_by  BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,
     paid_on      DATE NOT NULL DEFAULT CURRENT_DATE,

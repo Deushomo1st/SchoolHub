@@ -21,6 +21,10 @@
 .glass-panel {
   position: relative;
   min-width: 280px; max-width: min(92vw, 440px);
+  /* Long content never grows past the screen — the panel stays centered and
+     stagnant and scrolls inside (same behaviour as the notification panel). */
+  max-height: 85vh;
+  overflow-y: auto;
   padding: 26px;
   border-radius: 22px;
   color: var(--ink);
@@ -39,6 +43,15 @@
   mix-blend-mode: screen;
 }
 .glass-modal-bg.show .glass-panel { transform: translateY(0) scale(1); }
+
+/* Slim scrollbar for panels that overflow (matches .sleek-scroll). */
+.glass-panel { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--brand) 40%, transparent) transparent; }
+.glass-panel::-webkit-scrollbar { width: 6px; }
+.glass-panel::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  border-radius: 999px;
+}
+.glass-panel::-webkit-scrollbar-track { background: transparent; }
 
 /* ---- Frost panel (layer 2+): denser, less see-through ---- */
 .glass-panel.frost {

@@ -22,6 +22,13 @@ public class SubscriptionPlan {
     @Column(nullable = false)
     private String description;
 
+    /** Stripe Billing mapping (created lazily at first checkout; price re-minted on edits). */
+    @Column(name = "stripe_product_id")
+    private String stripeProductId;
+
+    @Column(name = "stripe_price_id")
+    private String stripePriceId;
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public Integer getPriceNaira() { return priceNaira; }
@@ -31,4 +38,8 @@ public class SubscriptionPlan {
     public void setPriceNaira(Integer priceNaira) { this.priceNaira = priceNaira; }
     public void setMaxStudents(Integer maxStudents) { this.maxStudents = maxStudents; }
     public void setDescription(String description) { this.description = description; }
+    public String getStripeProductId() { return stripeProductId; }
+    public void setStripeProductId(String stripeProductId) { this.stripeProductId = stripeProductId; }
+    public String getStripePriceId() { return stripePriceId; }
+    public void setStripePriceId(String stripePriceId) { this.stripePriceId = stripePriceId; }
 }

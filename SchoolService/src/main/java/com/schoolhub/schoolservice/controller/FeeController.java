@@ -14,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1")
 public class FeeController {
@@ -81,10 +83,14 @@ public class FeeController {
         return ResponseEntity.ok().build();
     }
 
-    // ---- Student / guardian: settle own invoice online (ownership enforced in service) ----
+    // ---- Student / guardian: settle own invoice online (ownership enforced in service).
+    //      Default = Stripe hosted invoice page; {"simulate":true} = the simulated provider
+    //      (armed by the payments padlock). ----
     @PostMapping("/invoices/{id}/pay")
-    public ResponseEntity<?> payOnline(@PathVariable Long id) {
-        return ResponseEntity.ok(fees.payOnline(id));
+    public ResponseEntity<?> payOnline(@PathVariable Long id,
+                                       @RequestBody(required = false) Map<String, Object> body) {
+        boolean simulate = body != null && Boolean.TRUE.equals(body.get("simulate"));
+        return ResponseEntity.ok(fees.payOnline(id, simulate));
     }
 
     // ---- Bursar / admin: refund a recorded payment (a negative fee_payment row) ----

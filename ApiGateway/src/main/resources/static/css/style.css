@@ -1012,3 +1012,21 @@ section.block { margin-bottom: 28px; }
 
 /* ---- Guardian: single-child tilted card ---- */
 .gc-single { display: flex; justify-content: center; padding: 16px 0 4px; }
+
+/* ---- Payments padlock (left edge, login-backdoor ritual). Armed = stays visible, red. ---- */
+.side-pay-lock {
+  position: fixed; left: 18px; top: 50%; z-index: 60;
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transform: translateY(-50%);
+  background: var(--glass-bg-frost);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+  color: var(--muted);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, color .25s, box-shadow .35s;
+}
+.side-pay-lock.show, .side-pay-lock.armed { opacity: 1; pointer-events: auto; cursor: pointer; }
+.side-pay-lock.armed { color: var(--danger); box-shadow: 0 0 18px color-mix(in srgb, var(--danger) 45%, transparent); }
+.side-pay-lock i, .side-pay-lock svg { width: 18px; height: 18px; }

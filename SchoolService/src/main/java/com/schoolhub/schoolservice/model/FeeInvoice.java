@@ -46,6 +46,10 @@ public class FeeInvoice {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    /** Stripe invoice id when the payer chose to pay via Stripe's hosted page. */
+    @Column(name = "stripe_invoice_id")
+    private String stripeInvoiceId;
+
     @Column(nullable = false)
     private String status = "unpaid";
 
@@ -83,6 +87,8 @@ public class FeeInvoice {
     public void setAmountNaira(Integer amountNaira) { this.amountNaira = amountNaira; }
     public LocalDate getDueDate() { return dueDate; }
     public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+    public String getStripeInvoiceId() { return stripeInvoiceId; }
+    public void setStripeInvoiceId(String stripeInvoiceId) { this.stripeInvoiceId = stripeInvoiceId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Long getCreatedBy() { return createdBy; }

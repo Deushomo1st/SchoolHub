@@ -47,6 +47,10 @@ public class AppUser {
     @Column(columnDefinition = "text", insertable = false, updatable = false)
     private String avatar;
 
+    /** Stripe Customer for this payer (created on their first Stripe payment). */
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -75,4 +79,6 @@ public class AppUser {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
     public String getAvatar() { return avatar; }
+    public String getStripeCustomerId() { return stripeCustomerId; }
+    public void setStripeCustomerId(String stripeCustomerId) { this.stripeCustomerId = stripeCustomerId; }
 }

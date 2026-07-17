@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-17 — Stripe integration: Billing (school subscriptions) + Invoicing (fees, NGN) with a simulation padlock
+
+- **Fee payments are real now (test mode):** "Pay now" creates an NGN Stripe invoice (kobo = ₦×100 at the gateway boundary only) and opens Stripe's **hosted invoice page**. Payment recording is double-covered: an `invoice.paid` **webhook** (signature-verified, tenant routed via `{schema, feeInvoiceId}` metadata) *and* **lazy sync** in `listInvoices`/`forYou`, so dev runs work without `stripe listen`. Part-payments/waivers void + reissue the Stripe invoice at the current outstanding amount. Payment method `stripe` added to `fee_payment`.
+- **The simulated Paystack survives behind a padlock:** the **left edge line reveals a payments padlock** (same ritual as the login backdoor); arming it (stays visible, red) makes every Pay-now use the simulated gateway (`{"simulate":true}`). Default is Stripe.
+- **Platform Billing:** plans map lazily to Stripe Product + monthly NGN Price (price edits mint a new Price); each school is a Stripe Customer. School admin's Account pane gains a **School billing** card — Subscribe (Checkout, `mode=subscription`), **Manage billing** (Customer Portal), Refresh status. `?billing=success` return triggers a sync. Webhook (`/api/v1/tenants/stripe/webhook`) tracks `checkout.session.completed` / `subscription.updated/deleted` into `tenant.stripe_sub_status`.
+- **Keys/config:** `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` env only (stored in gitignored `.schoolhub_secrets.txt`; launcher must pass them). stripe-java 29.5.0 in School+Tenant services. New columns via `db/stripe_columns.sql` + `db/stripe_tenant_columns.sql` (applied to platform + all 5 schemas; template updated for new schools).
+- **Verified E2E:** bursar invoice → student gets hosted NGN page → paid on Stripe → For You + bursar views flip to paid (₦12,500 recorded); padlock simulate path returns PSK reference; checkout URL minted; student 403 on billing; padlock arm/disarm + billing card verified in-browser.
+- Also: **glass panels cap at 85vh and scroll internally** (slim brand scrollbar) so long forms (Post an item) stay centered and stagnant; **legacy solid modals purged** (old notification dropdown, date-range picker, `.modal`/`.confirm-modal` CSS + handlers) — `openGlassModal` is the only modal surface.
+
 ## 2026-07-17 — Design rollout: librarian sector + student/guardian/bursar/teacher restyle + glass calendar
 
 Applied the design system (bento homes, tilt-stacks, glass modals) to every remaining role. Rule enforced throughout: **a tilt-stack only appears where the resource owns a picture** (book covers, resource-item covers, children's avatars) — everything else uses list/spotlight patterns.

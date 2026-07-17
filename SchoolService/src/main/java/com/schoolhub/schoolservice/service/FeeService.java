@@ -7,8 +7,10 @@ import com.schoolhub.schoolservice.dto.Requests.ResourcePostReq;
 import com.schoolhub.schoolservice.model.*;
 import com.schoolhub.schoolservice.payment.PaymentGateway;
 import com.schoolhub.schoolservice.payment.PaymentProvider;
+import com.schoolhub.schoolservice.stripe.StripeGateway;
 import com.schoolhub.schoolservice.tenant.TenantContext;
 import com.schoolhub.schoolservice.repository.*;
+import com.stripe.exception.StripeException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -34,12 +36,15 @@ public class FeeService {
     private final FeeCategoryService feeCategoryService;
     private final FinancialSettingsService financialSettings;
     private final PaymentGateway paymentGateway;
+    private final StripeGateway stripeGateway;
+    private final AppUserRepository appUserRepo;
     private final AuditRecorder audit;
 
     public FeeService(FeeInvoiceRepository invoiceRepo, FeePaymentRepository paymentRepo, FeeWaiverRepository waiverRepo,
                       StudentRepository studentRepo, GuardianRepository guardianRepo, StudentGuardianRepository linkRepo,
                       FeeCategoryService feeCategoryService, FinancialSettingsService financialSettings,
-                      PaymentGateway paymentGateway, AuditRecorder audit) {
+                      PaymentGateway paymentGateway, StripeGateway stripeGateway, AppUserRepository appUserRepo,
+                      AuditRecorder audit) {
         this.invoiceRepo = invoiceRepo;
         this.paymentRepo = paymentRepo;
         this.waiverRepo = waiverRepo;
@@ -49,12 +54,16 @@ public class FeeService {
         this.feeCategoryService = feeCategoryService;
         this.financialSettings = financialSettings;
         this.paymentGateway = paymentGateway;
+        this.stripeGateway = stripeGateway;
+        this.appUserRepo = appUserRepo;
         this.audit = audit;
     }
 
     public List<Map<String, Object>> listInvoices() {
         Map<Long, String> names = studentNames();
-        return invoiceRepo.findAllByOrderByCreatedAtDesc().stream().map(i -> row(i, names)).collect(Collectors.toList());
+        List<FeeInvoice> all = invoiceRepo.findAllByOrderByCreatedAtDesc();
+        syncStripeAll(all);                       // pick up Stripe payments made since last look
+        return all.stream().map(i -> row(i, names)).collect(Collectors.toList());
     }
 
     public List<Map<String, Object>> invoicesForStudent(Long studentId) {
@@ -152,26 +161,102 @@ public class FeeService {
     /** A student or one of their guardians settles an invoice online, via the payment PORT
      *  (initialize -> server-side verify -> record - the browser's word alone is never trusted). */
     @Transactional
-    public Map<String, Object> payOnline(Long invoiceId) {
+    /**
+     * Online payment. Stripe is the real gateway (hosted invoice page, NGN); the simulated
+     * provider stays behind {@code simulate=true} — armed by the payments padlock in the UI.
+     */
+    public Map<String, Object> payOnline(Long invoiceId, boolean simulate) {
         FeeInvoice inv = invoiceRepo.findById(invoiceId)
                 .orElseThrow(() -> new EntityNotFoundException("Invoice not found"));
         assertCallerOwns(inv.getStudentId());
         int outstanding = outstanding(inv);
         if (outstanding <= 0) throw new IllegalArgumentException("This invoice is already settled");
 
-        PaymentProvider provider = paymentGateway.active();
-        var init = provider.initialize(outstanding, inv.getTitle());
-        var verify = provider.verify(init.reference());
-        if (!verify.success()) throw new IllegalStateException("Payment could not be verified");
+        if (simulate || !stripeGateway.enabled()) {
+            PaymentProvider provider = paymentGateway.active();
+            var init = provider.initialize(outstanding, inv.getTitle());
+            var verify = provider.verify(init.reference());
+            if (!verify.success()) throw new IllegalStateException("Payment could not be verified");
 
-        savePayment(inv, outstanding, provider.key(), verify.reference());
-        recompute(inv);
-        audit.record("PAYMENT_ONLINE", currencySymbol() + outstanding + " (" + provider.key() + " " + verify.reference() + ") on invoice #" + inv.getId());
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("message", "Payment successful via " + provider.key());
-        m.put("reference", verify.reference());
-        m.put("amount", outstanding);
-        return m;
+            savePayment(inv, outstanding, provider.key(), verify.reference());
+            recompute(inv);
+            audit.record("PAYMENT_ONLINE", currencySymbol() + outstanding + " (" + provider.key() + " " + verify.reference() + ") on invoice #" + inv.getId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("message", "Payment successful via " + provider.key());
+            m.put("reference", verify.reference());
+            m.put("amount", outstanding);
+            m.put("mode", "simulated");
+            return m;
+        }
+        return stripePayLink(inv, outstanding);
+    }
+
+    /** Reuse (or mint) the Stripe hosted invoice page for the current outstanding amount. */
+    private Map<String, Object> stripePayLink(FeeInvoice inv, int outstanding) {
+        Long uid = TenantContext.getUserId();
+        AppUser payer = appUserRepo.findById(uid)
+                .orElseThrow(() -> new EntityNotFoundException("Payer account not found"));
+        try {
+            String cus = stripeGateway.ensureCustomer(payer.getStripeCustomerId(), payer.getEmail(),
+                    (payer.getFirstName() + " " + payer.getLastName()).trim());
+            if (!cus.equals(payer.getStripeCustomerId())) {
+                payer.setStripeCustomerId(cus);
+                appUserRepo.save(payer);
+            }
+            if (inv.getStripeInvoiceId() != null) {
+                var existing = stripeGateway.retrieveInvoice(inv.getStripeInvoiceId());
+                if ("paid".equals(existing.getStatus())) {
+                    syncStripe(inv);
+                    throw new IllegalArgumentException("This invoice was already paid on Stripe — refreshed.");
+                }
+                if ("open".equals(existing.getStatus())) {
+                    if (existing.getAmountDue() == outstanding * 100L) {
+                        return Map.of("url", existing.getHostedInvoiceUrl(), "mode", "stripe");
+                    }
+                    stripeGateway.voidInvoice(existing);   // amount changed (part-payment/waiver) — reissue
+                }
+            }
+            var hosted = stripeGateway.createHostedInvoice(cus, outstanding, inv.getTitle(),
+                    Map.of("schema", TenantContext.get(), "feeInvoiceId", String.valueOf(inv.getId())));
+            inv.setStripeInvoiceId(hosted.getId());
+            invoiceRepo.save(inv);
+            audit.record("STRIPE_INVOICE_CREATED", hosted.getId() + " for " + currencySymbol() + outstanding + " on invoice #" + inv.getId());
+            return Map.of("url", hosted.getHostedInvoiceUrl(), "mode", "stripe");
+        } catch (StripeException e) {
+            throw new IllegalStateException("Stripe error: " + e.getMessage());
+        }
+    }
+
+    /** If the linked Stripe invoice is paid but not yet recorded locally, record it. */
+    @Transactional
+    public boolean syncStripe(FeeInvoice inv) {
+        if (inv.getStripeInvoiceId() == null || "paid".equals(inv.getStatus()) || !stripeGateway.enabled()) return false;
+        try {
+            var si = stripeGateway.retrieveInvoice(inv.getStripeInvoiceId());
+            if (!"paid".equals(si.getStatus())) return false;
+            int outstanding = outstanding(inv);
+            if (outstanding <= 0) return false;
+            int paidNaira = (int) (si.getAmountPaid() / 100);   // kobo → naira
+            savePayment(inv, Math.min(paidNaira, outstanding), "stripe", si.getId());
+            recompute(inv);
+            audit.record("PAYMENT_ONLINE", currencySymbol() + paidNaira + " (stripe " + si.getId() + ") on invoice #" + inv.getId());
+            return true;
+        } catch (StripeException e) {
+            return false;                                       // transient — next sync catches it
+        }
+    }
+
+    public void syncStripeById(Long invoiceId) {
+        invoiceRepo.findById(invoiceId).ifPresent(this::syncStripe);
+    }
+
+    /** Lazy sync for a list of invoices (only unpaid ones that went to Stripe). */
+    private void syncStripeAll(List<FeeInvoice> invoices) {
+        for (FeeInvoice i : invoices) {
+            if (i.getStripeInvoiceId() != null && !"paid".equals(i.getStatus()) && !"cancelled".equals(i.getStatus())) {
+                syncStripe(i);
+            }
+        }
     }
 
     // ---- Resource point: school posts a payable item to many students at once ----
@@ -303,7 +388,9 @@ public class FeeService {
 
         List<Map<String, Object>> items = new ArrayList<>();
         for (Long sid : studentIds) {
-            for (FeeInvoice i : invoiceRepo.findByStudentIdOrderByCreatedAtDesc(sid)) {
+            List<FeeInvoice> mine = invoiceRepo.findByStudentIdOrderByCreatedAtDesc(sid);
+            syncStripeAll(mine);                  // returning from the hosted page updates instantly
+            for (FeeInvoice i : mine) {
                 // students never see staff drafts (awaiting approval) or cancelled items
                 if (!"draft".equals(i.getStatus()) && !"cancelled".equals(i.getStatus())) items.add(row(i, names));
             }

@@ -10,4 +10,5 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     boolean existsBySchemaName(String schemaName);
     boolean existsByStaffCode(String staffCode);
     Optional<Tenant> findByStaffCode(String staffCode);
+    Optional<Tenant> findByStripeCustomerId(String stripeCustomerId);
 }

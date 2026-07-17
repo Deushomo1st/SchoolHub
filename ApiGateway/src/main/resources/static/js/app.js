@@ -267,6 +267,46 @@ function initTheme() {
   }, true);
 })();
 
+// ---- Payments padlock: the left edge line reveals a lock (same ritual as the login
+// backdoor). Arming it makes every "Pay now" use the simulated gateway instead of
+// Stripe. Armed = the lock stays visible, red. State is per-tab (sessionStorage). ----
+(function () {
+  if (_isPublicPage()) return;
+  var edge = document.querySelector('.left-accent');
+  if (!edge) return;
+  var lock = document.createElement('div');
+  lock.id = 'payLock';
+  lock.className = 'side-pay-lock';
+  lock.innerHTML = '<i data-lucide="lock"></i>';
+  document.body.appendChild(lock);
+  function paint() {
+    var armed = false;
+    try { armed = sessionStorage.getItem('shPaySim') === '1'; } catch (e) {}
+    lock.classList.toggle('armed', armed);
+    lock.title = armed ? 'Simulated payments ARMED — click to use Stripe again' : 'Use simulated payments';
+  }
+  edge.addEventListener('click', function (e) {
+    e.stopPropagation();
+    lock.classList.toggle('show');
+    if (window.lucide) lucide.createIcons({ root: lock });
+  });
+  lock.addEventListener('click', function (e) {
+    e.stopPropagation();
+    try {
+      var armed = sessionStorage.getItem('shPaySim') === '1';
+      sessionStorage.setItem('shPaySim', armed ? '0' : '1');
+    } catch (err) {}
+    paint();
+  });
+  // Click elsewhere hides the lock unless armed (armed = the visible indicator).
+  document.addEventListener('click', function (e) {
+    if (!lock.classList.contains('show') || lock.classList.contains('armed')) return;
+    if (!lock.contains(e.target) && !edge.contains(e.target)) lock.classList.remove('show');
+  });
+  if (window.lucide) lucide.createIcons({ root: lock });
+  paint();
+})();
+
 // ---- Bokeh: hero blurs as you scroll past it (depth of field) ----
 (function() {
   var maxBlur = 10, triggerStart = 80, triggerEnd = 400;

@@ -10,10 +10,24 @@ function num(v) { return v === '' || v == null ? null : Number(v); }
 function roleLabel(r) { return r ? r.charAt(0) + r.slice(1).toLowerCase().replaceAll('_', ' ') : '-'; }
 function naira(n) { return '₦' + Number(n || 0).toLocaleString(); }
 function feeBadge(status) { return status === 'paid' ? 'holiday' : status === 'partial' ? 'announcement' : status === 'cancelled' ? 'event' : 'exam'; }
+// Stripe is the real gateway; the hidden payments padlock (left edge) arms the simulated one.
+function paySimArmed() { try { return sessionStorage.getItem('shPaySim') === '1'; } catch (e) { return false; } }
 async function payInvoice(id, label) {
-  if (!(await glassConfirm('Pay ' + (label || 'this invoice') + ' now? (simulated Paystack)', { title: 'Pay invoice', okText: 'Pay now' }))) return;
-  try { const r = await api('/api/v1/invoices/' + id + '/pay', { method: 'POST' }); await glassAlert(r.message + '\nReference: ' + r.reference, { title: 'Payment successful' }); location.reload(); }
-  catch (e) { await glassAlert(e.message, { title: 'Payment failed' }); }
+  const sim = paySimArmed();
+  const q = sim ? 'Pay ' + (label || 'this invoice') + ' now? (simulated gateway)'
+                : 'Pay ' + (label || 'this invoice') + ' now? You\'ll finish on Stripe\'s secure page.';
+  if (!(await glassConfirm(q, { title: 'Pay invoice', okText: sim ? 'Pay now' : 'Continue to Stripe' }))) return;
+  try {
+    const r = await api('/api/v1/invoices/' + id + '/pay', { method: 'POST', body: JSON.stringify({ simulate: sim }) });
+    if (r.url) {
+      window.open(r.url, '_blank');
+      await glassAlert('The Stripe payment page opened in a new tab (test card 4242 4242 4242 4242, any future date, any CVC). This item updates when you finish and come back.', { title: 'Finish on Stripe' });
+      location.reload();
+    } else {
+      await glassAlert(r.message + '\nReference: ' + r.reference, { title: 'Payment successful' });
+      location.reload();
+    }
+  } catch (e) { await glassAlert(e.message, { title: 'Payment failed' }); }
 }
 
 // ---------------- Shared drawer navigation ----------------
@@ -134,6 +148,51 @@ function roleAccountPane(pane) {
       }
     });
   };
+
+  // School admins also manage the school's SchoolHub subscription here (Stripe Billing).
+  var role = (u?.roleCode || u?.role || '');
+  if (role === 'ADMIN' || role === 'PRINCIPAL') {
+    pane.insertAdjacentHTML('beforeend', '<div class="card" id="billingCard"><h2>School billing</h2><p class="muted">Loading…</p></div>');
+    renderBillingCard();
+  }
+}
+
+async function renderBillingCard() {
+  var card = document.getElementById('billingCard');
+  if (!card) return;
+  try {
+    // Returning from a successful checkout: pull the fresh state once, then clean the URL.
+    var justPaid = new URLSearchParams(location.search).get('billing') === 'success';
+    var b = await api('/api/v1/tenants/billing' + (justPaid ? '/sync' : ''), justPaid ? { method: 'POST' } : undefined);
+    if (justPaid) history.replaceState(null, '', location.pathname);
+
+    var statusPill = b.subscribed
+      ? '<span class="badge ' + (b.subStatus === 'active' ? 'holiday' : 'exam') + '">' + esc(b.subStatus || 'unknown') + '</span>'
+      : '<span class="badge exam">not subscribed</span>';
+    card.innerHTML = '<h2>School billing</h2>'
+      + '<div id="billMsg" class="msg"></div>'
+      + '<p class="muted" style="margin-top:0">Plan <strong>' + esc(b.plan || '—') + '</strong>'
+      + (b.priceNaira != null ? ' · ' + naira(b.priceNaira) + '/month' : '') + ' · ' + statusPill + '</p>'
+      + (b.stripeEnabled
+          ? (b.subscribed
+              ? '<button class="btn secondary" data-b="portal">Manage billing</button> <button class="btn ghost" data-b="sync" style="margin-left:6px">Refresh status</button>'
+              : '<button class="btn" data-b="checkout">Subscribe on Stripe</button>')
+          : '<p class="subtle" style="margin:0">Stripe is not configured on the server.</p>');
+    var msg = card.querySelector('#billMsg');
+    card.querySelectorAll('[data-b]').forEach(function (btn) {
+      btn.onclick = async function () {
+        hideMsg(msg);
+        try {
+          if (btn.dataset.b === 'sync') { await api('/api/v1/tenants/billing/sync', { method: 'POST' }); renderBillingCard(); return; }
+          var r = await api('/api/v1/tenants/billing/' + btn.dataset.b, { method: 'POST' });
+          if (r.url) window.open(r.url, '_blank');
+          showMsg(msg, 'Opened in a new tab — this card refreshes when you return.', 'ok');
+        } catch (e) { showMsg(msg, e.message, 'err'); }
+      };
+    });
+  } catch (e) {
+    card.innerHTML = '<h2>School billing</h2><p class="muted">' + esc(e.message) + '</p>';
+  }
 }
 
 // ---------------- Shared date helpers ----------------

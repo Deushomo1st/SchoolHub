@@ -39,6 +39,16 @@ public class Tenant {
     @Column(nullable = false)
     private String status = "active";
 
+    /** Stripe Billing: the school as a paying customer of the platform. */
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
+
+    @Column(name = "stripe_subscription_id")
+    private String stripeSubscriptionId;
+
+    @Column(name = "stripe_sub_status")
+    private String stripeSubStatus;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -57,6 +67,12 @@ public class Tenant {
     public void setTemplateKey(String templateKey) { this.templateKey = templateKey; }
     public Long getPlanId() { return planId; }
     public void setPlanId(Long planId) { this.planId = planId; }
+    public String getStripeCustomerId() { return stripeCustomerId; }
+    public void setStripeCustomerId(String stripeCustomerId) { this.stripeCustomerId = stripeCustomerId; }
+    public String getStripeSubscriptionId() { return stripeSubscriptionId; }
+    public void setStripeSubscriptionId(String stripeSubscriptionId) { this.stripeSubscriptionId = stripeSubscriptionId; }
+    public String getStripeSubStatus() { return stripeSubStatus; }
+    public void setStripeSubStatus(String stripeSubStatus) { this.stripeSubStatus = stripeSubStatus; }
     public String getContactEmail() { return contactEmail; }
     public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
     public String getStaffCode() { return staffCode; }
