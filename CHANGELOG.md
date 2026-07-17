@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-17 — Marketing landing page, brand logo + corner badge, mega footer
+
+- **Signup moved:** the create-school flow (details + 3D plan carousel) now lives at `signup.html`; every link updated (login top-action, no-account hint). `index.html` is the marketing front door.
+- **New landing page (`index.html`):** FixAhead × eSkooly blended into the glass system — abstract glass-shard hero (shards are **draggable** and sweep gently on scroll via one rAF loop: eased parallax, per-shard drift, `prefers-reduced-motion` respected), demo stats band, alternating **role spotlights** with pure-CSS mock panels (admin bento, attendance pills, invoice rows, book tilt), **module grid** (12 cards), **live pricing** rendered from public `GET /api/v1/tenants/plans`, testimonials, final CTA. Both themes; hero text z-lifted above the shards so backdrop blur can't eat it.
+- **Brand mark:** three tilted glass book covers (the TiltStack motif) tracing an S — a single SVG string in `app.js` (`window.shLogoSvg`), theme-aware via `var(--brand/--sky/--amber)`. A **fixed bottom-left glass badge** is injected on every page: click goes to `app.html` when signed in, the landing when not.
+- **Mega footer (eSkooly-style, glass):** brand column + blurb + social icons (hand-drawn stroke SVGs), Information/Support/Legal link columns ("soon" chips on placeholders), Mobile/Desktop app chips (decorative, marked coming soon), Contacts, newsletter row (front-end acknowledge only), trust badges.
+- **Gotcha (browser-pane only):** screenshots of *scrolled* pages in the embedded preview come back black/offset — a capture artifact, not a rendering bug; verify tall pages by resizing the viewport taller instead.
+- Verified in-browser both themes: hero drag + scroll sweep, live plans (Free/₦75,000/₦25,000), corner badge on login + landing, footer.
+
 ## 2026-07-17 — Forgot password, multi-audience events + forwarding, glass everywhere, notifications unblocked
 
 - **Forgot password (email):** login gains "Forgot password?" → `POST /auth/forgot-password` mints a one-shot 30-min token (`platform.password_reset`) and emails the link (SMTP via `SMTP_HOST/PORT/USER/PASS` env; without SMTP the link is logged to the AuthService console — dev fallback). New public `reset-password.html` completes it. Neutral responses (no account enumeration); token verified one-shot.
