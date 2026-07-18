@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-18 — fix: Stripe webhooks were silently dropping every event
+
+First end-to-end webhook test (Stripe CLI `listen` → real test-card payment) exposed a bug that had never fired before, because the webhook path had only ever been exercised without a signing secret configured.
+
+- **Root cause:** `event.getDataObjectDeserializer().getObject()` returns `Optional.empty()` whenever the account's API version (`2026-06-24.dahlia`) differs from the one `stripe-java` 29.5.0 pins. Both webhook handlers did `.orElse(null)` and then `if (x != null)`, so a real `invoice.paid` returned **`200 ok` while recording nothing**. Confirmed live: forwarder logged `invoice.paid --> [200]`, invoice stayed `unpaid`, `fee_payment` empty.
+- **Fix:** shared `dataObject(Event)` helper in both `StripeWebhookController` (SchoolService) and `BillingController` (TenantService) falls back to `deserializeUnsafe()`, and now logs a warning when a payload genuinely can't be parsed instead of pretending success. Verified by resending the swallowed event — invoice 4 flipped to `paid` with a ₦5,000 `stripe` payment row.
+- **Same-tab Stripe redirect:** `payInvoice()` called `window.open` *after* an `await`, so it was no longer a trusted user gesture and popup blockers ate it — while the modal cheerfully claimed a tab had opened. Now `location.href = r.url`. (`dashboards.js` v39.)
+- **Config:** `STRIPE_WEBHOOK_SECRET` added to `.schoolhub_secrets.txt` (gitignored); without it both handlers correctly return `503`.
+
 ## 2026-07-18 — RBAC experience pass: staff titles, avatars, in-class attendance, moderator perms, flags, group assignments
 
 Eight linked features across the whole role chain (the "so here are the links" list):
