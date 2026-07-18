@@ -227,6 +227,44 @@ function Invoke-PreFlight($db) {
     return $ok
 }
 
+# ---- Stripe webhook tunnel (dev only) -------------------------------------
+# ponytail: `stripe listen` is a local tunnel, not application code — a deployed
+# SchoolHub gets webhooks straight from Stripe and needs none of this. It lives in
+# the launcher so localhost dev matches production behaviour, and it's optional:
+# no CLI or no secret just prints a note and moves on.
+#
+# Two listeners because there are two endpoints. Both share one signing secret
+# (the CLI's is per-account and stable, so .schoolhub_secrets.txt stays valid).
+$StripeTunnels = @(
+    @{ Name = 'invoices';      Path = 'localhost:9003/api/v1/stripe/webhook';  Events = 'invoice.paid' },
+    @{ Name = 'subscriptions'; Path = 'localhost:9002/api/v1/tenants/stripe/webhook';
+       Events = 'checkout.session.completed,customer.subscription.updated,customer.subscription.deleted' }
+)
+function Start-StripeListen {
+    if (-not $env:STRIPE_WEBHOOK_SECRET) {
+        Write-Host "  Stripe: no STRIPE_WEBHOOK_SECRET — webhook endpoints will return 503." -ForegroundColor DarkYellow
+        return
+    }
+    $stripe = (Get-Command stripe -ErrorAction SilentlyContinue).Source
+    if (-not $stripe) {
+        # winget edits PATH but open shells keep the old copy, so look in its package dir too.
+        $stripe = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Stripe.StripeCli*\stripe.exe" -ErrorAction SilentlyContinue |
+                   Select-Object -First 1).FullName
+    }
+    if (-not $stripe) {
+        Write-Host "  Stripe CLI not installed — webhooks can't reach localhost (winget install Stripe.StripeCLI)." -ForegroundColor DarkYellow
+        return
+    }
+    foreach ($t in $StripeTunnels) {
+        $already = Get-CimInstance Win32_Process -Filter "Name='stripe.exe'" -ErrorAction SilentlyContinue |
+                   Where-Object { $_.CommandLine -like "*$($t.Path)*" }
+        if ($already) { Write-Host "  Stripe listener ($($t.Name)) already running." -ForegroundColor DarkGray; continue }
+        $cmd = "title SchoolHub-Stripe-$($t.Name) & `"$stripe`" listen --events $($t.Events) --forward-to $($t.Path)"
+        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -PassThru
+        Write-Host "  Stripe listener ($($t.Name)) launched (PID $($proc.Id)) -> $($t.Path)" -ForegroundColor Green
+    }
+}
+
 # ---- Service launcher (internal) ------------------------------------------
 function Compile-All {
     Write-Host "  Building (package)..." -ForegroundColor Cyan
@@ -249,7 +287,7 @@ function Launch-All {
             Write-Host "  $($s.Name): no JAR found — run build first" -ForegroundColor Red
             continue
         }
-        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& java -jar `"$($jar.FullName)`""
+        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& java -jar `"$($jar.FullName)`""
         $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         Write-Host "  $($s.Name) launched (PID $($proc.Id), port $($s.Port))" -ForegroundColor Green
         Start-Sleep -Milliseconds 400
@@ -258,6 +296,7 @@ function Launch-All {
     if (-not (Wait-Url 'http://localhost:9001/health' 150)) { Write-Host "  WARNING: AuthService did not respond in time." -ForegroundColor Yellow }
     Write-Host "  Waiting for ApiGateway (9000)..." -ForegroundColor Cyan
     if (-not (Wait-Url 'http://localhost:9000/health/auth' 90)) { Write-Host "  WARNING: ApiGateway did not respond in time." -ForegroundColor Yellow }
+    Start-StripeListen
     Write-Host "  All services launched." -ForegroundColor Green
 }
 
@@ -313,7 +352,7 @@ function Launch-One($svc) {
         Write-Host "    $($svc.Name): no JAR found — run compile first" -ForegroundColor Red
         return
     }
-    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& java -jar `"$($jar.FullName)`""
+    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& java -jar `"$($jar.FullName)`""
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
     Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
