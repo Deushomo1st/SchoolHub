@@ -53,7 +53,7 @@ public class RouteController {
         r2s.put("activity", "tenant");
         r2s.put("library", "school");
         for (String r : new String[]{
-                "students", "teachers", "guardians", "staff", "subjects", "classes", "class-subjects",
+                "students", "teachers", "guardians", "staff", "subjects", "classes", "class-subjects", "class-groups",
                 "assessments", "results", "attendance", "events", "invoices", "payments", "fees", "me",
                 "cohorts", "enrollments", "org-units", "offerings", "schedule-periods",
                 "workflow-requests", "workflow-protests", "notifications", "invites", "people",

@@ -1,5 +1,6 @@
 package com.schoolhub.schoolservice.controller;
 
+import com.schoolhub.schoolservice.dto.Requests.GuardianClaimReq;
 import com.schoolhub.schoolservice.dto.Requests.OfferingReq;
 import com.schoolhub.schoolservice.dto.Requests.OrgUnitReq;
 import com.schoolhub.schoolservice.dto.Requests.ProgressionRuleReq;
@@ -43,6 +44,13 @@ public class WorkflowController {
     @PostMapping("/progression-rules")
     public ResponseEntity<?> proposeProgressionRule(@Valid @RequestBody ProgressionRuleReq req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.proposeProgressionRuleCreate(req));
+    }
+
+    // A guardian claiming a child by handle - always lands pending an Admin's confirm.
+    @PostMapping("/guardian-links")
+    @PreAuthorize("hasRole('PARENT')")
+    public ResponseEntity<?> proposeGuardianLink(@Valid @RequestBody GuardianClaimReq req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.initiateGuardianChildLink(req));
     }
 
     // Blanket gate is ADMIN-or-MODERATOR; WorkflowService.requireConfirmAuthority() enforces the

@@ -2,6 +2,7 @@ package com.schoolhub.schoolservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.schoolhub.schoolservice.dto.Requests.GuardianClaimReq;
 import com.schoolhub.schoolservice.dto.Requests.OfferingReq;
 import com.schoolhub.schoolservice.dto.Requests.OrgUnitReq;
 import com.schoolhub.schoolservice.dto.Requests.ProgressionRuleReq;
@@ -46,12 +47,14 @@ import java.util.stream.Collectors;
 public class WorkflowService {
 
     private record DeletePayload(Long orgUnitId) {}
+    private record GuardianLinkPayload(Long guardianId, Long studentId, String relationship) {}
     private record CredentialRevokePayload(Long credentialId, String reason) {}
     private record ResultDisputePayload(Long resultId, String reason) {}
     private record InstallmentPayload(Long invoiceId, Integer installments, Integer intervalDays) {}
 
     private final WorkflowRequestRepository requestRepo;
     private final WorkflowProtestRepository protestRepo;
+    private final PeopleService peopleService;
     private final OrgUnitService orgUnitService;
     private final OfferingService offeringService;
     private final SessionService sessionService;
@@ -67,6 +70,7 @@ public class WorkflowService {
     private final ObjectMapper mapper;
 
     public WorkflowService(WorkflowRequestRepository requestRepo, WorkflowProtestRepository protestRepo,
+                           PeopleService peopleService,
                            OrgUnitService orgUnitService, OfferingService offeringService,
                            SessionService sessionService, ProgressionRuleService progressionRuleService,
                            CredentialService credentialService, AcademicService academicService,
@@ -75,6 +79,7 @@ public class WorkflowService {
                            AuditRecorder audit, ObjectMapper mapper) {
         this.requestRepo = requestRepo;
         this.protestRepo = protestRepo;
+        this.peopleService = peopleService;
         this.orgUnitService = orgUnitService;
         this.offeringService = offeringService;
         this.sessionService = sessionService;
@@ -154,6 +159,20 @@ public class WorkflowService {
         return result(false, wr);
     }
 
+    /** A guardian claims their own child by the child's login handle. Never applied directly -
+     *  attaching a child exposes results, attendance and fees, so an Admin always confirms. */
+    @Transactional
+    public Map<String, Object> initiateGuardianChildLink(GuardianClaimReq req) {
+        var guardian = peopleService.guardianForUser(TenantContext.getUserId());
+        var student = peopleService.studentByHandle(req.handle().trim());
+        var payload = new GuardianLinkPayload(guardian.getId(), student.getId(), req.relationship());
+        WorkflowRequest wr = save("GUARDIAN_CHILD_LINK", payload, "NONE", null, "pending_confirmation");
+        notifyAllAdmins(guardian.getFirstName() + " " + guardian.getLastName() + " wants to link a child",
+                student.getFirstName() + " " + student.getLastName() + " (" + req.handle().trim() + ")", wr.getId());
+        audit.record("GUARDIAN_CHILD_LINK_PROPOSED", "student #" + student.getId() + " by guardian #" + guardian.getId());
+        return result(false, wr);
+    }
+
     /** A Credential is a bigger deal than everything else this engine handles - the requester
      *  (an Admin) can never also be the confirmer, even though the controller lets any Admin or
      *  Moderator call /confirm generically. See requireConfirmAuthority(). */
@@ -226,6 +245,10 @@ public class WorkflowService {
                     var payload = mapper.readValue(wr.getPayload(), CredentialRevokePayload.class);
                     credentialService.revoke(payload.credentialId());
                     yield payload;
+                }
+                case "GUARDIAN_CHILD_LINK" -> {
+                    var payload = mapper.readValue(wr.getPayload(), GuardianLinkPayload.class);
+                    yield peopleService.linkGuardianChild(payload.guardianId(), payload.studentId(), payload.relationship());
                 }
                 case "INSTALLMENT_REQUEST" -> {
                     var payload = mapper.readValue(wr.getPayload(), InstallmentPayload.class);

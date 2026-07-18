@@ -32,6 +32,12 @@ public final class Requests {
             List<Long> studentIds,
             String relationship) {}
 
+    // A guardian claiming their own child by the child's login handle (admin-confirmed).
+    public record GuardianClaimReq(@NotBlank String handle, String relationship) {}
+
+    // A teacher splitting one of their classes into named sub-groups.
+    public record ClassGroupReq(@NotBlank String name, List<Long> studentIds) {}
+
     // Non-teaching staff login (school admin, principal, bursar). Always creates a login.
     public record StaffReq(
             @NotBlank @Email String email,

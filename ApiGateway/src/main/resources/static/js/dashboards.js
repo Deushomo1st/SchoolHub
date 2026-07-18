@@ -1073,8 +1073,8 @@ function glassForm(opts) {
 function wfBadge(state) { return state === 'applied' ? 'holiday' : state === 'cancelled' || state === 'rejected' ? 'event' : 'announcement'; }
 async function renderGovernance(pane) {
   pane.innerHTML = `
-    <p class="muted" style="margin:0 2px 14px">Proposed org units, offerings, progression rules, credential revocations and
-      disputes all flow through here. A protest doesn't cancel an action by itself - it escalates
+    <p class="muted" style="margin:0 2px 14px">Proposed org units, offerings, progression rules, credential revocations,
+      guardian child-link requests and disputes all flow through here. A protest doesn't cancel an action by itself - it escalates
       for a Moderator's review; only a Moderator's own second is final.</p>
     <div id="wfm" class="msg"></div>
     <div class="card list-card" id="wfPendingCard" style="display:none;border-left:4px solid var(--amber)">
@@ -1593,6 +1593,7 @@ const TEACHER_SECTIONS = [
   { id: 'home',       icon: 'layout-grid',     label: 'Home' },
   { id: 'attendance', icon: 'clipboard-check', label: 'Attendance', desc: 'Mark today, class by class' },
   { id: 'results',    icon: 'file-bar-chart',  label: 'Results',    desc: 'Record assessment scores' },
+  { id: 'groups',     icon: 'users',           label: 'Groups',     desc: 'Split classes into teams' },
   { id: 'calendar',   icon: 'calendar-days',   label: 'Calendar',   desc: 'School agenda & announcements' },
   { id: 'account',    icon: 'circle-user',     label: 'Account',    desc: 'Your profile & password' },
 ];
@@ -1723,6 +1724,89 @@ async function teacherResults(pane) {
   bar.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => loadClass(num(b.dataset.cls)));
 }
 
+// Groups: split any class you teach into named teams. Server rejects classes you don't teach.
+async function teacherGroups(pane) {
+  pane.innerHTML = `<div class="card"><h2>Class groups</h2><div id="cgm" class="msg"></div>
+      <p class="muted" style="margin-top:0">Reading circles, project squads, debate teams - name a group, tick its members.</p>
+      <div class="filter-bar" id="cgClasses" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap"></div>
+      <div id="cgBody"><p class="muted">Pick a class.</p></div></div>`;
+  const classes = await api('/api/v1/classes');
+  const bar = document.getElementById('cgClasses');
+  if (!classes.length) { bar.innerHTML = '<p class="muted">No classes yet.</p>'; return; }
+  bar.innerHTML = classes.map(c => `<button class="act-scale-btn" data-cls="${c.id}">${esc(c.name)}</button>`).join('');
+
+  let classId = null, students = [];
+  const msg = () => document.getElementById('cgm');
+
+  async function load() {
+    bar.querySelectorAll('[data-cls]').forEach(b => b.classList.toggle('active', num(b.dataset.cls) === classId));
+    const body = document.getElementById('cgBody');
+    body.innerHTML = '<p class="muted">Loading…</p>';
+    let groups;
+    try {
+      [groups, students] = await Promise.all([
+        api('/api/v1/classes/' + classId + '/groups'),
+        api('/api/v1/students').then(all => all.filter(s => s.classId === classId)),
+      ]);
+    } catch (e) { body.innerHTML = ''; showMsg(msg(), e.message, 'err'); return; }
+    body.innerHTML = (groups.length ? groups.map(g => `
+      <div class="card" style="margin:10px 0">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <h3 style="margin:0">${esc(g.name)} <span class="subtle">· ${g.members.length} member${g.members.length === 1 ? '' : 's'}</span></h3>
+          <span><button class="btn secondary" data-edit="${g.id}">Edit</button>
+          <button class="btn danger" data-del="${g.id}" style="margin-left:6px">Delete</button></span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${
+          g.members.length ? g.members.map(m => `<span class="pill">${esc(m.name)}</span>`).join('')
+                           : '<span class="muted">No members yet.</span>'}</div>
+      </div>`).join('') : '<p class="muted">No groups in this class yet.</p>')
+      + `<button class="btn" id="cgNew" style="margin-top:12px">New group</button>`;
+    document.getElementById('cgNew').onclick = () => groupForm(null);
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => groupForm(groups.find(g => g.id === num(b.dataset.edit))));
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      const g = groups.find(x => x.id === num(b.dataset.del));
+      if (!(await glassConfirm('Delete the "' + g.name + '" group? The students themselves are untouched.',
+        { title: 'Delete group', danger: true, okText: 'Delete' }))) return;
+      hideMsg(msg());
+      try { await api('/api/v1/class-groups/' + g.id, { method: 'DELETE' }); showMsg(msg(), 'Group deleted.', 'ok'); load(); }
+      catch (e) { showMsg(msg(), e.message, 'err'); }
+    });
+  }
+
+  // New/edit share one modal: name + a checkbox per student in the class.
+  function groupForm(g) {
+    const picked = new Set((g ? g.members : []).map(m => m.studentId));
+    const boxes = students.map(s => `<label style="display:flex;align-items:center;gap:8px;padding:4px 2px;cursor:pointer">
+        <input type="checkbox" value="${s.id}"${picked.has(s.id) ? ' checked' : ''}>
+        <span>${esc(s.lastName)}, ${esc(s.firstName)}</span></label>`).join('');
+    const ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: `<h2>${g ? 'Edit group' : 'New group'}</h2><div class="msg" data-m></div>
+        <form><label>Group name</label><input name="name" required value="${g ? esc(g.name) : ''}" placeholder="Red team">
+          <label style="margin-top:10px">Members</label>
+          <div class="sleek-scroll" style="max-height:220px;overflow:auto">${boxes || '<span class="muted">No students in this class yet.</span>'}</div>
+          <div class="glass-actions" style="margin-top:18px">
+            <button class="btn ghost" type="button" data-x>Cancel</button>
+            <button class="btn" type="submit">${g ? 'Save changes' : 'Create group'}</button></div></form>`
+    });
+    ctrl.panel.querySelector('[data-x]').onclick = ctrl.close;
+    ctrl.panel.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+      const body = JSON.stringify({
+        name: ctrl.panel.querySelector('[name=name]').value.trim(),
+        studentIds: [...ctrl.panel.querySelectorAll('input[type=checkbox]:checked')].map(c => num(c.value)),
+      });
+      try {
+        if (g) await api('/api/v1/class-groups/' + g.id, { method: 'PUT', body });
+        else await api('/api/v1/classes/' + classId + '/groups', { method: 'POST', body });
+        ctrl.close(); showMsg(msg(), g ? 'Group updated.' : 'Group created.', 'ok'); load();
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    });
+  }
+
+  bar.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => { classId = num(b.dataset.cls); load(); });
+}
+
 async function renderTeacher(view, me) {
   _teacherData = null;
   rebuildDrawer(TEACHER_SECTIONS);
@@ -1730,6 +1814,7 @@ async function renderTeacher(view, me) {
     home: pane => teacherHome(pane, me),
     attendance: teacherAttendance,
     results: teacherResults,
+    groups: teacherGroups,
     calendar: pane => renderCalendar(wrapCard(pane), true),
     account: roleAccountPane,
     logout: confirmLogout,
@@ -1996,23 +2081,56 @@ async function guardianHome(pane, me) {
   };
   pane.innerHTML = `<div class="bento">` + childTiles
     + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>`
-    + (!d.children.length ? '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>' : '');
+    + (!d.children.length ? '<div class="card"><p class="muted">No children are linked to your account yet - add them from the <strong>Children</strong> tab, or ask the school admin.</p></div>' : '');
   pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
   pane.querySelectorAll('[data-child]').forEach(b => b.onclick = () => { _guardianChildId = num(b.dataset.child); openSection('children'); });
   if (window.lucide) lucide.createIcons({ root: pane });
 }
 
 // Children: 2+ → a tilt-stack of the kids' own pictures selects who's shown; 1 → their card, always shown.
+// "Add a child" proposes a link by the child's login handle; the school admin confirms it.
 async function guardianChildren(pane) {
   if (!_guardianData) _guardianData = await api('/api/v1/me/guardian');
   const kids = _guardianData.children;
-  if (!kids.length) { pane.innerHTML = '<div class="card"><p class="muted">No children are linked to your account yet - ask the school admin.</p></div>'; return; }
+
+  const addBar = `<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <p class="muted" style="margin:0">${kids.length
+        ? 'Missing a child? Link them with their SchoolHub handle.'
+        : 'No children are linked to your account yet. Link one with their SchoolHub handle, or ask the school admin.'}</p>
+      <button class="btn" id="gcAdd">Add a child</button></div><div id="gcm" class="msg"></div>`;
 
   const many = kids.length > 1;
-  pane.innerHTML = (many
-    ? '<div class="tilt-host" id="gcStack"></div>'
-    : '<div class="gc-single" id="gcSingle"></div>')
+  pane.innerHTML = addBar + (!kids.length ? ''
+    : many ? '<div class="tilt-host" id="gcStack"></div>'
+           : '<div class="gc-single" id="gcSingle"></div>')
     + '<div id="gcDetail"></div>';
+
+  document.getElementById('gcAdd').onclick = () => {
+    const ctrl = glassForm({
+      title: 'Add a child',
+      sub: 'Enter your child\'s SchoolHub login handle. The school admin confirms every link before the child appears here.',
+      fields: `<label>Child's handle</label><input name="handle" required placeholder="jane.doe" autocomplete="off">
+        <p class="subtle" data-who style="min-height:18px;margin:4px 0 0"></p>
+        <label>Relationship</label><input name="relationship" placeholder="Mother">`,
+      submitLabel: 'Send request',
+      onSubmit: async b => {
+        await api('/api/v1/workflow-requests/guardian-links', { method: 'POST', body: JSON.stringify(b) });
+        showMsg(document.getElementById('gcm'),
+          'Request sent - once the school admin approves it, your child appears here.', 'ok');
+      },
+    });
+    // Live peek so a typo can't quietly request the wrong person.
+    const inp = ctrl.panel.querySelector('[name=handle]'), who = ctrl.panel.querySelector('[data-who]');
+    inp.addEventListener('change', async () => {
+      who.textContent = '';
+      const h = inp.value.trim(); if (!h) return;
+      try {
+        const p = await api('/api/v1/people/search?handle=' + encodeURIComponent(h));
+        who.textContent = 'That handle belongs to ' + p.firstName + ' ' + p.lastName + '.';
+      } catch (e) { who.textContent = 'No account found with that handle.'; }
+    });
+  };
+  if (!kids.length) return;
 
   const selected = () => kids.find(c => c.student.id === _guardianChildId) || kids[0];
 

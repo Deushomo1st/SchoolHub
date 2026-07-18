@@ -572,3 +572,20 @@ INSERT INTO library_fine_rule (rule_type, value) VALUES
     ('max_borrow_days', 14),
     ('max_books_per_student', 3)
 ON CONFLICT (rule_type) DO NOTHING;
+
+-- ---- Teacher-made sub-groups inside a classic school_class ------------------------------------
+CREATE TABLE IF NOT EXISTS class_group (
+    id         BIGSERIAL PRIMARY KEY,
+    class_id   BIGINT NOT NULL REFERENCES school_class(id) ON DELETE CASCADE,
+    name       VARCHAR(80) NOT NULL,
+    created_by BIGINT,                                -- raw platform.app_user id
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (class_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS class_group_member (
+    id         BIGSERIAL PRIMARY KEY,
+    group_id   BIGINT NOT NULL REFERENCES class_group(id) ON DELETE CASCADE,
+    student_id BIGINT NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+    UNIQUE (group_id, student_id)
+);

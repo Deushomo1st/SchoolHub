@@ -131,4 +131,32 @@ public class PeopleService {
         if (!guardianRepo.existsById(id)) throw new EntityNotFoundException("Guardian not found: " + id);
         guardianRepo.deleteById(id);
     }
+
+    // ---- Guardian-initiated child linking (applied by WorkflowService after admin confirms) ----
+
+    public Guardian guardianForUser(Long userId) {
+        return guardianRepo.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException("No guardian profile is linked to your account"));
+    }
+
+    public Student studentByHandle(String handle) {
+        AppUser u = appUserRepo.findByUsernameIgnoreCase(handle)
+                .orElseThrow(() -> new EntityNotFoundException("No account with that handle"));
+        return studentRepo.findByUserId(u.getId())
+                .orElseThrow(() -> new EntityNotFoundException("That handle doesn't belong to a student"));
+    }
+
+    @Transactional
+    public StudentGuardian linkGuardianChild(Long guardianId, Long studentId, String relationship) {
+        if (!studentRepo.existsById(studentId)) throw new EntityNotFoundException("Student not found: " + studentId);
+        getGuardian(guardianId);
+        if (linkRepo.existsByStudentIdAndGuardianId(studentId, guardianId)) {
+            throw new ConflictException("That child is already linked to this guardian");
+        }
+        StudentGuardian sg = new StudentGuardian();
+        sg.setGuardianId(guardianId);
+        sg.setStudentId(studentId);
+        sg.setRelationship(relationship);
+        return linkRepo.save(sg);
+    }
 }

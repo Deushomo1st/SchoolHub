@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-18 — Guardian add-child (admin-confirmed) + teacher class groups
+
+- **Guardians link their own children:** the Children pane gains an "Add a child" bar → glass modal asking for the child's SchoolHub **login handle** (live preview via `GET /people/search?handle=` shows "That handle belongs to Ada Eze." as you type) + optional relationship. Submitting `POST /workflow-requests/guardian-links` (PARENT-only) rides the existing WorkflowService propose/confirm engine: admins get a notification and confirm/reject in the Governance pane — a guardian can never attach a student (and see their results/attendance/fees) unilaterally. Duplicate links 409 at confirm; bogus handles 404 at propose.
+- **Teacher class groups:** new Groups pane (teacher drawer) — pick a class pill, see its groups as cards (name, member count, member chips), New/Edit via a glass modal with a member checkbox roster, Delete behind glassConfirm. New `class_group` / `class_group_member` tables on the **classic SchoolClass layer** (the Cohort-layer `Group` stays untouched — the teacher UI runs entirely on classic classes). Server-side authorization: a teacher must be the class teacher **or** hold a subject assignment in the class (admins bypass); group names unique per class (case-insensitive); member ids validated against the class roster.
+- **Tenant DDL lesson:** `ddl-auto=update` only touches the *default* schema — per-tenant tables come from `tenant_template.sql` (canonical in TenantService resources). Both template copies gained the two tables; existing tenant schemas were patched by hand.
+- **Fixed while verifying:** group edit 500'd — Hibernate flushes INSERTs before DELETEs, so "delete members, re-add survivors" tripped the `(group_id, student_id)` unique constraint; a `flush()` between forces the delete out first. Also `GuardianLinkReq` name collided with the existing invite-flow record → renamed to `GuardianClaimReq`.
+- **Windows build gotcha:** a running service holds its fat jar open, so `mvn package` silently leaves a plain (non-executable) jar behind ("no main manifest attribute" on next launch). Order is kill → build → relaunch.
+- Verified end-to-end via API (propose 201 / confirm 200 / dup 409 / bad handle 404 / wrong-role 403 / untaught-class 403 / member-not-in-class 404 / full CRUD) and in-browser (teacher created "Reading circle" with both students; guardian modal live-preview).
+
 ## 2026-07-18 — Sliding pricing decks everywhere (one interaction model)
 
 - **Interaction model (all three pricing surfaces):** drag/swipe to slide with eased snap-back; **tapping a side card only brings it into focus** — committing takes a second tap on the focused card (or its button). Browsing can never accidentally pick a plan.
