@@ -8,6 +8,7 @@ First end-to-end webhook test (Stripe CLI `listen` → real test-card payment) e
 - **Fix:** shared `dataObject(Event)` helper in both `StripeWebhookController` (SchoolService) and `BillingController` (TenantService) falls back to `deserializeUnsafe()`, and now logs a warning when a payload genuinely can't be parsed instead of pretending success. Verified by resending the swallowed event — invoice 4 flipped to `paid` with a ₦5,000 `stripe` payment row.
 - **Same-tab Stripe redirect:** `payInvoice()` called `window.open` *after* an `await`, so it was no longer a trusted user gesture and popup blockers ate it — while the modal cheerfully claimed a tab had opened. Now `location.href = r.url`. (`dashboards.js` v39.)
 - **Config:** `STRIPE_WEBHOOK_SECRET` added to `.schoolhub_secrets.txt` (gitignored); without it both handlers correctly return `503`.
+- **Launcher:** `Launch-All`/`Launch-One` never passed `STRIPE_WEBHOOK_SECRET` through to the services, so anything started via SchoolHub-Manager would have 503'd on webhooks regardless. Fixed, and the manager now auto-starts one `stripe listen` per endpoint (9003 invoices, 9002 subscriptions), each event-filtered, skipping cleanly when the CLI or the secret is missing. The CLI's signing secret is stable per account, so it does not need re-pasting between runs.
 
 ## 2026-07-18 — RBAC experience pass: staff titles, avatars, in-class attendance, moderator perms, flags, group assignments
 
