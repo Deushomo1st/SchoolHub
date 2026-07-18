@@ -227,6 +227,69 @@ function Invoke-PreFlight($db) {
     return $ok
 }
 
+# ---- Public tunnel (opt-in, dev only) -------------------------------------
+# ponytail: a Cloudflare quick tunnel is the whole "put it on the internet" story for
+# phone testing — no account, no domain, no cert. Opt-in (menu 'Ap') rather than
+# automatic, because every launch would otherwise publish a login page to the world.
+# Must run BEFORE the services: they bake STRIPE_APP_BASE_URL in at startup, and
+# Stripe return links / reset emails pointing at localhost are dead on a phone.
+function Find-Cloudflared {
+    $c = (Get-Command cloudflared -ErrorAction SilentlyContinue).Source
+    if ($c) { return $c }
+    foreach ($p in @("$env:ProgramFiles\cloudflared\cloudflared.exe",
+                     "${env:ProgramFiles(x86)}\cloudflared\cloudflared.exe")) {
+        if (Test-Path $p) { return $p }
+    }
+    return $null
+}
+function Start-Tunnel {
+    $cf = Find-Cloudflared
+    if (-not $cf) {
+        Write-Host "  cloudflared not installed — skipping public link (winget install Cloudflare.cloudflared)." -ForegroundColor DarkYellow
+        return $null
+    }
+    Write-Host "  Opening public tunnel..." -ForegroundColor Cyan
+    # Quick tunnels sometimes come up connected but with a hostname Cloudflare never publishes:
+    # cloudflared reports success, the URL stays NXDOMAIN, and you hand someone a dead link.
+    # Seen roughly every other attempt, so don't trust the printed URL — prove it resolves,
+    # and burn the tunnel and take a new name if it doesn't.
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        @(Get-Process cloudflared -ErrorAction SilentlyContinue) |
+            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {} }
+        Start-Sleep -Seconds 1
+
+        $out = Join-Path $env:TEMP "schoolhub-tunnel-$PID-$attempt.log"
+        foreach ($f in @($out, "$out.err")) { if (Test-Path $f) { Remove-Item $f -Force } }
+        Start-Process -FilePath $cf -ArgumentList 'tunnel','--url',"http://localhost:9000" `
+                      -RedirectStandardOutput $out -RedirectStandardError "$out.err" -WindowStyle Hidden | Out-Null
+
+        # cloudflared announces the URL only once the edge connection is up; it writes to stderr.
+        $url = $null
+        for ($i = 0; $i -lt 40 -and -not $url; $i++) {
+            Start-Sleep -Milliseconds 500
+            $text = @()
+            foreach ($f in @($out, "$out.err")) {
+                if (Test-Path $f) { $text += Get-Content -Raw -LiteralPath $f -ErrorAction SilentlyContinue }
+            }
+            $m = [regex]::Match(($text -join "`n"), 'https://[a-z0-9-]+\.trycloudflare\.com')
+            if ($m.Success) { $url = $m.Value }
+        }
+        if (-not $url) { Write-Host "  Attempt ${attempt}: no URL reported." -ForegroundColor DarkYellow; continue }
+
+        $host_ = $url -replace '^https://',''
+        for ($i = 0; $i -lt 12; $i++) {
+            Start-Sleep -Seconds 3
+            try {
+                $null = Resolve-DnsName $host_ -Type A -ErrorAction Stop
+                return $url                                    # published — safe to hand out
+            } catch { }
+        }
+        Write-Host "  Attempt ${attempt}: $host_ never published in DNS — retrying with a new name." -ForegroundColor DarkYellow
+    }
+    Write-Host "  Could not get a working public link after 3 attempts — continuing locally." -ForegroundColor Yellow
+    return $null
+}
+
 # ---- Stripe webhook tunnel (dev only) -------------------------------------
 # ponytail: `stripe listen` is a local tunnel, not application code — a deployed
 # SchoolHub gets webhooks straight from Stripe and needs none of this. It lives in
@@ -287,7 +350,7 @@ function Launch-All {
             Write-Host "  $($s.Name): no JAR found — run build first" -ForegroundColor Red
             continue
         }
-        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& java -jar `"$($jar.FullName)`""
+        $cmd = "title SchoolHub-$($s.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& set STRIPE_APP_BASE_URL=$env:STRIPE_APP_BASE_URL&& java -jar `"$($jar.FullName)`""
         $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         Write-Host "  $($s.Name) launched (PID $($proc.Id), port $($s.Port))" -ForegroundColor Green
         Start-Sleep -Milliseconds 400
@@ -352,7 +415,7 @@ function Launch-One($svc) {
         Write-Host "    $($svc.Name): no JAR found — run compile first" -ForegroundColor Red
         return
     }
-    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& java -jar `"$($jar.FullName)`""
+    $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& set STRIPE_APP_BASE_URL=$env:STRIPE_APP_BASE_URL&& java -jar `"$($jar.FullName)`""
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
     Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
@@ -382,6 +445,7 @@ function Action-StartServices {
         else     { Write-Host "    [$($i+1)] $($s.Name) :$($s.Port) — stopped" -ForegroundColor DarkGray }
     }
     Write-Host "    [A] Start all stopped"
+    Write-Host "    [A]p Start all + public link (phone/internet access)"
     if ($running.Count) { Write-Host "    [A]r Restart ALL" ; Write-Host "    [A]s Stop ALL" }
     Write-Host "    [Enter] Back"
     Write-Host ""
@@ -393,7 +457,9 @@ function Action-StartServices {
     # Parse input
     $action = 'start'
     $target = $null
+    $public = $false
     if ($ans -eq 'A' -or $ans -eq 'a') { $target = 'all'; $action = 'start' }
+    elseif ($ans -match '^(?i)Ap$')     { $target = 'all'; $action = 'start'; $public = $true }
     elseif ($ans -match '^(?i)Ar$')     { $target = 'all'; $action = 'restart' }
     elseif ($ans -match '^(?i)As$')     { $target = 'all'; $action = 'stop' }
     elseif ($ans -match '^(\d+)([rs])?$') {
@@ -456,6 +522,14 @@ function Action-StartServices {
         Write-Host "  Generated new JWT secret → .schoolhub_secrets.txt" -ForegroundColor Green
     }
 
+    # Public link — must be resolved before launch so services bake the right base URL in,
+    # even though we don't show it until everything else has finished.
+    $publicUrl = $null
+    if ($public) {
+        $publicUrl = Start-Tunnel
+        if ($publicUrl) { $env:STRIPE_APP_BASE_URL = $publicUrl }
+    }
+
     # Restart: stop first, then start
     if ($action -eq 'restart') {
         $toKill = if ($target -eq 'all') { @($running) } else { @($runningMap[$target.Name]) | Where-Object { $_ } }
@@ -496,6 +570,28 @@ function Action-StartServices {
             if (Wait-Url "$GatewayUrl/health/auth" 60) { Seed-DemoSchool }
             else { Write-Host "  Gateway not reachable — cannot seed." -ForegroundColor Yellow }
         }
+    }
+
+    if ($toLaunch | Where-Object { $_.Name -eq 'SchoolService' -or $_.Name -eq 'TenantService' }) { Start-StripeListen }
+
+    # The links go last so they're the final thing on screen — nothing scrolls them away.
+    Write-Host ""
+    Write-Host "  Local:  $GatewayUrl" -ForegroundColor Cyan
+    # Same-WiFi access needs no tunnel and no rate limit — usually all a phone actually wants.
+    # Match on "has a default gateway", not on adapter name: WSL/Hyper-V create adapters called
+    # "vEthernet (...)" whose IPs answer locally but are invisible to anything else on the network.
+    $lan = (Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+            Select-Object -First 1).IPv4Address.IPAddress
+    if ($lan) { Write-Host "  Wi-Fi:  http://${lan}:9000   (phone on the same network)" -ForegroundColor Cyan }
+    if ($publicUrl) {
+        Write-Host ""
+        Write-Host "  ┌────────────────────────────────────────────────────────────┐" -ForegroundColor Green
+        Write-Host "    PUBLIC LINK (open this on your phone)" -ForegroundColor Green
+        Write-Host "    $publicUrl" -ForegroundColor White
+        Write-Host "  └────────────────────────────────────────────────────────────┘" -ForegroundColor Green
+        Write-Host "    Anyone with this URL reaches your login page. It dies when this" -ForegroundColor DarkYellow
+        Write-Host "    machine sleeps, and a new URL is issued on every launch." -ForegroundColor DarkYellow
     }
 
     Press-Enter
