@@ -1,10 +1,15 @@
 package com.schoolhub.tenantservice.controller;
 
 import com.schoolhub.tenantservice.service.BillingService;
+import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.model.Event;
+import com.stripe.model.EventDataObjectDeserializer;
+import com.stripe.model.StripeObject;
 import com.stripe.model.Subscription;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/tenants")
 public class BillingController {
+
+    private static final Logger log = LoggerFactory.getLogger(BillingController.class);
 
     private final BillingService billing;
     private final String webhookSecret;
@@ -64,14 +71,16 @@ public class BillingController {
         }
         switch (event.getType()) {
             case "checkout.session.completed" -> {
-                Session s = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
+                Session s = (Session) dataObject(event);
+                if (s == null) log.warn("{} {} could not be deserialized - subscription NOT applied", event.getType(), event.getId());
                 if (s != null && "subscription".equals(s.getMode())) {
                     billing.applySubscriptionEvent(s.getSubscription(), s.getCustomer(),
                             s.getMetadata() == null ? null : s.getMetadata().get("tenantId"), "active");
                 }
             }
             case "customer.subscription.updated", "customer.subscription.deleted" -> {
-                Subscription sub = (Subscription) event.getDataObjectDeserializer().getObject().orElse(null);
+                Subscription sub = (Subscription) dataObject(event);
+                if (sub == null) log.warn("{} {} could not be deserialized - subscription NOT applied", event.getType(), event.getId());
                 if (sub != null) {
                     billing.applySubscriptionEvent(sub.getId(), sub.getCustomer(),
                             sub.getMetadata() == null ? null : sub.getMetadata().get("tenantId"), sub.getStatus());
@@ -80,5 +89,15 @@ public class BillingController {
             default -> { /* uninteresting event */ }
         }
         return ResponseEntity.ok("ok");
+    }
+
+    /** ponytail: see StripeWebhookController.dataObject - SDK/account API-version mismatch makes
+     *  the typed getObject() empty, which silently dropped live subscription events. */
+    static StripeObject dataObject(Event event) {
+        EventDataObjectDeserializer d = event.getDataObjectDeserializer();
+        return d.getObject().orElseGet(() -> {
+            try { return d.deserializeUnsafe(); }
+            catch (EventDataObjectDeserializationException e) { return null; }
+        });
     }
 }

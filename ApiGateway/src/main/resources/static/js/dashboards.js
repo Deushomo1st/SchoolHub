@@ -28,9 +28,10 @@ async function payInvoice(id, label) {
   try {
     const r = await api('/api/v1/invoices/' + id + '/pay', { method: 'POST', body: JSON.stringify({ simulate: sim }) });
     if (r.url) {
-      window.open(r.url, '_blank');
-      await glassAlert('The Stripe payment page opened in a new tab (test card 4242 4242 4242 4242, any future date, any CVC). This item updates when you finish and come back.', { title: 'Finish on Stripe' });
-      location.reload();
+      // ponytail: window.open after an await is no longer a trusted user gesture, so popup
+      // blockers ate it silently. Same-tab redirect always lands; Stripe returns them here.
+      await glassAlert('Taking you to Stripe\'s secure payment page (test card 4242 4242 4242 4242, any future date, any CVC). This item updates when you finish and come back.', { title: 'Continue to Stripe' });
+      location.href = r.url;
     } else {
       await glassAlert(r.message + '\nReference: ' + r.reference, { title: 'Payment successful' });
       location.reload();
