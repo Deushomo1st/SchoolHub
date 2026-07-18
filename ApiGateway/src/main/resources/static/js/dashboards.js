@@ -8,6 +8,14 @@ function opts(list, val, label, ph) {
 }
 function num(v) { return v === '' || v == null ? null : Number(v); }
 function roleLabel(r) { return r ? r.charAt(0) + r.slice(1).toLowerCase().replaceAll('_', ' ') : '-'; }
+// School-wide userId -> avatar map (cached once per page); every card resolves its picture
+// through this so an account's profile picture follows it everywhere until removed.
+var _avatarMap = null;
+async function userAvatars() {
+  if (!_avatarMap) { try { _avatarMap = await api('/api/v1/people/avatars'); } catch (e) { _avatarMap = {}; } }
+  return _avatarMap;
+}
+function avatarOf(userId) { return (userId != null && _avatarMap && _avatarMap[userId]) || null; }
 function naira(n) { return '₦' + Number(n || 0).toLocaleString(); }
 function feeBadge(status) { return status === 'paid' ? 'holiday' : status === 'partial' ? 'announcement' : status === 'cancelled' ? 'event' : 'exam'; }
 // Stripe is the real gateway; the hidden payments padlock (left edge) arms the simulated one.
@@ -61,10 +69,34 @@ function setHero(title, sub) {
   if (g) g.textContent = title;
   if (s) s.textContent = sub || '';
 }
+// The school this session belongs to (from the login's role assignments); '' for platform users.
+function schoolNameOf(u) {
+  if (!u || !u.roleAssignments) return '';
+  var ras = u.roleAssignments;
+  var ra = ras.find(function (r) { return u.tenantId != null && r.tenantId === u.tenantId && r.tenantName; })
+        || ras.find(function (r) { return r.tenantName; });
+  return ra ? ra.tenantName : '';
+}
+// What to call this person: their admin-given staff title if one is set, else their role.
+function personaOf(u) {
+  return (u && u.staffTitle) || ((u && (u.role || u.roleCode) || '').replace(/_/g, ' '));
+}
 function setWelcomeHero() {
   var u = getUser();
-  setHero('Welcome ' + (u && u.firstName ? u.firstName : ''), (u && (u.role || u.roleCode) || '').replace(/_/g, ' '));
+  var school = schoolNameOf(u);
+  setHero('Welcome ' + (u && u.firstName ? u.firstName : ''), personaOf(u) + (school ? ' — ' + school : ''));
 }
+// A newly granted title only lands in localStorage at login; pull a fresh copy once per page
+// load so the backdrop line updates without signing out.
+(function refreshMe() {
+  if (!getUser()) return;
+  api('/api/v1/auth/me').then(function (me) {
+    if (!me || !me.id) return;
+    try { localStorage.setItem('shUser', JSON.stringify(me)); } catch (e) {}
+    var active = document.querySelector('.drawer-item.active');
+    if (!active || active.dataset.nav === 'home') setWelcomeHero();
+  }).catch(function () {});
+})();
 
 function wireDrawerNav(navMap) {
   document.querySelectorAll('.drawer-item[data-nav]').forEach(function(item) {
@@ -113,6 +145,33 @@ function notificationRoute(n) {
 window.notificationRoute = notificationRoute;
 window.openSectionAndHighlight = openSectionAndHighlight;
 
+// What a platform MODERATOR is delegated to do. Mirrors the actual @PreAuthorize gates —
+// permissions are role-wide by design; update this list when a gate changes.
+// ponytail: static descriptor, add per-moderator toggles only when enforcement exists.
+var MODERATOR_PERMISSIONS = [
+  ['building-2', 'Oversee every school', 'View all schools, their stats, users and audit trail'],
+  ['shield-check', 'Approve or reject schools', 'Decide pending school sign-ups; suspend or re-activate any school'],
+  ['gavel', 'Confirm governance requests', 'Confirm or reject proposed org units, offerings, rules and credential revocations'],
+  ['flag', 'Resolve protests', 'Second (final say) or dismiss protests escalated from any school'],
+  ['key-round', 'Confirm credential revocations', 'The one action a school Admin cannot self-confirm'],
+];
+function openModeratorPermissions(name) {
+  var ctrl = openGlassModal({
+    frost: true,
+    className: 'plan-edit-modal',
+    html: '<h2>Delegated permissions</h2>'
+      + '<p class="subtle">' + esc(name || 'Moderator') + ' can act across the whole platform:</p>'
+      + MODERATOR_PERMISSIONS.map(function (p) {
+          return '<div style="display:flex;gap:12px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08)">'
+            + '<i data-lucide="' + p[0] + '" style="width:18px;height:18px;flex:0 0 auto;margin-top:2px"></i>'
+            + '<div><strong>' + esc(p[1]) + '</strong><div class="subtle" style="font-size:12px">' + esc(p[2]) + '</div></div></div>';
+        }).join('')
+      + '<div class="glass-actions" style="margin-top:16px"><button class="btn" data-x="ok">Close</button></div>'
+  });
+  if (window.lucide) lucide.createIcons({ root: ctrl.panel });
+  ctrl.panel.querySelector('[data-x="ok"]').onclick = ctrl.close;
+}
+
 function roleAccountPane(pane) {
   var u = getUser();
   var name = ((u?.firstName || '') + ' ' + (u?.lastName || '')).trim();
@@ -124,7 +183,8 @@ function roleAccountPane(pane) {
     +   '<h2>Account</h2>'
     +   '<p><strong>' + esc(name) + '</strong></p>'
     +   '<p class="muted">' + esc(u?.email || '') + '</p>'
-    +   '<p class="muted">' + esc((u?.role || '').replace(/_/g, ' ')) + '</p>'
+    +   '<p class="muted">' + esc(personaOf(u)) + (schoolNameOf(u) ? ' — ' + esc(schoolNameOf(u)) : '') + '</p>'
+    +   (u?.staffTitle ? '<p class="muted">' + esc((u?.role || '').replace(/_/g, ' ')) + '</p>' : '')
     +   (u?.username ? '<p class="muted">@' + esc(u.username) + '</p>' : '')
     +   '<div id="acctAvatarMsg" class="msg"></div>'
     +   '<button class="btn secondary" style="margin-top:12px" onclick="openPwd()">Change password</button>'
@@ -148,6 +208,18 @@ function roleAccountPane(pane) {
       }
     });
   };
+
+  // Moderators see their delegated permissions right on their profile page.
+  var roleC = (u?.roleCode || u?.role || '');
+  if (roleC === 'MODERATOR') {
+    pane.insertAdjacentHTML('beforeend', '<div class="card"><h2>Your permissions</h2>'
+      + MODERATOR_PERMISSIONS.map(function (p) {
+          return '<div style="display:flex;gap:12px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08)">'
+            + '<i data-lucide="' + p[0] + '" style="width:18px;height:18px;flex:0 0 auto;margin-top:2px"></i>'
+            + '<div><strong>' + esc(p[1]) + '</strong><div class="subtle" style="font-size:12px">' + esc(p[2]) + '</div></div></div>';
+        }).join('') + '</div>');
+    if (window.lucide) lucide.createIcons({ root: pane });
+  }
 
   // School admins also manage the school's SchoolHub subscription here (Stripe Billing).
   var role = (u?.roleCode || u?.role || '');
@@ -211,6 +283,31 @@ function dueBadgeFor(dueDate, settled) {
   return `<span class="subtle">Due in ${d} days</span>`;
 }
 
+// ---------------- Flags: one small 🚩 button, anywhere; lands in every Admin's bell ----------------
+function flagButton(targetType, targetLabel) {
+  return `<button class="btn ghost" title="Flag an issue" data-flag="${esc(targetType)}" data-flag-label="${esc(targetLabel || '')}"
+    style="padding:3px 8px;font-size:11px;flex:none"><i data-lucide="flag" style="width:13px;height:13px;vertical-align:-2px"></i></button>`;
+}
+function wireFlags(root) {
+  (root || document).querySelectorAll('[data-flag]').forEach(b => {
+    if (b.dataset.flagWired) return;
+    b.dataset.flagWired = '1';
+    b.onclick = ev => {
+      ev.stopPropagation();
+      glassForm({
+        title: 'Flag an issue',
+        sub: 'Your school admins get this about: <strong>' + esc(b.dataset.flagLabel || b.dataset.flag) + '</strong>',
+        fields: '<label>What\'s wrong?<textarea name="comment" required rows="3" maxlength="500" placeholder="Describe the problem…"></textarea></label>',
+        submitLabel: 'Flag',
+        onSubmit: async body => {
+          await api('/api/v1/flags', { method: 'POST', body: JSON.stringify({
+            targetType: b.dataset.flag, targetLabel: b.dataset.flagLabel || null, comment: body.comment }) });
+        }
+      });
+    };
+  });
+}
+
 // ---------------- Calendar (shared agenda: glass month grid + upcoming list) ----------------
 async function renderCalendar(container, canCreate) {
   container.innerHTML = `
@@ -242,12 +339,15 @@ async function renderCalendar(container, canCreate) {
         ${e.description ? `<div class="subtle">${esc(e.description)}</div>` : ''}
       </div>
       ${fwTargets.length ? `<button class="btn ghost" data-fw="${e.id}" style="padding:3px 10px;font-size:11px;flex:none">Forward</button>` : ''}
+      ${flagButton('event', e.title)}
     </div>`;
   }
 
   // Any recipient can push an event on to their reachables (role decides who that is).
   function wireForwards(root) {
     root.querySelectorAll('[data-fw]').forEach(b => b.onclick = () => openForward(num(b.dataset.fw)));
+    wireFlags(root);
+    if (window.lucide) lucide.createIcons({ root: root });
   }
   function openForward(id) {
     const e = events.find(x => x.id === id);
@@ -539,7 +639,7 @@ async function platformModerators(pane) {
     </div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
-        <thead><tr><th>Name</th><th>Email</th><th>Status</th>${isOwner ? '<th></th>' : ''}</tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
         <tbody id="modRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
       </table></div>
       ${isOwner ? '<div class="list-foot"><button class="btn" id="modInvite"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Invite moderator</button></div>' : ''}
@@ -560,6 +660,10 @@ async function platformModerators(pane) {
       return true;
     });
   }
+  function permsFor(id) {
+    var m = mods.find(function (x) { return String(x.id) === String(id); });
+    if (m) openModeratorPermissions(m.name);
+  }
   function renderStack() {
     renderTiltStack(stackHost, visible().map(function (m) {
       return { id: m.id, name: m.name, subtitle: m.email, avatar: m.avatar, status: m.status };
@@ -572,25 +676,28 @@ async function platformModerators(pane) {
   function renderRows() {
     var list = visible();
     var tbody = document.getElementById('modRows');
-    var cols = isOwner ? 4 : 3;
+    var cols = 4;
     if (!list.length) { tbody.innerHTML = '<tr><td colspan="' + cols + '" class="muted">No moderators found.</td></tr>'; return; }
     tbody.innerHTML = list.map(function (m) {
-      var actions = '';
+      var actions = '<button class="btn ghost" data-perms="' + m.id + '" style="padding:3px 10px;font-size:11px">Permissions</button>';
       if (isOwner) {
-        actions = (m.status === 'suspended'
-          ? '<button class="btn ghost" data-act="' + m.id + '" style="padding:3px 10px;font-size:11px">Activate</button>'
-          : '<button class="btn ghost" data-susp="' + m.id + '" style="padding:3px 10px;font-size:11px">Suspend</button>')
+        actions += (m.status === 'suspended'
+          ? '<button class="btn ghost" data-act="' + m.id + '" style="padding:3px 10px;font-size:11px;margin-left:4px">Activate</button>'
+          : '<button class="btn ghost" data-susp="' + m.id + '" style="padding:3px 10px;font-size:11px;margin-left:4px">Suspend</button>')
           + '<button class="btn ghost danger-text" data-del="' + m.id + '" style="padding:3px 10px;font-size:11px;margin-left:4px">Remove</button>';
       }
       return '<tr data-id="' + m.id + '" style="cursor:pointer">'
         + '<td><strong>' + esc(m.name) + '</strong></td>'
         + '<td>' + esc(m.email) + '</td>'
         + '<td><span class="badge ' + statusBadge(m.status) + '">' + esc(m.status) + '</span></td>'
-        + (isOwner ? '<td class="right">' + actions + '</td>' : '')
+        + '<td class="right">' + actions + '</td>'
         + '</tr>';
     }).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(function (tr) {
       tr.onclick = function (ev) { if (ev.target.closest('button')) return; highlightTiltCard(stackHost, tr.dataset.id); };
+    });
+    tbody.querySelectorAll('[data-perms]').forEach(function (b) {
+      b.onclick = function () { permsFor(b.dataset.perms); };
     });
     async function act(url, label) {
       try { await api(url, { method: 'POST' }); showMsg(msg, label, 'ok'); await load(); }
@@ -1232,7 +1339,7 @@ async function adminPeople(pane) {
 
   function renderStaff() {
     renderTiltStack(stStack, visibleStaff().map(m => ({
-      id: m.id, name: m.name, subtitle: roleLabel(m.role) + (m.username ? ' · @' + m.username : ''), avatar: m.avatar, status: m.status
+      id: m.id, name: m.name, subtitle: (m.staffTitle || roleLabel(m.role)) + (m.username ? ' · @' + m.username : ''), avatar: m.avatar, status: m.status
     })), {
       showStatus: true, statusBadge, emptyText: 'No staff match.',
       onClick: it => flashRow('#stRows', it.id)
@@ -1241,15 +1348,16 @@ async function adminPeople(pane) {
     const list = visibleStaff();
     if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No staff found.</td></tr>'; return; }
     tbody.innerHTML = list.map(m => {
-      const actions = m.self ? '<span class="subtle">you</span>'
+      const titleBtn = `<button class="btn ghost" data-title="${m.id}" style="${smallBtn}">Title</button>`;
+      const actions = titleBtn + (m.self ? ' <span class="subtle">you</span>'
         : (m.status === 'suspended'
-            ? `<button class="btn ghost" data-act="${m.id}" style="${smallBtn}">Activate</button>`
-            : `<button class="btn ghost" data-susp="${m.id}" style="${smallBtn}">Suspend</button>`)
-          + `<button class="btn ghost danger-text" data-del="${m.id}" style="${smallBtn};margin-left:4px">Remove</button>`;
+            ? `<button class="btn ghost" data-act="${m.id}" style="${smallBtn};margin-left:4px">Activate</button>`
+            : `<button class="btn ghost" data-susp="${m.id}" style="${smallBtn};margin-left:4px">Suspend</button>`)
+          + `<button class="btn ghost danger-text" data-del="${m.id}" style="${smallBtn};margin-left:4px">Remove</button>`);
       return `<tr data-id="${m.id}" style="cursor:pointer">
         <td><strong>${esc(m.name)}</strong>${m.username ? '<div class="subtle">@' + esc(m.username) + '</div>' : ''}</td>
         <td>${esc(m.email)}</td>
-        <td><span class="pill">${esc(roleLabel(m.role))}</span></td>
+        <td><span class="pill">${esc(m.staffTitle || roleLabel(m.role))}</span>${m.staffTitle ? '<div class="subtle">' + esc(roleLabel(m.role)) + '</div>' : ''}</td>
         <td><span class="badge ${statusBadge(m.status)}">${esc(m.status)}</span></td>
         <td class="right">${actions}</td></tr>`;
     }).join('');
@@ -1265,6 +1373,19 @@ async function adminPeople(pane) {
       act('/api/v1/tenants/staff/' + b.dataset.susp + '/suspend', 'Suspended — they can no longer sign in.'));
     tbody.querySelectorAll('[data-act]').forEach(b => b.onclick = () =>
       act('/api/v1/tenants/staff/' + b.dataset.act + '/activate', 'Activated.'));
+    tbody.querySelectorAll('[data-title]').forEach(b => b.onclick = () => {
+      const m = staff.find(x => String(x.id) === b.dataset.title);
+      glassForm({
+        title: 'Staff title',
+        sub: 'Shown everywhere ' + esc(m.name) + ' appears — cards, profile, the welcome backdrop. Leave blank to clear.',
+        fields: `<label>Title <input name="title" maxlength="60" value="${esc(m.staffTitle || '')}" placeholder="e.g. Head of Sciences"></label>`,
+        onSubmit: async body => {
+          await api('/api/v1/tenants/staff/' + m.id + '/title', { method: 'PUT', body: JSON.stringify({ title: body.title || '' }) });
+          showMsg(msg, 'Title ' + (body.title ? 'set to "' + body.title + '".' : 'cleared.'), 'ok');
+          await loadStaff();
+        }
+      });
+    });
     tbody.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
       const m = staff.find(x => String(x.id) === b.dataset.del);
       if (!(await glassConfirm('Remove ' + m.name + '? Their login is deleted; school records they created stay.', { title: 'Remove staff', danger: true, okText: 'Remove' }))) return;
@@ -1313,7 +1434,7 @@ async function adminPeople(pane) {
 
   function renderTeachers() {
     renderTiltStack(tpStack, visibleTeachers().map(t => ({
-      id: t.id, name: t.firstName + ' ' + t.lastName, subtitle: t.staffNo + (t.email ? ' · ' + t.email : ''), avatar: null, status: t.userId ? 'active' : 'pending'
+      id: t.id, name: t.firstName + ' ' + t.lastName, subtitle: t.staffNo + (t.email ? ' · ' + t.email : ''), avatar: avatarOf(t.userId), status: t.userId ? 'active' : 'pending'
     })), {
       showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No teachers match.',
       onClick: it => flashRow('#tpRows', it.id)
@@ -1330,6 +1451,7 @@ async function adminPeople(pane) {
     });
   }
   async function loadTeachers() {
+    await userAvatars();
     teachers = await api('/api/v1/teachers');
     renderTeachers();
   }
@@ -1340,7 +1462,7 @@ async function adminPeople(pane) {
 
   function renderStudents() {
     renderTiltStack(sdStack, visibleStudents().map(s => ({
-      id: s.id, name: s.firstName + ' ' + s.lastName, subtitle: s.admissionNo + ' · ' + className(s.classId), avatar: null, status: s.status
+      id: s.id, name: s.firstName + ' ' + s.lastName, subtitle: s.admissionNo + ' · ' + className(s.classId), avatar: avatarOf(s.userId), status: s.status
     })), {
       showStatus: true, statusBadge: () => 'holiday', emptyText: 'No students match.',
       onClick: it => flashRow('#sdRows', it.id)
@@ -1358,6 +1480,7 @@ async function adminPeople(pane) {
     });
   }
   async function loadStudents() {
+    await userAvatars();
     [students, classes] = await Promise.all([api('/api/v1/students'), api('/api/v1/classes')]);
     renderStudents();
   }
@@ -1369,7 +1492,7 @@ async function adminPeople(pane) {
 
   function renderGuardians() {
     renderTiltStack(gdStack, visibleGuardians().map(g => ({
-      id: g.id, name: g.firstName + ' ' + g.lastName, subtitle: g.email || 'No email', avatar: null, status: g.userId ? 'active' : 'pending'
+      id: g.id, name: g.firstName + ' ' + g.lastName, subtitle: g.email || 'No email', avatar: avatarOf(g.userId), status: g.userId ? 'active' : 'pending'
     })), {
       showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No guardians match.',
       onClick: it => flashRow('#gdRows', it.id)
@@ -1386,6 +1509,7 @@ async function adminPeople(pane) {
     });
   }
   async function loadGuardians() {
+    await userAvatars();
     guardians = await api('/api/v1/guardians');
     renderGuardians();
   }
@@ -1618,9 +1742,14 @@ async function teacherHome(pane, me) {
   pane.innerHTML = `<div class="bento">` + tiles.map(t => widgetTileHTML(t, W[t.id] || { sub: t.desc || '' }, me)).join('') + `</div>
     <div class="card"><h2>My teaching</h2>
       <p class="muted" style="margin-top:0">Staff no. ${esc(d.profile.staffNo)} · ${classCount} class${classCount === 1 ? '' : 'es'}</p>
-      ${d.assignments.length ? `<table><thead><tr><th>Class</th><th>Subject</th></tr></thead><tbody>${
-        d.assignments.map(a => `<tr><td>${esc(a.className || '-')}</td><td>${esc(a.subjectName || '-')}</td></tr>`).join('')
+      ${d.assignments.length ? `<table><thead><tr><th>Class</th><th>Subject</th><th></th></tr></thead><tbody>${
+        d.assignments.map((a, i) => `<tr><td>${esc(a.className || '-')}</td><td>${esc(a.subjectName || '-')}</td>
+          <td class="right"><button class="btn secondary" data-att="${i}" style="padding:3px 10px;font-size:11px">Mark attendance</button></td></tr>`).join('')
       }</tbody></table>` : '<p class="muted">No classes assigned yet - ask your admin.</p>'}</div>`;
+  pane.querySelectorAll('[data-att]').forEach(b => b.onclick = () => {
+    const a = d.assignments[num(b.dataset.att)];
+    if (a) openAttendanceModal(a.classId, a.className);
+  });
   pane.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openSection(b.dataset.go));
   if (window.lucide) lucide.createIcons({ root: pane });
 }
@@ -1645,7 +1774,7 @@ async function teacherAttendance(pane) {
     if (!students.length) { body.innerHTML = '<p class="muted">No students in that class (or not yours to mark).</p>'; return; }
     body.innerHTML = students.map(s => `
       <div class="att-row" data-id="${s.id}">
-        <span class="att-name">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+        <span class="att-name" style="cursor:pointer" title="Open profile" onclick="openStudentProgress(${s.id})">${esc(s.lastName)}, ${esc(s.firstName)}</span>
         <span class="seg-pills">${STATES.map((st, i) =>
           `<button type="button" class="seg-pill seg-${st}${i === 0 ? ' active' : ''}" data-st="${st}">${st}</button>`).join('')}</span>
       </div>`).join('')
@@ -1690,16 +1819,35 @@ async function teacherResults(pane) {
 
   async function loadClass(classId) {
     bar.querySelectorAll('[data-cls]').forEach(b => b.classList.toggle('active', num(b.dataset.cls) === classId));
-    const students = (await api('/api/v1/students')).filter(s => s.classId === classId);
+    const [allStudents, groups] = await Promise.all([
+      api('/api/v1/students'),
+      api('/api/v1/classes/' + classId + '/groups').catch(() => []),
+    ]);
+    const classStudents = allStudents.filter(s => s.classId === classId);
     const body = document.getElementById('rsbody');
-    if (!students.length) { body.innerHTML = '<p class="muted">No students in that class.</p>'; return; }
-    body.innerHTML = students.map(s => `
-      <div class="att-row" data-id="${s.id}">
-        <span class="att-name">${esc(s.lastName)}, ${esc(s.firstName)}</span>
-        <input class="rssc" type="number" placeholder="—" style="max-width:90px">
-      </div>`).join('')
-      + `<button class="btn" id="rssave" style="margin-top:12px">Save results</button>`;
-    document.getElementById('rssave').onclick = async () => {
+    if (!classStudents.length) { body.innerHTML = '<p class="muted">No students in that class.</p>'; return; }
+    let groupId = null;      // null = the whole class (Snapchat-style: your groups are ready-made audiences)
+
+    function draw() {
+      const g = groups.find(x => x.id === groupId);
+      const members = g ? new Set(g.members.map(m => m.studentId)) : null;
+      const students = members ? classStudents.filter(s => members.has(s.id)) : classStudents;
+      body.innerHTML = (groups.length ? `<div class="filter-bar" style="display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap">
+          <button class="act-scale-btn${groupId == null ? ' active' : ''}" data-grp="">Whole class</button>
+          ${groups.map(x => `<button class="act-scale-btn${x.id === groupId ? ' active' : ''}" data-grp="${x.id}">${esc(x.name)}</button>`).join('')}
+        </div>` : '')
+        + (students.length ? students.map(s => `
+          <div class="att-row" data-id="${s.id}">
+            <span class="att-name" style="cursor:pointer" title="Open profile" onclick="openStudentProgress(${s.id})">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+            <input class="rssc" type="number" placeholder="—" style="max-width:90px">
+          </div>`).join('') : '<p class="muted">That group has no members yet.</p>')
+        + `<button class="btn" id="rssave" style="margin-top:12px">Save results</button>`;
+      body.querySelectorAll('[data-grp]').forEach(b => b.onclick = () => { groupId = b.dataset.grp ? num(b.dataset.grp) : null; draw(); });
+      wireSave();
+    }
+
+    function wireSave() {
+      document.getElementById('rssave').onclick = async () => {
       const m = document.getElementById('rsm'); hideMsg(m);
       const subjectId = num(document.getElementById('rssubj').value);
       const title = document.getElementById('rstitle').value.trim();
@@ -1709,7 +1857,7 @@ async function teacherResults(pane) {
       try {
         let link = (await api('/api/v1/class-subjects?classId=' + classId)).find(cs => cs.subjectId === subjectId);
         if (!link) link = await api('/api/v1/class-subjects', { method: 'POST', body: JSON.stringify({ classId, subjectId, teacherId: d.profile.id }) });
-        const asm = await api('/api/v1/assessments', { method: 'POST', body: JSON.stringify({ classSubjectId: link.id, title, maxScore: max }) });
+        const asm = await api('/api/v1/assessments', { method: 'POST', body: JSON.stringify({ classSubjectId: link.id, title, maxScore: max, groupId }) });
         let saved = 0;
         for (const row of body.querySelectorAll('.att-row')) {
           const sc = row.querySelector('.rssc').value;
@@ -1719,7 +1867,10 @@ async function teacherResults(pane) {
         }
         showMsg(m, saved + ' result' + (saved === 1 ? '' : 's') + ' saved.', 'ok');
       } catch (e) { showMsg(m, e.message, 'err'); }
-    };
+      };
+    }
+
+    draw();
   }
   bar.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => loadClass(num(b.dataset.cls)));
 }
@@ -2137,7 +2288,10 @@ async function guardianChildren(pane) {
   function detail() {
     const c = selected();
     _guardianChildId = c.student.id;
-    document.getElementById('gcDetail').innerHTML = childCard(c);
+    const host = document.getElementById('gcDetail');
+    host.innerHTML = childCard(c);
+    wireFlags(host);
+    if (window.lucide) lucide.createIcons({ root: host });
   }
   if (many) {
     renderTiltStack(document.getElementById('gcStack'), kids.map(c => ({
@@ -2184,7 +2338,9 @@ function childCard(c) {
   const a = c.attendance || { present: 0, absent: 0, late: 0, total: 0 };
   const s = c.student;
   return `<div class="card">
-    <h2>${esc(s.firstName)} ${esc(s.lastName)} <span class="subtle">· ${esc(c.className || 'No class')} · ${esc(c.relationship || 'guardian')}</span></h2>
+    <h2 style="display:flex;align-items:center;gap:8px">${esc(s.firstName)} ${esc(s.lastName)}
+      <span class="subtle">· ${esc(c.className || 'No class')} · ${esc(c.relationship || 'guardian')}</span>
+      <span style="flex:1"></span>${flagButton('result', 'Records of ' + s.firstName + ' ' + s.lastName)}</h2>
     <div class="stats">${stat(a.present, 'Present')}${stat(a.absent, 'Absent')}${stat(a.late, 'Late')}${stat(a.total, 'Days')}</div>
     <h3 style="margin-top:14px">Results</h3>
     ${(c.results || []).length ? `<table><thead><tr><th>Subject</th><th>Assessment</th><th>Score</th></tr></thead><tbody>${
@@ -3068,6 +3224,72 @@ function wireForm(formId, msgId, url, transform, after) {
   });
 }
 
+// ---- In-class attendance modal: tilt cards of the class up top, segmented register below.
+// Tapping a card gives it the raised "hover" state and jumps to that student's row. ----
+async function openAttendanceModal(classId, className) {
+  const ctrl = openGlassModal({
+    frost: true,
+    className: 'progress-modal',
+    html: `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0">Mark attendance${className ? ' — ' + esc(className) : ''}</h2>
+        <button class="btn ghost" data-x="close" style="padding:4px 12px">✕</button></div>
+      <div class="msg" data-m></div>
+      <div class="tilt-host" data-stack></div>
+      <div class="inline-form" style="margin:4px 0 10px"><div><label>Date (blank = today)</label><input type="date" data-date></div></div>
+      <div data-rows><p class="muted">Loading…</p></div>`
+  });
+  ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
+  const m = ctrl.panel.querySelector('[data-m]');
+  const stackHost = ctrl.panel.querySelector('[data-stack]');
+  const rowsHost = ctrl.panel.querySelector('[data-rows]');
+  try {
+    await userAvatars();
+    const students = (await api('/api/v1/students')).filter(s => s.classId === classId);
+    if (!students.length) { rowsHost.innerHTML = '<p class="muted">No students in this class.</p>'; return; }
+    renderTiltStack(stackHost, students.map(s => ({
+      id: s.id, name: s.firstName + ' ' + s.lastName, subtitle: s.admissionNo, avatar: avatarOf(s.userId)
+    })), {
+      emptyText: 'No students.',
+      onClick: it => {
+        highlightTiltCard(stackHost, it.id);
+        const row = rowsHost.querySelector('.att-row[data-id="' + it.id + '"]');
+        if (row) {
+          row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          row.style.background = 'color-mix(in srgb, var(--brand) 12%, transparent)';
+          setTimeout(() => row.style.background = '', 1200);
+        }
+      }
+    });
+    const STATES = ['present', 'absent', 'late', 'excused'];
+    rowsHost.innerHTML = students.map(s => `
+      <div class="att-row" data-id="${s.id}">
+        <span class="att-name" style="cursor:pointer" title="Show card">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+        <span class="seg-pills">${STATES.map((st, i) =>
+          `<button type="button" class="seg-pill seg-${st}${i === 0 ? ' active' : ''}" data-st="${st}">${st}</button>`).join('')}</span>
+      </div>`).join('')
+      + `<button class="btn" data-save style="margin-top:12px">Save attendance</button>`;
+    rowsHost.querySelectorAll('.att-row').forEach(row => {
+      row.querySelector('.att-name').onclick = () => highlightTiltCard(stackHost, row.dataset.id);
+      row.querySelectorAll('.seg-pill').forEach(p => p.onclick = () => {
+        row.querySelectorAll('.seg-pill').forEach(x => x.classList.remove('active'));
+        p.classList.add('active');
+      });
+    });
+    ctrl.panel.querySelector('[data-save]').onclick = async () => {
+      hideMsg(m);
+      const date = ctrl.panel.querySelector('[data-date]').value || null;
+      try {
+        for (const row of rowsHost.querySelectorAll('.att-row')) {
+          await api('/api/v1/attendance', { method: 'POST', body: JSON.stringify({
+            studentId: num(row.dataset.id), classId, onDate: date,
+            status: row.querySelector('.seg-pill.active').dataset.st }) });
+        }
+        showMsg(m, 'Attendance saved for ' + students.length + ' student' + (students.length === 1 ? '' : 's') + '.', 'ok');
+      } catch (e) { showMsg(m, e.message, 'err'); }
+    };
+  } catch (e) { rowsHost.innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; }
+}
+
 // ---- Student progress modal ----
 async function openStudentProgress(studentId) {
   const ctrl = openGlassModal({
@@ -3116,10 +3338,28 @@ async function openStudentProgress(studentId) {
       </div>`;
     }).join('') : '<p class="muted">No results recorded yet.</p>';
 
+    // Staff exploring a student's profile see who to call: the linked parents/guardians.
+    const guardians = d.guardians || [];
+    const guardianRows = guardians.length ? guardians.map(g => {
+      const face = g.avatar
+        ? `<span class="wt-avatar"><img src="${esc(g.avatar)}" alt="${esc(g.name)}"></span>`
+        : `<span class="wt-avatar wt-avatar-fallback">${esc((g.name || '?').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase())}</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.05);border-radius:8px;margin-bottom:6px">
+        ${face}
+        <div style="flex:1;min-width:0">
+          <strong>${esc(g.name)}</strong>${g.relationship ? ' <span class="subtle">· ' + esc(g.relationship) + '</span>' : ''}
+          <div class="subtle" style="font-size:12px">${esc(g.email || '')}${g.phone ? ' · ' + esc(g.phone) : ''}</div>
+        </div>
+      </div>`;
+    }).join('') : '<p class="muted" style="margin:0">No guardians linked yet.</p>';
+
     document.getElementById('spContent').innerHTML = `
-      <div style="margin-bottom:20px">
-        <h3 style="margin:0 0 4px">${esc(p.firstName)} ${esc(p.lastName)}</h3>
-        <div class="muted" style="font-size:13px">Admission: ${esc(p.admissionNo)} · Class: ${esc(d.className || 'Not assigned')}</div>
+      <div style="margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <h3 style="margin:0 0 4px">${esc(p.firstName)} ${esc(p.lastName)}</h3>
+          <div class="muted" style="font-size:13px">Admission: ${esc(p.admissionNo)} · Class: ${esc(d.className || 'Not assigned')}</div>
+        </div>
+        ${flagButton('profile', 'Records of ' + p.firstName + ' ' + p.lastName)}
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px">
         <div style="text-align:center;padding:12px;background:rgba(255,255,255,.05);border-radius:8px">
@@ -3139,9 +3379,13 @@ async function openStudentProgress(studentId) {
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Subjects</div>
         </div>
       </div>
+      <h3 style="margin:0 0 12px">Parents & guardians</h3>
+      <div style="margin-bottom:20px">${guardianRows}</div>
       <h3 style="margin:0 0 12px">Academic performance</h3>
       ${subjectCards}
     `;
+    wireFlags(ctrl.panel);
+    if (window.lucide) lucide.createIcons({ root: ctrl.panel });
   } catch (e) {
     document.getElementById('spContent').innerHTML = `<p style="color:var(--danger)">Error: ${esc(e.message)}</p>`;
   }

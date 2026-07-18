@@ -56,7 +56,7 @@
   <script src="/app/avatar/avatar.js?v=1"></script>
   <script src="/app/tiltstack/tiltstack.js?v=2"></script>
   <script src="/app/calendar/calendar.js?v=3"></script>
-  <script src="/js/dashboards.js?v=37"></script>
+  <script src="/js/dashboards.js?v=38"></script>
   <script>
     requireAuth();
     (async function () {
@@ -64,8 +64,14 @@
       try { me = await api('/api/v1/auth/me'); }
       catch (e) { document.getElementById('view').innerHTML = '<div class="card msg show err">' + e.message + '</div>'; return; }
 
-      document.getElementById('greeting').textContent = 'Welcome\u00A0' + me.firstName;
-      document.getElementById('roleSub').textContent = (me.role || me.roleCode || '').replace(/_/g, ' ');
+      // Keep localStorage in step with the fresh /me, then let the shared helper paint the hero
+      // (staff title + school), so the backdrop reads e.g. "Head of Sciences \u2014 Greenfield Academy".
+      try { localStorage.setItem('shUser', JSON.stringify(me)); } catch (e) {}
+      if (typeof setWelcomeHero === 'function') setWelcomeHero();
+      else {
+        document.getElementById('greeting').textContent = 'Welcome\u00A0' + me.firstName;
+        document.getElementById('roleSub').textContent = (me.role || me.roleCode || '').replace(/_/g, ' ');
+      }
 
       const view = document.getElementById('view');
       const r = me.roleCode || me.role;

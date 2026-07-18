@@ -19,6 +19,11 @@ public class PeopleController {
         this.people = people;
     }
 
+    // Everyone signed in may resolve pictures for the school's cards (a picture is the least
+    // sensitive profile field; names already show wherever these cards render).
+    @GetMapping("/people/avatars")
+    public ResponseEntity<?> avatars() { return ResponseEntity.ok(people.avatarsByUserId()); }
+
     // ---- Teachers ---- (staff PII: emails, phones, staff numbers -> staff only)
     @GetMapping("/teachers")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','BURSAR')")

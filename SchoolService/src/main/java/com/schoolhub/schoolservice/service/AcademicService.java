@@ -24,12 +24,13 @@ public class AcademicService {
     private final StudentRepository studentRepo;
     private final CohortOfferingRepository cohortOfferingRepo;
     private final TeacherRepository teacherRepo;
+    private final ClassGroupRepository classGroupRepo;
 
     public AcademicService(SubjectRepository subjectRepo, SchoolClassRepository classRepo,
                            ClassSubjectRepository classSubjectRepo, AssessmentRepository assessmentRepo,
                            ResultRepository resultRepo, AttendanceRepository attendanceRepo,
                            StudentRepository studentRepo, CohortOfferingRepository cohortOfferingRepo,
-                           TeacherRepository teacherRepo) {
+                           TeacherRepository teacherRepo, ClassGroupRepository classGroupRepo) {
         this.subjectRepo = subjectRepo;
         this.classRepo = classRepo;
         this.classSubjectRepo = classSubjectRepo;
@@ -39,6 +40,7 @@ public class AcademicService {
         this.studentRepo = studentRepo;
         this.cohortOfferingRepo = cohortOfferingRepo;
         this.teacherRepo = teacherRepo;
+        this.classGroupRepo = classGroupRepo;
     }
 
     /** Who teaches this (new-model) assessment - for routing disputes/notifications. */
@@ -146,6 +148,17 @@ public class AcademicService {
     public Assessment createAssessment(AssessmentReq req) {
         if (req.classSubjectId() == null && req.cohortOfferingId() == null) {
             throw new IllegalArgumentException("An assessment must target a classSubjectId or a cohortOfferingId");
+        }
+        // Old-model + groupId = a teacher-made class_group narrowing the assignment to its members;
+        // it must belong to the same class as the classSubject it hangs off.
+        if (req.classSubjectId() != null && req.groupId() != null) {
+            ClassSubject cs = classSubjectRepo.findById(req.classSubjectId())
+                    .orElseThrow(() -> new EntityNotFoundException("Class-subject not found: " + req.classSubjectId()));
+            ClassGroup g = classGroupRepo.findById(req.groupId())
+                    .orElseThrow(() -> new EntityNotFoundException("Group not found: " + req.groupId()));
+            if (!g.getClassId().equals(cs.getClassId())) {
+                throw new IllegalArgumentException("That group belongs to a different class");
+            }
         }
         Assessment a = new Assessment();
         a.setClassSubjectId(req.classSubjectId());

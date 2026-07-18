@@ -157,6 +157,7 @@ public class StaffOnboardingService {
             row.put("role", role);
             row.put("status", u.getAccountStatus());
             row.put("avatar", u.getAvatar());
+            row.put("staffTitle", u.getStaffTitle());
             row.put("self", u.getId().equals(callerUserId));
             out.add(row);
         }
@@ -171,6 +172,29 @@ public class StaffOnboardingService {
         userRepo.save(staff);
         audit.record(staff.getTenantId(), callerUserId,
                 "suspended".equals(status) ? "STAFF_SUSPENDED" : "STAFF_ACTIVATED", staff.getEmail());
+    }
+
+    /** Set/clear a staff member's title (blank clears). Self allowed — an admin may title themself. */
+    @Transactional
+    public void setStaffTitle(Long callerUserId, Long staffUserId, String title) {
+        Tenant t = callerTenant(callerUserId);
+        AppUser staff = userRepo.findById(staffUserId)
+                .orElseThrow(() -> new EntityNotFoundException("No such staff member"));
+        if (!t.getId().equals(staff.getTenantId())) {
+            throw new AccessDeniedException("That staff member is not in your school");
+        }
+        String role = roleRepo.findById(staff.getRoleId()).map(Role::getName).orElse("?");
+        if (!STAFF_ROLES.contains(role) && !"LIBRARIAN".equals(role)) {
+            throw new IllegalArgumentException("That account is not a staff member");
+        }
+        String clean = title == null ? null : title.trim();
+        if (clean != null && clean.length() > 60) {
+            throw new IllegalArgumentException("Titles are 60 characters max");
+        }
+        staff.setStaffTitle(clean == null || clean.isEmpty() ? null : clean);
+        userRepo.save(staff);
+        audit.record(staff.getTenantId(), callerUserId, "STAFF_TITLE_SET",
+                staff.getEmail() + " -> " + (staff.getStaffTitle() == null ? "(cleared)" : staff.getStaffTitle()));
     }
 
     /** Remove a staff login. Cascades role_assignment/notification via FK (moderator-delete pattern). */

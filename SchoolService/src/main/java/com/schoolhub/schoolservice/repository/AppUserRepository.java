@@ -17,4 +17,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     // Used to broadcast a workflow proposal to every Admin when there's no single specific
     // confirmer to target (e.g. an Offering has no owner field the way an OrgUnit does).
     List<AppUser> findByRoleIdAndTenantId(Long roleId, Long tenantId);
+
+    // Powers the school-wide userId -> avatar map (cards fall back to initials without one).
+    List<AppUser> findByTenantIdAndAvatarIsNotNull(Long tenantId);
 }

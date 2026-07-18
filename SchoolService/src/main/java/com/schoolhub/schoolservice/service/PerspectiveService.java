@@ -122,7 +122,27 @@ public class PerspectiveService {
         m.put("results", resultRows(s.getId()));
         m.put("attendance", attendanceSummary(s.getId()));
         m.put("fees", feeService.invoicesForStudent(s.getId()));
+        m.put("guardians", guardiansOf(s.getId()));
         return m;
+    }
+
+    /** Who to call about this student — the linked parents/guardians, with contact + avatar. */
+    private List<Map<String, Object>> guardiansOf(Long studentId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (StudentGuardian link : linkRepo.findByStudentId(studentId)) {
+            guardianRepo.findById(link.getGuardianId()).ifPresent(g -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", g.getId());
+                row.put("name", g.getFirstName() + " " + g.getLastName());
+                row.put("relationship", link.getRelationship());
+                row.put("email", g.getEmail());
+                row.put("phone", g.getPhone());
+                row.put("avatar", g.getUserId() == null ? null
+                        : appUserRepo.findById(g.getUserId()).map(AppUser::getAvatar).orElse(null));
+                out.add(row);
+            });
+        }
+        return out;
     }
 
     // ---- Guardian (parent) - track each child's performance ----

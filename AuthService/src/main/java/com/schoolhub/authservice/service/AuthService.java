@@ -371,6 +371,7 @@ public class AuthService {
         dto.setTenantId(u.getTenantId());
         dto.setAccountStatus(u.getAccountStatus());
         dto.setAvatar(u.getAvatar());
+        dto.setStaffTitle(u.getStaffTitle());
         dto.setLastLoginAt(u.getLastLoginAt());
         dto.setCreatedAt(u.getCreatedAt());
         return dto;

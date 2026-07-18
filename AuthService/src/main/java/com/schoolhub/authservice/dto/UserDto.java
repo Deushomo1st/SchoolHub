@@ -15,6 +15,7 @@ public class UserDto {
     private Long tenantId;
     private String accountStatus;
     private String avatar;
+    private String staffTitle;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
     private List<RoleAssignmentDto> roleAssignments;
@@ -41,6 +42,8 @@ public class UserDto {
     public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
+    public String getStaffTitle() { return staffTitle; }
+    public void setStaffTitle(String staffTitle) { this.staffTitle = staffTitle; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }

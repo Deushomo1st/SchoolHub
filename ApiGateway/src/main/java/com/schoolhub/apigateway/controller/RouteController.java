@@ -58,7 +58,7 @@ public class RouteController {
                 "cohorts", "enrollments", "org-units", "offerings", "schedule-periods",
                 "workflow-requests", "workflow-protests", "notifications", "invites", "people",
                 "resources", "sessions", "progression-rules", "credentials", "transcript",
-                "financial-settings", "fee-categories", "scholarship-rules"}) {
+                "financial-settings", "fee-categories", "scholarship-rules", "flags"}) {
             r2s.put(r, "school");
         }
         this.resourceToService = r2s;

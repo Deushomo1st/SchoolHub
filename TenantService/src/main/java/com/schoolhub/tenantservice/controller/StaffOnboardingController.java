@@ -83,6 +83,15 @@ public class StaffOnboardingController {
         return ResponseEntity.ok().build();
     }
 
+    // Admin: give a staff member a title everybody sees (blank clears it).
+    @PutMapping("/staff/{id}/title")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> setStaffTitle(@PathVariable Long id, @RequestBody Map<String, String> body,
+                                           Authentication auth) {
+        staff.setStaffTitle((Long) auth.getPrincipal(), id, body.get("title"));
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/staff/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
     public ResponseEntity<?> removeStaff(@PathVariable Long id, Authentication auth) {

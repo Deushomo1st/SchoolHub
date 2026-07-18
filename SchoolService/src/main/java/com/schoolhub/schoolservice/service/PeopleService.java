@@ -35,6 +35,19 @@ public class PeopleService {
         this.provisioning = provisioning;
     }
 
+    /** userId -> avatar for everyone in this school who set a profile picture. Lets every card
+     *  and initials box show the real picture without touching each list endpoint.
+     *  ponytail: whole-school map of base64 JPEGs — page it per-list if schools outgrow it. */
+    public Map<Long, String> avatarsByUserId() {
+        Map<Long, String> out = new LinkedHashMap<>();
+        Long tenantId = com.schoolhub.schoolservice.tenant.TenantContext.getTenantId();
+        if (tenantId == null) return out;
+        for (AppUser u : appUserRepo.findByTenantIdAndAvatarIsNotNull(tenantId)) {
+            out.put(u.getId(), u.getAvatar());
+        }
+        return out;
+    }
+
     /** Public handle lookup (e.g. a guardian finding a ward before linking) - only the minimal,
      *  non-sensitive fields, never the AppUser entity itself (it carries the password hash). */
     public Map<String, Object> searchByHandle(String handle) {

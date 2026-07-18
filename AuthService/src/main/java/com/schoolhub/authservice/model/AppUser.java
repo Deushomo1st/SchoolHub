@@ -47,6 +47,10 @@ public class AppUser {
     @Column(name = "avatar", columnDefinition = "text")
     private String avatar;
 
+    /** Admin-given staff title shown platform-wide (e.g. "Head of Sciences"), or NULL. */
+    @Column(name = "staff_title")
+    private String staffTitle;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
@@ -88,6 +92,8 @@ public class AppUser {
     public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
+    public String getStaffTitle() { return staffTitle; }
+    public void setStaffTitle(String staffTitle) { this.staffTitle = staffTitle; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
