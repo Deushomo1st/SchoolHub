@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-18 — Sliding pricing decks everywhere (one interaction model)
+
+- **Interaction model (all three pricing surfaces):** drag/swipe to slide with eased snap-back; **tapping a side card only brings it into focus** — committing takes a second tap on the focused card (or its button). Browsing can never accidentally pick a plan.
+- **Super-admin Plans & Pricing:** the static grid is now a 3D sliding deck with dots; Edit/Delete ride the focused card (tapping them on a side card focuses it first). Selection logic lives solely in `pointerup` — a separate click listener fired after the snap repositioned the deck and advanced it a second time (double-step bug, caught in-browser).
+- **Landing `#pricing`:** same deck; tapping the focused card (or "Choose X") goes to `signup.html?plan=X`.
+- **Signup carousel:** the old any-click-submits behavior is gone; side tap focuses, focused tap submits, and `?plan=` from the landing preselects the card.
+- Verified: landing tap-side→focus, tap-focused→`/signup.html?plan=Free`, signup preselect + side-tap-doesn't-submit, admin drag = exactly one step.
+
 ## 2026-07-17 — Marketing landing page, brand logo + corner badge, mega footer
 
 - **Signup moved:** the create-school flow (details + 3D plan carousel) now lives at `signup.html`; every link updated (login top-action, no-account hint). `index.html` is the marketing front door.
