@@ -1058,3 +1058,17 @@ section.block { margin-bottom: 28px; }
 }
 #shCornerLogo svg { width: 32px; height: 32px; display: block; }
 #shCornerLogo:hover { transform: translateY(-3px) scale(1.06); box-shadow: var(--glass-shadow); }
+
+/* ---- Plans & Pricing deck: sliding stage (drag, click a side card to focus, dots) ---- */
+.plan-carousel { perspective: 1100px; display: flex; justify-content: center; overflow: hidden; padding: 8px 0 18px; }
+.plan-stage { position: relative; width: 330px; height: 440px; transform-style: preserve-3d; }
+.plan-stage .plan-card {
+  position: absolute; inset: 0; margin: 0; display: flex; flex-direction: column;
+  cursor: grab; user-select: none; touch-action: pan-y; will-change: transform, filter, opacity;
+}
+.plan-stage .plan-card:active { cursor: grabbing; }
+.plan-stage .plan-card .plan-actions { margin-top: auto; }
+.plan-stage .plan-card.is-active { border-color: var(--brand); box-shadow: var(--glass-shadow); }
+.plan-dots { display: flex; gap: 8px; justify-content: center; }
+.plan-dots i { width: 8px; height: 8px; border-radius: 6px; background: var(--line); cursor: pointer; transition: all .3s ease; }
+.plan-dots i.on { background: var(--brand); width: 24px; }

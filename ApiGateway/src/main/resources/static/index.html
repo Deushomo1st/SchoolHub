@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SchoolHub — Helps run your institution</title>
 <meta name="description" content="SchoolHub is the all-in-one platform for schools: admissions, attendance, results, fees with online payments, library, events and more — every role in one place.">
-<link rel="stylesheet" href="/css/style.css?v=52">
+<link rel="stylesheet" href="/css/style.css?v=53">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("shTheme")||"light"}catch(e){}</script>
 <style>
 /* ---- Marketing landing (scoped under body.mkt; tokens come from style.css) ---- */
@@ -79,9 +79,16 @@
 .mod-card b{display:block;font-size:15px;margin-bottom:4px}
 .mod-card span{font-size:13px;color:var(--muted);line-height:1.5}
 
-/* Pricing (live) */
-.price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;max-width:920px;margin:0 auto}
-.price-card{position:relative;border-radius:20px;padding:28px 22px;display:flex;flex-direction:column;gap:10px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow-soft)}
+/* Pricing (live): sliding deck — drag to browse, tap a side card to focus, tap the focused card (or its button) to choose */
+.price-carousel{perspective:1100px;display:flex;justify-content:center;align-items:center;overflow:hidden;padding:6px 0 22px}
+.price-stage{position:relative;width:340px;height:470px;transform-style:preserve-3d}
+.price-stage>.muted{text-align:center;width:100%}
+.price-dots{display:flex;gap:8px;justify-content:center}
+.price-dots i{width:8px;height:8px;border-radius:6px;background:var(--line);cursor:pointer;transition:all .3s ease}
+.price-dots i.on{background:var(--brand);width:24px}
+.price-card{position:absolute;inset:0;cursor:grab;user-select:none;touch-action:pan-y;will-change:transform,filter,opacity;border-radius:20px;padding:28px 22px;display:flex;flex-direction:column;gap:10px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow-soft)}
+.price-card:active{cursor:grabbing}
+.price-card.is-active{cursor:pointer}
 .price-card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--glass-sheen);mix-blend-mode:screen;pointer-events:none}
 .price-card.pop{border-color:var(--brand);box-shadow:var(--glass-shadow)}
 .price-card .pname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--brand)}
@@ -317,7 +324,8 @@ section{padding:36px 0}
   <section id="pricing">
     <h2 class="sec">Simple pricing, in naira</h2>
     <p class="sec-sub">Pick a plan during signup — change it whenever your school grows.</p>
-    <div class="price-grid" id="priceGrid"><p class="muted" style="text-align:center;grid-column:1/-1">Loading plans&#8230;</p></div>
+    <div class="price-carousel"><div class="price-stage" id="priceStage"><p class="muted">Loading plans&#8230;</p></div></div>
+    <div class="price-dots" id="priceDots"></div>
   </section>
 
   <!-- Testimonials (demo) -->
@@ -463,22 +471,78 @@ document.getElementById("newsForm").addEventListener("submit",function(ev){
   ev.target.innerHTML="<span style='color:var(--ok);font-weight:700;font-size:14px'>&#10003; You're on the list &#8212; see you at the next bell.</span>";
 });
 
-// Live pricing from the public plans endpoint
+// Live pricing: sliding deck. Drag to browse; tapping a side card only focuses it —
+// choosing happens by tapping the focused card (or its button), which hands the
+// plan to signup via ?plan=.
 (async function(){
-  var grid=document.getElementById("priceGrid");
+  var stage=document.getElementById("priceStage"),dots=document.getElementById("priceDots");
   function check(t){return "<li><span class=check>&#10003;</span>"+esc(t)+"</li>"}
+  var plans=[];
   try{
-    var plans=await api("/api/v1/tenants/plans");
-    if(!plans||!plans.length){grid.innerHTML="<p class=muted style='text-align:center;grid-column:1/-1'>Plans are being finalised &#8212; sign up and pick one there.</p>";return}
-    grid.innerHTML=plans.map(function(p,i){
-      var perks=(p.description||"").split(",").map(function(s){return s.trim()}).filter(Boolean);
-      return "<div class='price-card"+(i===1?" pop":"")+"'>"+
-        "<span class=pname>"+esc(p.name)+(i===1?" &#183; most popular":"")+"</span>"+
-        "<span class=pprice>"+(p.priceNaira?"&#8358;"+p.priceNaira.toLocaleString():"Free")+"<span>/term</span></span>"+
-        "<ul>"+perks.map(check).join("")+"</ul>"+
-        "<a class=btn href='/signup.html'>Choose "+esc(p.name)+"</a></div>";
-    }).join("");
-  }catch(e){grid.innerHTML="<p class=muted style='text-align:center;grid-column:1/-1'>Could not load plans right now.</p>"}
+    plans=await api("/api/v1/tenants/plans");
+  }catch(e){stage.innerHTML="<p class=muted>Could not load plans right now.</p>";return}
+  if(!plans||!plans.length){stage.innerHTML="<p class=muted>Plans are being finalised &#8212; sign up and pick one there.</p>";return}
+
+  var active=plans.length>1?1:0;
+  stage.innerHTML=plans.map(function(p,i){
+    var perks=(p.description||"").split(",").map(function(s){return s.trim()}).filter(Boolean);
+    return "<div class='price-card"+(i===1?" pop":"")+"' data-idx="+i+">"+
+      "<span class=pname>"+esc(p.name)+(i===1?" &#183; most popular":"")+"</span>"+
+      "<span class=pprice>"+(p.priceNaira?"&#8358;"+p.priceNaira.toLocaleString():"Free")+"<span>/term</span></span>"+
+      "<ul>"+perks.map(check).join("")+"</ul>"+
+      "<span class=btn style='margin-top:auto;position:relative;z-index:1;text-align:center'>Choose "+esc(p.name)+"</span></div>";
+  }).join("");
+  dots.innerHTML=plans.map(function(p,i){return "<i data-dot="+i+" title='"+esc(p.name)+"'></i>"}).join("");
+
+  var cards=[].slice.call(stage.querySelectorAll(".price-card"));
+  var startX=0,dx=0,dragging=false;
+  var EASE="transform .45s cubic-bezier(.22,1,.36,1), filter .45s ease, opacity .45s ease";
+  function place(c,i,shift){
+    var d=i-active;
+    if(d===0)c.style.transform="translateX("+shift+"px) translateZ(0) scale(1)";
+    else if(Math.abs(d)===1)c.style.transform="translateX(calc("+(d*55)+"% + "+shift+"px)) translateZ(-60px) scale(.86)";
+    else c.style.transform="translateX("+(d>0?70:-70)+"%) translateZ(-120px) scale(.7)";
+  }
+  function position(){
+    cards.forEach(function(c,i){
+      var d=i-active;
+      c.style.transition=EASE;
+      place(c,i,0);
+      c.style.filter=d===0?"none":Math.abs(d)===1?"blur(1.5px) brightness(.8)":"blur(3px)";
+      c.style.opacity=d===0?"1":Math.abs(d)===1?".7":"0";
+      c.style.zIndex=d===0?3:Math.abs(d)===1?2:1;
+      c.style.pointerEvents=Math.abs(d)>1?"none":"";
+      c.classList.toggle("is-active",d===0);
+    });
+    dots.querySelectorAll("i").forEach(function(el,i){el.classList.toggle("on",i===active)});
+  }
+  function choose(i){location.href="/signup.html?plan="+encodeURIComponent(plans[i].name)}
+  cards.forEach(function(c,i){
+    c.addEventListener("pointerdown",function(e){
+      dragging=true;dx=0;startX=e.clientX;
+      try{c.setPointerCapture(e.pointerId)}catch(err){}
+      cards.forEach(function(x){x.style.transition="none"});
+    });
+    c.addEventListener("pointermove",function(e){
+      if(!dragging)return;
+      dx=e.clientX-startX;
+      cards.forEach(function(x,j){if(Math.abs(j-active)<=1)place(x,j,dx*.35)});
+    });
+    // One handler decides drag-snap vs tap: side tap = focus, focused tap = choose.
+    c.addEventListener("pointerup",function(){
+      if(!dragging)return;
+      dragging=false;
+      if(dx<-90&&active<cards.length-1)active++;
+      else if(dx>90&&active>0)active--;
+      else if(Math.abs(dx)<8){
+        if(i!==active){active=i}else{choose(i);return}
+      }
+      position();
+    });
+    c.addEventListener("pointercancel",function(){dragging=false;position()});
+  });
+  dots.querySelectorAll("i").forEach(function(el){el.onclick=function(){active=Number(el.dataset.dot);position()}});
+  position();
 })();
 
 // Hero shards: gentle scroll sweep (eased, low sensitivity) + click-and-drag.

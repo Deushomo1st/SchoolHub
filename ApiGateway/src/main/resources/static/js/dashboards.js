@@ -762,19 +762,23 @@ async function platformSchools(pane) {
 async function platformPlans(pane, isOwner) {
   pane.innerHTML = `<div id="plMsg" class="msg"></div>
     ${isOwner ? '<div style="margin-bottom:16px"><button class="btn" id="plNew"><i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> New plan</button></div>' : ''}
-    <div class="plan-grid" id="plGrid"><p class="muted">Loading…</p></div>`;
+    <div class="plan-carousel"><div class="plan-stage" id="plStage"><p class="muted">Loading…</p></div></div>
+    <div class="plan-dots" id="plDots"></div>`;
   if (window.lucide) lucide.createIcons({ root: pane });
   const msg = document.getElementById('plMsg');
+  let active = 0; // survives reloads so edits don't jump the deck back to the first card
 
   async function load() {
     let plans = [];
     try { plans = await api('/api/v1/tenants/plans'); }
-    catch (e) { document.getElementById('plGrid').innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; return; }
-    const grid = document.getElementById('plGrid');
-    if (!plans.length) { grid.innerHTML = '<p class="muted">No plans yet.</p>'; return; }
-    grid.innerHTML = plans.map(p => {
+    catch (e) { document.getElementById('plStage').innerHTML = '<p class="msg show err">' + esc(e.message) + '</p>'; return; }
+    const stage = document.getElementById('plStage'), dotsEl = document.getElementById('plDots');
+    if (!plans.length) { stage.innerHTML = '<p class="muted">No plans yet.</p>'; dotsEl.innerHTML = ''; return; }
+    active = Math.min(active, plans.length - 1);
+
+    stage.innerHTML = plans.map((p, i) => {
       const perks = (p.description || '').split(',').map(s => s.trim()).filter(Boolean);
-      return `<div class="plan-card">
+      return `<div class="plan-card" data-idx="${i}">
         <div class="plan-badge">${esc(p.name)}</div>
         <div class="plan-price">${p.priceNaira ? naira(p.priceNaira) : 'Free'}<span>/term</span></div>
         <div class="plan-cap">Up to <strong>${(p.maxStudents || 0).toLocaleString()}</strong> students</div>
@@ -782,9 +786,68 @@ async function platformPlans(pane, isOwner) {
         ${isOwner ? `<div class="plan-actions"><button class="btn ghost" data-edit="${p.id}">Edit</button><button class="btn ghost danger-text" data-del="${p.id}">Delete</button></div>` : ''}
       </div>`;
     }).join('');
+    dotsEl.innerHTML = plans.map((p, i) => `<i data-dot="${i}" title="${esc(p.name)}"></i>`).join('');
+
+    const cards = [...stage.querySelectorAll('.plan-card')];
+    let startX = 0, dx = 0, dragging = false;
+    const EASE = 'transform .45s cubic-bezier(.22,1,.36,1), filter .45s ease, opacity .45s ease';
+
+    function place(c, i, shift) {
+      const d = i - active;
+      if (d === 0)             c.style.transform = `translateX(${shift}px) translateZ(0) scale(1)`;
+      else if (Math.abs(d) === 1) c.style.transform = `translateX(calc(${d * 55}% + ${shift}px)) translateZ(-60px) scale(.86)`;
+      else                     c.style.transform = `translateX(${d > 0 ? 70 : -70}%) translateZ(-120px) scale(.7)`;
+    }
+    function position() {
+      cards.forEach((c, i) => {
+        const d = i - active;
+        c.style.transition = EASE;
+        place(c, i, 0);
+        c.style.filter = d === 0 ? 'none' : Math.abs(d) === 1 ? 'blur(1.5px) brightness(.8)' : 'blur(3px)';
+        c.style.opacity = d === 0 ? '1' : Math.abs(d) === 1 ? '.7' : '0';
+        c.style.zIndex = d === 0 ? 3 : Math.abs(d) === 1 ? 2 : 1;
+        c.style.pointerEvents = Math.abs(d) > 1 ? 'none' : '';
+        c.classList.toggle('is-active', d === 0);
+      });
+      dotsEl.querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i === active));
+    }
+    function select(i) { if (i !== active) { active = i; position(); } }
+
+    cards.forEach((c, i) => {
+      c.addEventListener('pointerdown', e => {
+        dragging = true; dx = 0; startX = e.clientX;
+        try { c.setPointerCapture(e.pointerId); } catch (err) {}
+        cards.forEach(x => x.style.transition = 'none');
+      });
+      c.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        dx = e.clientX - startX;
+        cards.forEach((x, j) => { if (Math.abs(j - active) <= 1) place(x, j, dx * .35); });
+      });
+      // One handler decides drag-snap vs tap-select — a separate click listener would
+      // fire after the snap repositions the deck and advance it a second time.
+      c.addEventListener('pointerup', e => {
+        if (!dragging) return;
+        dragging = false;
+        if (dx < -90 && active < cards.length - 1) active++;
+        else if (dx > 90 && active > 0) active--;
+        else if (Math.abs(dx) < 8 && !e.target.closest('button')) select(i); // tap a side card = focus it
+        position();
+      });
+      c.addEventListener('pointercancel', () => { dragging = false; position(); });
+    });
+    dotsEl.querySelectorAll('i').forEach(el => el.onclick = () => select(Number(el.dataset.dot)));
+    position();
+
     if (isOwner) {
-      grid.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editPlan(plans.find(p => String(p.id) === b.dataset.edit)));
-      grid.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      stage.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+        const i = Number(b.closest('.plan-card').dataset.idx);
+        if (i !== active) { select(i); return; }             // side card: first click focuses it
+        editPlan(plans.find(p => String(p.id) === b.dataset.edit));
+      });
+      stage.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        const i = Number(b.closest('.plan-card').dataset.idx);
+        if (i !== active) { select(i); return; }
         const p = plans.find(x => String(x.id) === b.dataset.del);
         if (!(await glassConfirm('Delete the "' + p.name + '" plan? Schools already on it keep it; new signups can\'t pick it.', { title: 'Delete plan', danger: true, okText: 'Delete' }))) return;
         try { await api('/api/v1/tenants/plans/' + p.id, { method: 'DELETE' }); showMsg(msg, 'Plan deleted.', 'ok'); load(); }

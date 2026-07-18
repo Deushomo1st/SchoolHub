@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SchoolHub - bring your school online</title>
-<link rel="stylesheet" href="/css/style.css?v=52">
+<link rel="stylesheet" href="/css/style.css?v=53">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("shTheme")||"light"}catch(e){}</script>
 <!-- Activity click tracking lives in /js/app.js (shared by every page) -->
 <style>
@@ -49,7 +49,7 @@ ul.plan-features-3d li .check{color:var(--ok);margin-right:6px}
 <div class="container plan-step hidden" id="step2">
 <a href="#" id="backLink" class="muted">&larr; Back to details</a>
 <h1 style="text-align:center;margin-top:10px">Choose your plan</h1>
-<p class="muted" style="text-align:center">Swipe or drag to compare plans. Pick the one that fits.</p>
+<p class="muted" style="text-align:center">Swipe or drag to compare. Tap a plan to bring it forward &#8212; tap it again to pick it.</p>
 <div id="msg2" class="msg" style="max-width:460px;margin:0 auto"></div>
 <div class="plan-carousel-wrap"><div class="plan-stage" id="planStage"><p class="muted" style="text-align:center;width:100%">Loading plans…</p></div></div>
 </div>
@@ -75,7 +75,13 @@ function buildCards(){
       "<div class=plan-divider-3d></div>"+
       "<ul class=plan-features-3d>"+feats+"</ul>"+
       "<div class=plan-cta-3d><button class=btn>Choose "+esc(p.name)+"</button></div>";
-    div.addEventListener("click",function(e){if(Math.abs(dx)<10)submitSignup(plans[activeIdx].name)});
+    // Tap a side card to bring it into focus; only tapping the focused card submits —
+    // so browsing can never accidentally pick a plan.
+    div.addEventListener("click",function(e){
+      if(Math.abs(dx)>=10)return;
+      if(i!==activeIdx){activeIdx=i;positionCards()}
+      else submitSignup(plans[activeIdx].name);
+    });
     div.addEventListener("touchstart",onStart,{passive:false});
     div.addEventListener("mousedown",onStart);
     stage.appendChild(div);
@@ -159,7 +165,11 @@ function onEnd(){
 async function showPlanStep(){
 document.querySelector(".hero").style.display="none";
 step1.classList.add("hidden");step2.classList.remove("hidden");hideMsg(msg2);
-try{plans=await api("/api/v1/tenants/plans");if(!plans.length){stage.innerHTML="<p class=muted>No plans available.</p>";return}activeIdx=plans.length>1?1:0;buildCards()}catch(e){stage.innerHTML="";showMsg(msg2,"Could not load plans: "+e.message,"err")}
+try{plans=await api("/api/v1/tenants/plans");if(!plans.length){stage.innerHTML="<p class=muted>No plans available.</p>";return}
+var want=new URLSearchParams(location.search).get("plan");
+var wi=plans.findIndex(function(p){return p.name===want});
+activeIdx=wi>=0?wi:(plans.length>1?1:0);
+buildCards()}catch(e){stage.innerHTML="";showMsg(msg2,"Could not load plans: "+e.message,"err")}
 }
 document.getElementById("detailsForm").addEventListener("submit",function(ev){ev.preventDefault();details=Object.fromEntries(new FormData(ev.target).entries());showPlanStep()});
 document.getElementById("backLink").addEventListener("click",function(ev){ev.preventDefault();document.querySelector(".hero").style.display="";step2.classList.add("hidden");step1.classList.remove("hidden")});
