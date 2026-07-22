@@ -862,13 +862,13 @@ function Action-DbTools {
         $active = Get-ActivePreset
         Write-Host "`n  Database Tools — Active DB: $(Get-ActiveDb)  |  $(Cloud-ModeLabel)" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "  -- Local --------------------------------------"
+        Write-Host "  -- Database Operations (on: $(Cloud-ModeLabel)) -----"
         Write-Host "    1) Switch database"
         Write-Host "    2) Create database"
         Write-Host "    3) Delete database"
         Write-Host "    4) Rename database"
         Write-Host ""
-        Write-Host "  -- Online (Presets) ---------------------------"
+        Write-Host "  -- Presets -----------------------------------"
         Write-Host "    5) Switch preset"
         Write-Host "    6) Create new preset"
         Write-Host "    7) Edit presets file"
