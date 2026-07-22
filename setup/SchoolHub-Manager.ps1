@@ -859,11 +859,21 @@ function Action-SwitchDb {
 # ---- 4) Database tools (sub-menu) -----------------------------------------
 function Action-DbTools {
     while ($true) {
-        Write-Host "`n  Database Tools — Active DB: $(Get-ActiveDb)" -ForegroundColor Cyan
+        $active = Get-ActivePreset
+        Write-Host "`n  Database Tools — Active DB: $(Get-ActiveDb)  |  $(Cloud-ModeLabel)" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  -- Local --------------------------------------"
         Write-Host "    1) Switch database"
         Write-Host "    2) Create database"
         Write-Host "    3) Delete database"
         Write-Host "    4) Rename database"
+        Write-Host ""
+        Write-Host "  -- Online (Presets) ---------------------------"
+        Write-Host "    5) Switch preset"
+        Write-Host "    6) Create new preset"
+        Write-Host "    7) Edit presets file"
+        Write-Host ""
+        Write-Host "    t) Test active connection"
         Write-Host "    b) Back"
         $ch = Read-Host "  Choose"
         switch ($ch) {
@@ -871,6 +881,10 @@ function Action-DbTools {
             '2' { Action-CreateDb }
             '3' { Action-DeleteDb }
             '4' { Action-RenameDb }
+            '5' { Action-SwitchPreset }
+            '6' { Action-CreatePreset }
+            '7' { Edit-DbPresets }
+            't' { if (Test-PgAuth) { Write-Host "  Connection: OK" -ForegroundColor Green } else { Write-Host "  Connection: FAILED" -ForegroundColor Red }; Press-Enter }
             'b' { return }
             default { Write-Host "  ?" -ForegroundColor Yellow }
         }
@@ -1171,58 +1185,76 @@ function Action-KillStale {
     else { Write-Host "  ?" -ForegroundColor Yellow }
     Press-Enter
 }
-# ---- DB presets picker -----------------------------------------------------
-function Action-CloudConnect {
-    while ($true) {
-        $presets = Load-DbPresets
-        $active  = Get-ActivePreset
-        Write-Host "`n  DB Presets" -ForegroundColor Cyan
-        if ($active) {
-            $status = if ($active.name -eq 'local') { "LOCAL" } else { "CLOUD" }
-            Write-Host "  Active: $status -- $($active.label)  ($($active.host):$($active.port) as $($active.user))" -ForegroundColor Green
-        } else {
-            Write-Host "  Active: LOCAL (localhost:5432) [no presets file]" -ForegroundColor Yellow
-        }
-        Write-Host ""
-        if ($presets.Count -gt 0) {
-            for ($i=0; $i -lt $presets.Count; $i++) {
-                $mark = if ($active -and $presets[$i].name -eq $active.name) { " [ACTIVE]" } else { "" }
-                Write-Host "    $($i+1)) $($presets[$i].label)  ($($presets[$i].host):$($presets[$i].port))$mark"
-            }
-        } else {
-            Write-Host "    (no presets configured)"
-        }
-        Write-Host ""
-        Write-Host "    t) Test active connection"
-        Write-Host "    e) Edit presets file (JSON)"
-        Write-Host "    b) Back"
-        Write-Host ""
-        $ch = Read-Host "  Choose (1..$($presets.Count) or t/e/b)"
-        switch -Regex ($ch) {
-            '^[0-9]+$' {
-                $idx = [int]$ch - 1
-                if ($idx -ge 0 -and $idx -lt $presets.Count) {
-                    $p = $presets[$idx]
-                    Apply-DbPreset $p
-                    try {
-                        $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json
-                        $json.activePreset = $p.name
-                        $json | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PresetsFile -NoNewline
-                    } catch {}
-                    $label = if ($p.name -eq 'local') { "LOCAL" } else { "CLOUD" }
-                    Write-Host "  Switched to $label -- $($p.label)" -ForegroundColor Cyan
-                }
-            }
-            't' {
-                if (Test-PgAuth) { Write-Host "  Connection: OK" -ForegroundColor Green }
-                else { Write-Host "  Connection: FAILED" -ForegroundColor Red }
-                Press-Enter
-            }
-            'e' { Edit-DbPresets }
-            'b' { return }
-            default { Write-Host "  ?" -ForegroundColor Yellow }
-        }
+# ---- Preset switcher + creator ---------------------------------------------
+function Action-SwitchPreset {
+    $presets = Load-DbPresets
+    $active  = Get-ActivePreset
+    Write-Host "`n  Switch Preset" -ForegroundColor Cyan
+    if ($presets.Count -eq 0) {
+        Write-Host "  No presets configured. Use option 6 to create one." -ForegroundColor Yellow
+        Press-Enter; return
     }
+    if ($active) {
+        Write-Host "  Active: $($active.label)  ($($active.host):$($active.port) as $($active.user))" -ForegroundColor Green
+    }
+    Write-Host ""
+    for ($i=0; $i -lt $presets.Count; $i++) {
+        $mark = if ($active -and $presets[$i].name -eq $active.name) { " [ACTIVE]" } else { "" }
+        Write-Host "    $($i+1)) $($presets[$i].label)  ($($presets[$i].host):$($presets[$i].port))$mark"
+    }
+    Write-Host ""
+    $ch = Read-Host "  Choose (1..$($presets.Count) or Enter to cancel)"
+    if (-not $ch) { return }
+    if ($ch -match '^[0-9]+$') {
+        $idx = [int]$ch - 1
+        if ($idx -ge 0 -and $idx -lt $presets.Count) {
+            $p = $presets[$idx]
+            Apply-DbPreset $p
+            try {
+                $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json
+                $json.activePreset = $p.name
+                $json | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PresetsFile -NoNewline
+            } catch {}
+            $label = if ($p.name -eq 'local') { "LOCAL" } else { "CLOUD" }
+            Write-Host "  Switched to $label -- $($p.label)" -ForegroundColor Cyan
+        }
+    } else { Write-Host "  ?" -ForegroundColor Yellow }
+    Press-Enter
+}
+
+function Action-CreatePreset {
+    Write-Host "`n  Create New Preset" -ForegroundColor Cyan
+    $name = (Read-Host "  Preset name (one word, e.g. staging)").Trim()
+    if (-not $name) { Write-Host "  Cancelled." -ForegroundColor Yellow; return }
+    if ($name -match '[^a-z0-9_-]') { Write-Host "  Name must be lowercase letters, numbers, hyphens, or underscores only." -ForegroundColor Yellow; return }
+    $label = (Read-Host "  Display label (e.g. Staging Server)").Trim()
+    if (-not $label) { $label = $name }
+    # Load existing presets and add the new blank one
+    $json = $null
+    if (Test-Path $PresetsFile) {
+        try { $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json } catch {}
+    }
+    if (-not $json) {
+        $json = @{ activePreset = 'local'; presets = @() }
+    }
+    # Check for duplicate name
+    foreach ($p in $json.presets) {
+        if ($p.name -eq $name) { Write-Host "  A preset named '$name' already exists." -ForegroundColor Yellow; return }
+    }
+    $blank = @{
+        name = $name
+        label = $label
+        host = ''
+        port = 5432
+        database = 'postgres'
+        user = ''
+        password = ''
+        springProfile = $null
+    }
+    $json.presets += $blank
+    $json | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PresetsFile -NoNewline
+    Write-Host "  Preset '$name' added. Opening editor to fill in details..." -ForegroundColor Green
+    Edit-DbPresets
 }
 # ---- 7) New laptop setup --------------------------------------------------
 function Action-NewLaptopSetup {
@@ -1346,9 +1378,6 @@ while ($true) {
     Write-Host "  5) Super-admins"
     Write-Host "  6) Debug"
     Write-Host "  7) New laptop setup"
-    Write-Host "  c) DB presets"
-    Write-Host "  e) Edit DB presets"
-    Write-Host ""
     Write-Host "  q) Quit"
     Write-Host ""
     $ch = Read-Host "Choose"
@@ -1361,8 +1390,6 @@ while ($true) {
             '5' { Action-SuperAdmins }
             '6' { Action-Debug }
             '7' { Action-NewLaptopSetup }
-            'c' { Action-CloudConnect }
-            'e' { Edit-DbPresets }
             'q' { Write-Host "Bye." -ForegroundColor Cyan; exit 0 }
             default { Write-Host "?" -ForegroundColor Yellow; Start-Sleep -Milliseconds 600 }
         }

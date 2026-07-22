@@ -56,11 +56,12 @@
 
 - **`db-presets.json`:** externalised all DB connection details (host, port, database, user, password, Spring profile) into a gitignored JSON presets file. Supports any number of named connection presets (local, Supabase, staging, etc.).
 - **`db-presets.example.json`:** tracked template with blank passwords — clone-and-edit to get started.
-- **Manager `c` menu → DB presets picker:** lists all presets from JSON, pick by number to switch. Active preset shown in header (replaces old "CLOUD / localhost" binary toggle). Backward-compat: old `.schoolhub_cloud.txt` helpers preserved.
-- **Manager `e` key:** opens `db-presets.json` in editor (VS Code / notepad fallback) — add, rename, or reconfigure presets without touching the `.ps1`.
-- **`Edit-DbPresets`:** first-run auto-creates the JSON from the example template (or a minimal local-only bootstrap).
-- **`Apply-DbPreset`:** sets all globals (`$DbHost`, `$DbPort`, `$DbUser`, `$CloudActive`, `$env:PGPASSWORD`) from a preset — `$CloudActive` is derived (`name != 'local'`), so any non-local preset triggers `--spring.profiles.active=supabase` on launch.
-- Byte-safe edit: 101 insertions, 23 deletions; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
+- **DbTools restructured into Local/Online sectors:** menu item `4` now shows Local (Switch/Create/Delete/Rename database) and Online Presets (Switch/Create/Edit presets + test connection). The old standalone `c` and `e` main-menu items removed — everything is consolidated under `4`.
+- **`5) Switch preset`:** lists all presets from JSON, pick by number to switch. Active preset shown in DbTools header.
+- **`6) Create new preset`:** prompts for name + display label → appends a blank entry to `db-presets.json` → opens the file in your editor so you fill in host/port/user/password. Validates no duplicates, lowercase-slug-only name.
+- **`7) Edit presets file`:** opens `db-presets.json` in VS Code (or notepad fallback). First-run auto-creates from example template.
+- Backward-compat: legacy `.schoolhub_cloud.txt` helpers preserved.
+- Byte-safe edits: 101→237 insertions across the session; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
 
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
 
