@@ -22,6 +22,60 @@ $TenantSql    = Join-Path $ProjectRoot 'db\tenant_template.sql'
 $DbHost       = 'localhost'
 $DbPort       = 5432
 $DbUser       = 'postgres'
+# ---- Cloud connection (Supabase / remote PG) --------------------------------
+$CloudFile    = Join-Path $ProjectRoot '.schoolhub_cloud.txt'
+$CloudActive  = $false
+$CloudHost    = ''
+$CloudPort    = ''
+$CloudUser    = ''
+$CloudPass    = ''
+
+function Cloud-ModeLabel { if ($CloudActive) { ("CLOUD ({0})" -f $CloudHost) } else { "localhost" } }
+
+function Load-CloudConnection {
+    if (-not (Test-Path $CloudFile)) { return $false }
+    $raw = Get-Content -Raw -LiteralPath $CloudFile
+    if ($raw -match 'jdbc:postgresql://([^:/]+):(\d+)/(\w+)\?user=([^&]+)&password=(.+)') {
+        $script:CloudHost   = $Matches[1]
+        $script:CloudPort   = $Matches[2]
+        $script:CloudUser   = $Matches[4]
+        $script:CloudPass   = $Matches[5]
+        $script:CloudActive = $true
+        $script:DbHost = $CloudHost
+        $script:DbPort = $CloudPort
+        $script:DbUser = $CloudUser
+        $env:PGPASSWORD = $CloudPass
+        return $true
+    }
+    return $false
+}
+
+function Set-CloudConnection($jdbcUrl) {
+    $jdbcUrl.Trim() | Set-Content -LiteralPath $CloudFile -NoNewline
+    Write-Host "  Cloud connection saved." -ForegroundColor Green
+    if (Load-CloudConnection) {
+        $msg = "  Cloud mode active -- {0}:{1} as {2}" -f $CloudHost, $CloudPort, $CloudUser
+        Write-Host $msg -ForegroundColor Cyan
+    }
+}
+
+function Toggle-CloudMode {
+    if ($CloudActive) {
+        $script:CloudActive = $false
+        $script:DbHost = 'localhost'
+        $script:DbPort = 5432
+        $script:DbUser = 'postgres'
+        $env:PGPASSWORD = $DbUser
+        Write-Host "  Switched to LOCAL (localhost:5432)." -ForegroundColor Yellow
+    } else {
+        if (Load-CloudConnection) {
+            $msg = "  Switched to CLOUD ({0})." -f $CloudHost
+            Write-Host $msg -ForegroundColor Cyan
+        } else {
+            Write-Host "  No cloud connection configured. Use option 1 to set up." -ForegroundColor Yellow
+        }
+    }
+}
 $GatewayUrl   = 'http://localhost:9000'
 
 $Services = @(
@@ -1036,7 +1090,39 @@ function Action-KillStale {
     else { Write-Host "  ?" -ForegroundColor Yellow }
     Press-Enter
 }
-
+# ---- Cloud connection ------------------------------------------------------
+function Action-CloudConnect {
+    while ($true) {
+        Write-Host "`n  Cloud Connection" -ForegroundColor Cyan
+        if ($CloudActive) {
+            Write-Host "  Status: CONNECTED -- ${CloudHost}:${CloudPort} as ${CloudUser}" -ForegroundColor Green
+        } else {
+            Write-Host "  Status: LOCAL (localhost:5432)" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        Write-Host "    1) Set up / update cloud connection"
+        Write-Host "    2) Toggle cloud <-> local"
+        if ($CloudActive) { Write-Host "    3) Test connectivity" }
+        Write-Host "    b) Back"
+        $ch = Read-Host "  Choose"
+        switch ($ch) {
+            '1' {
+                Write-Host "  Paste the Supabase JDBC URL (Session mode):" -ForegroundColor Cyan
+                $url = Read-Host "  JDBC URL"
+                if ($url) { Set-CloudConnection $url }
+            }
+            '2' { Toggle-CloudMode }
+            '3' {
+                if ($CloudActive) {
+                    if (Test-PgAuth) { Write-Host "  Cloud connection: OK" -ForegroundColor Green }
+                    else { Write-Host "  Cloud connection: FAILED" -ForegroundColor Red }
+                }
+            }
+            'b' { return }
+            default { Write-Host "  ?" -ForegroundColor Yellow }
+        }
+    }
+}
 # ---- 7) New laptop setup --------------------------------------------------
 function Action-NewLaptopSetup {
     Write-Host "`n  New Laptop Setup" -ForegroundColor Cyan
@@ -1149,8 +1235,8 @@ while ($true) {
     Clear-Host
     Write-Host "==============================================" -ForegroundColor Cyan
     Write-Host " SchoolHub Manager" -ForegroundColor Cyan
-    Write-Host " Active DB: $(Get-ActiveDb)" -ForegroundColor DarkGray
-    Write-Host "==============================================" -ForegroundColor Cyan
+    Write-Host " Active DB: $(Get-ActiveDb)  |  $(Cloud-ModeLabel)" -ForegroundColor DarkGray
+        Write-Host "===============================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  1) Start services"
     Write-Host "  2) Restart services"
@@ -1159,6 +1245,7 @@ while ($true) {
     Write-Host "  5) Super-admins"
     Write-Host "  6) Debug"
     Write-Host "  7) New laptop setup"
+    Write-Host "  c) Cloud connect"
     Write-Host ""
     Write-Host "  q) Quit"
     Write-Host ""
@@ -1172,6 +1259,7 @@ while ($true) {
             '5' { Action-SuperAdmins }
             '6' { Action-Debug }
             '7' { Action-NewLaptopSetup }
+            'c' { Action-CloudConnect }
             'q' { Write-Host "Bye." -ForegroundColor Cyan; exit 0 }
             default { Write-Host "?" -ForegroundColor Yellow; Start-Sleep -Milliseconds 600 }
         }
