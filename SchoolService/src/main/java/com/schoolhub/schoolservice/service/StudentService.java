@@ -8,13 +8,17 @@ import com.schoolhub.schoolservice.model.CohortOffering;
 import com.schoolhub.schoolservice.model.Enrollment;
 import com.schoolhub.schoolservice.model.SchoolClass;
 import com.schoolhub.schoolservice.model.Student;
+import com.schoolhub.schoolservice.model.StudentGuardian;
 import com.schoolhub.schoolservice.model.Teacher;
+import com.schoolhub.schoolservice.model.Guardian;
 import com.schoolhub.schoolservice.repository.ClassSubjectRepository;
 import com.schoolhub.schoolservice.repository.CohortOfferingRepository;
 import com.schoolhub.schoolservice.repository.CohortRepository;
 import com.schoolhub.schoolservice.repository.SchoolClassRepository;
 import com.schoolhub.schoolservice.repository.StudentRepository;
 import com.schoolhub.schoolservice.repository.TeacherRepository;
+import com.schoolhub.schoolservice.repository.StudentGuardianRepository;
+import com.schoolhub.schoolservice.repository.GuardianRepository;
 import com.schoolhub.schoolservice.tenant.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,7 +27,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,11 +44,14 @@ public class StudentService {
     private final EnrollmentService enrollmentService;
     private final CohortRepository cohortRepo;
     private final CohortOfferingRepository cohortOfferingRepo;
+    private final StudentGuardianRepository studentGuardianRepo;
+    private final GuardianRepository guardianRepo;
 
     public StudentService(StudentRepository repo, AccountProvisioning provisioning,
                           TeacherRepository teacherRepo, SchoolClassRepository classRepo,
                           ClassSubjectRepository classSubjectRepo, EnrollmentService enrollmentService,
-                          CohortRepository cohortRepo, CohortOfferingRepository cohortOfferingRepo) {
+                          CohortRepository cohortRepo, CohortOfferingRepository cohortOfferingRepo,
+                          StudentGuardianRepository studentGuardianRepo, GuardianRepository guardianRepo) {
         this.repo = repo;
         this.provisioning = provisioning;
         this.teacherRepo = teacherRepo;
@@ -51,6 +60,27 @@ public class StudentService {
         this.enrollmentService = enrollmentService;
         this.cohortRepo = cohortRepo;
         this.cohortOfferingRepo = cohortOfferingRepo;
+        this.studentGuardianRepo = studentGuardianRepo;
+        this.guardianRepo = guardianRepo;
+    }
+
+    /** Guardians linked to a student, with relationship. Accessible to teachers who teach the student's class. */
+    public List<Map<String, Object>> listGuardians(Long studentId) {
+        get(studentId); // enforces visibility (teacher can only see students in their classes)
+        List<StudentGuardian> links = studentGuardianRepo.findByStudentId(studentId);
+        return links.stream().map(link -> {
+            Guardian g = guardianRepo.findById(link.getGuardianId())
+                    .orElseThrow(() -> new EntityNotFoundException("Guardian not found: " + link.getGuardianId()));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", g.getId());
+            row.put("userId", g.getUserId());
+            row.put("firstName", g.getFirstName());
+            row.put("lastName", g.getLastName());
+            row.put("email", g.getEmail());
+            row.put("phone", g.getPhone());
+            row.put("relationship", link.getRelationship());
+            return row;
+        }).toList();
     }
 
     public List<Student> list() {

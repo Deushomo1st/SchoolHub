@@ -32,6 +32,12 @@ public class StudentController {
         return ResponseEntity.ok(studentService.get(id));
     }
 
+    @GetMapping("/{id}/guardians")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    public ResponseEntity<?> listGuardians(@PathVariable Long id) {
+        return ResponseEntity.ok(studentService.listGuardians(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     public ResponseEntity<?> create(@Valid @RequestBody StudentRequest req) {

@@ -1717,6 +1717,7 @@ async function adminAcademics(pane) {
 const TEACHER_SECTIONS = [
   { id: 'home',       icon: 'layout-grid',     label: 'Home' },
   { id: 'attendance', icon: 'clipboard-check', label: 'Attendance', desc: 'Mark today, class by class' },
+  { id: 'students',   icon: 'graduation-cap',  label: 'Students',   desc: 'Profiles & guardian links' },
   { id: 'results',    icon: 'file-bar-chart',  label: 'Results',    desc: 'Record assessment scores' },
   { id: 'groups',     icon: 'users',           label: 'Groups',     desc: 'Split classes into teams' },
   { id: 'calendar',   icon: 'calendar-days',   label: 'Calendar',   desc: 'School agenda & announcements' },
@@ -1877,6 +1878,96 @@ async function teacherResults(pane) {
 }
 
 // Groups: split any class you teach into named teams. Server rejects classes you don't teach.
+// ---- Student profile modal (shared across teacher attendance & students pane) ----
+async function openStudentProfile(sid) {
+  var d;
+  try {
+    var [s, guardians] = await Promise.all([
+      api('/api/v1/students/' + sid),
+      api('/api/v1/students/' + sid + '/guardians')
+    ]);
+    d = { profile: s, guardians: guardians };
+  } catch (e) {
+    openGlassModal({ html: '<div class="card msg show err">' + esc(e.message) + '</div>' });
+    return;
+  }
+  var p = d.profile;
+  var gs = d.guardians || [];
+  var ctrl = openGlassModal({
+    frost: true,
+    className: 'progress-modal',
+    html: '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+      + '<h2 style="margin:0">' + esc(p.firstName + ' ' + p.lastName) + '</h2>'
+      + '<button class="btn ghost" data-x="close" style="padding:4px 12px">✕</button></div>'
+      + '<div class="msg" data-m></div>'
+      + '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">'
+        + (typeof avatarCard === 'function'
+            ? avatarCard({ src: p.avatar || userAvatarsObj[p.userId], name: p.firstName + ' ' + p.lastName })
+            : '<div style="width:120px;height:90px;border-radius:12px;background:var(--glass-bg);border:1px solid var(--glass-border)"></div>')
+        + '<div style="flex:1;min-width:200px">'
+          + '<p style="margin:0"><span class="subtle">Class: </span>' + esc(p.className || 'Unassigned') + '</p>'
+          + (p.admissionNo ? '<p style="margin:2px 0 0"><span class="subtle">Admission: </span>' + esc(p.admissionNo) + '</p>' : '')
+          + '<p style="margin:2px 0 0"><span class="subtle">Status: </span>' + esc(p.status || 'active') + '</p>'
+          + '</div></div>'
+      + '<h3 style="margin-top:18px">Guardians' + (gs.length ? ' <span class="subtle">· ' + gs.length + '</span>' : '') + '</h3>'
+      + (gs.length
+          ? gs.map(function(g) {
+              return '<div class="card" style="margin:8px 0;padding:12px 16px">'
+                + '<div style="display:flex;align-items:center;gap:10px">'
+                + (avatarOf(g.userId)
+                    ? '<span class="wt-avatar"><img src="' + esc(avatarOf(g.userId)) + '" alt="' + esc(g.firstName) + '"></span>'
+                    : '<div class="wt-avatar wt-avatar-fallback" style="width:32px;height:32px;font-size:12px">'
+                      + esc(((g.firstName || '')[0] || '') + ((g.lastName || '')[0] || '')) + '</div>')
+                + '<div><strong>' + esc(g.firstName + ' ' + g.lastName) + '</strong>'
+                + (g.relationship ? '<span class="pill" style="margin-left:8px">' + esc(g.relationship) + '</span>' : '')
+                + '</div></div>'
+                + (g.email ? '<p style="margin:6px 0 0;font-size:13px">' + esc(g.email)
+                  + (g.phone ? ' · ' + esc(g.phone) : '') + '</p>' : '')
+                + '</div>';
+            }).join('')
+          : '<p class="muted">No guardians linked yet.</p>')
+  });
+  ctrl.panel.querySelector('[data-x="close"]').onclick = ctrl.close;
+}
+
+// ---- Teacher Students pane ----
+async function teacherStudents(pane) {
+  pane.innerHTML = '<div class="card"><h2>My students</h2><div id="tsMsg" class="msg"></div>'
+    + '<p class="muted" style="margin-top:0">Every student you teach — tap to see parents.</p>'
+    + '<div id="tsBody"><p class="muted">Loading…</p></div></div>';
+  var m = document.getElementById('tsMsg');
+  var body = document.getElementById('tsBody');
+  var students;
+  try { students = await api('/api/v1/students'); }
+  catch (e) { body.innerHTML = ''; showMsg(m, e.message, 'err'); return; }
+  if (!students.length) { body.innerHTML = '<p class="muted">No students assigned to your classes.</p>'; return; }
+  // Group by class
+  var grouped = {};
+  students.forEach(function(s) {
+    var cn = s.className || 'Unassigned';
+    if (!grouped[cn]) grouped[cn] = [];
+    grouped[cn].push(s);
+  });
+  var keys = Object.keys(grouped).sort();
+  body.innerHTML = keys.map(function(cn) {
+    return '<h3 style="margin:14px 0 8px">' + esc(cn) + '</h3>'
+      + grouped[cn].map(function(s) {
+          return '<div class="card" style="margin:6px 0;padding:10px 14px;cursor:pointer" data-sid="' + s.id + '">'
+            + '<div style="display:flex;align-items:center;gap:10px">'
+            + (avatarOf(s.userId)
+                ? '<span class="wt-avatar"><img src="' + esc(avatarOf(s.userId)) + '" alt="' + esc(s.firstName) + '"></span>'
+                : '<div class="wt-avatar wt-avatar-fallback" style="width:28px;height:28px;font-size:11px">'
+                  + esc(((s.firstName || '')[0] || '') + ((s.lastName || '')[0] || '')) + '</div>')
+            + '<strong>' + esc(s.lastName + ', ' + s.firstName) + '</strong>'
+            + (s.admissionNo ? '<span class="subtle" style="font-size:12px">' + esc(s.admissionNo) + '</span>' : '')
+            + '</div></div>';
+        }).join('');
+  }).join('');
+  body.querySelectorAll('[data-sid]').forEach(function(el) {
+    el.onclick = function() { openStudentProfile(num(el.dataset.sid)); };
+  });
+}
+
 async function teacherGroups(pane) {
   pane.innerHTML = `<div class="card"><h2>Class groups</h2><div id="cgm" class="msg"></div>
       <p class="muted" style="margin-top:0">Reading circles, project squads, debate teams - name a group, tick its members.</p>
@@ -1905,7 +1996,8 @@ async function teacherGroups(pane) {
       <div class="card" style="margin:10px 0">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
           <h3 style="margin:0">${esc(g.name)} <span class="subtle">· ${g.members.length} member${g.members.length === 1 ? '' : 's'}</span></h3>
-          <span><button class="btn secondary" data-edit="${g.id}">Edit</button>
+          <span><button class="btn ghost" data-assign="${g.id}" style="font-size:12px">Assign work</button>
+          <button class="btn secondary" data-edit="${g.id}">Edit</button>
           <button class="btn danger" data-del="${g.id}" style="margin-left:6px">Delete</button></span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${
           g.members.length ? g.members.map(m => `<span class="pill">${esc(m.name)}</span>`).join('')
@@ -1914,6 +2006,7 @@ async function teacherGroups(pane) {
       + `<button class="btn" id="cgNew" style="margin-top:12px">New group</button>`;
     document.getElementById('cgNew').onclick = () => groupForm(null);
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => groupForm(groups.find(g => g.id === num(b.dataset.edit))));
+    body.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => quickGroupAssessment(groups.find(g => g.id === num(b.dataset.assign))));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
       const g = groups.find(x => x.id === num(b.dataset.del));
       if (!(await glassConfirm('Delete the "' + g.name + '" group? The students themselves are untouched.',
@@ -1921,6 +2014,56 @@ async function teacherGroups(pane) {
       hideMsg(msg());
       try { await api('/api/v1/class-groups/' + g.id, { method: 'DELETE' }); showMsg(msg(), 'Group deleted.', 'ok'); load(); }
       catch (e) { showMsg(msg(), e.message, 'err'); }
+    });
+  }
+
+  // Quick assessment scoped to a group — Snapchat-streaks style: name the task, pick the subject, save.
+  async function quickGroupAssessment(g) {
+    if (!g.members.length) { showMsg(msg(), 'Add members to this group first.', 'err'); return; }
+    var subjects;
+    try { subjects = await api('/api/v1/subjects'); }
+    catch (e) { showMsg(msg(), 'Could not load subjects.', 'err'); return; }
+    var ctrl = openGlassModal({
+      className: 'plan-edit-modal',
+      html: '<h2>Assign work — ' + esc(g.name) + '</h2><div class="msg" data-m></div>'
+        + '<form><label>Subject</label><select name="subject" required style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--ink)">'
+        + '<option value="">— pick a subject —</option>'
+        + subjects.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('')
+        + '</select>'
+        + '<label style="margin-top:10px">Assessment title</label>'
+        + '<input name="title" required placeholder="e.g. End-of-term exam" style="width:100%">'
+        + '<label style="margin-top:10px">Max score</label>'
+        + '<input name="maxScore" type="number" value="100" min="1" style="width:100%">'
+        + '<p style="margin:10px 0 4px;font-size:13px;color:var(--muted)">'
+        + g.members.length + ' student' + (g.members.length === 1 ? '' : 's') + ' will receive this: '
+        + g.members.map(m => '<span class="pill">' + esc(m.name) + '</span>').join(' ')
+        + '</p>'
+        + '<div class="glass-actions" style="margin-top:18px">'
+        + '<button class="btn ghost" type="button" data-x>Cancel</button>'
+        + '<button class="btn" type="submit">Create assessment</button></div></form>'
+    });
+    ctrl.panel.querySelector('[data-x]').onclick = ctrl.close;
+    ctrl.panel.querySelector('form').addEventListener('submit', async function(ev) {
+      ev.preventDefault();
+      var m2 = ctrl.panel.querySelector('[data-m]'); hideMsg(m2);
+      var f = new FormData(ev.target);
+      var subjectId = num(f.get('subject'));
+      var title = f.get('title').trim();
+      var maxScore = num(f.get('maxScore')) || 100;
+      if (!subjectId) { showMsg(m2, 'Pick a subject.', 'err'); return; }
+      if (!title) { showMsg(m2, 'Give the assessment a title.', 'err'); return; }
+      try {
+        var classId = g.classId;
+        var link = (await api('/api/v1/class-subjects?classId=' + classId)).find(cs => cs.subjectId === subjectId);
+        if (!link) {
+          link = await api('/api/v1/class-subjects', { method: 'POST',
+            body: JSON.stringify({ classId: classId, subjectId: subjectId }) });
+        }
+        await api('/api/v1/assessments', { method: 'POST',
+          body: JSON.stringify({ classSubjectId: link.id, title: title, maxScore: maxScore, groupId: g.id }) });
+        ctrl.close();
+        showMsg(msg(), 'Assessment "' + title + '" created for ' + g.name + '.', 'ok');
+      } catch (e) { showMsg(m2, e.message, 'err'); }
     });
   }
 
@@ -1965,6 +2108,7 @@ async function renderTeacher(view, me) {
   wireDrawerNav({
     home: pane => teacherHome(pane, me),
     attendance: teacherAttendance,
+    students: teacherStudents,
     results: teacherResults,
     groups: teacherGroups,
     calendar: pane => renderCalendar(wrapCard(pane), true),
@@ -3264,13 +3408,13 @@ async function openAttendanceModal(classId, className) {
     const STATES = ['present', 'absent', 'late', 'excused'];
     rowsHost.innerHTML = students.map(s => `
       <div class="att-row" data-id="${s.id}">
-        <span class="att-name" style="cursor:pointer" title="Show card">${esc(s.lastName)}, ${esc(s.firstName)}</span>
+        <span class="att-name" style="cursor:pointer" title="View profile">${esc(s.lastName)}, ${esc(s.firstName)}</span>
         <span class="seg-pills">${STATES.map((st, i) =>
           `<button type="button" class="seg-pill seg-${st}${i === 0 ? ' active' : ''}" data-st="${st}">${st}</button>`).join('')}</span>
       </div>`).join('')
       + `<button class="btn" data-save style="margin-top:12px">Save attendance</button>`;
     rowsHost.querySelectorAll('.att-row').forEach(row => {
-      row.querySelector('.att-name').onclick = () => highlightTiltCard(stackHost, row.dataset.id);
+      row.querySelector('.att-name').onclick = () => openStudentProfile(num(row.dataset.id));
       row.querySelectorAll('.seg-pill').forEach(p => p.onclick = () => {
         row.querySelectorAll('.seg-pill').forEach(x => x.classList.remove('active'));
         p.classList.add('active');
