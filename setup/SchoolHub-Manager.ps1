@@ -5,8 +5,8 @@
 # Double-click SchoolHub-Manager.cmd in the project root.
 #
 #  1) Start services    5) Super-admins
-#  2) Stop services     6) Debug
-#  3) Switch database   7) New laptop setup
+#  2) Restart services  6) Debug
+#  3) Stop services     7) New laptop setup
 #  4) Database tools
 # ============================================================================
 #requires -Version 5.1
@@ -206,7 +206,7 @@ function Invoke-PreFlight($db) {
     $ok = $true
     function P($label, $cond, $failMsg) { if ($cond) { Write-Host "    [PASS] $label" -ForegroundColor Green } else { Write-Host "    [FAIL] $label — $failMsg" -ForegroundColor Red; Set-Variable -Name ok -Value $false -Scope 1 } }
     P 'Postgres' (Check-Pg) 'Run option 6→2 to diagnose.'
-    P "Database '$db'" (Check-DbExists $db) "Create it (option 4) or switch (option 3)."
+    P "Database '$db'" (Check-DbExists $db) "Create it (option 4 > 2) or switch (option 4 > 1)."
     $s = Check-Secret
     P 'JWT secret' ($s -eq 'ok') "Secret issue: $s. Use 6→7 to regenerate."
     $c = Check-Ports
@@ -427,7 +427,7 @@ function Compile-One($svc) {
     return ($LASTEXITCODE -eq 0)
 }
 
-# ---- 1) Start services (smart: show status, accept modifiers) --------------
+# ---- 1) Start services (show status, start individual or all) --------------
 function Action-StartServices {
     $db = Get-ActiveDb
     Write-Host "`n  Services — Active DB: $db" -ForegroundColor Cyan
@@ -446,10 +446,9 @@ function Action-StartServices {
     }
     Write-Host "    [A] Start all stopped"
     Write-Host "    [A]p Start all + public link (phone/internet access)"
-    if ($running.Count) { Write-Host "    [A]r Restart ALL" ; Write-Host "    [A]s Stop ALL" }
     Write-Host "    [Enter] Back"
     Write-Host ""
-    Write-Host "  number = start  |  number+r = restart  |  number+s = stop" -ForegroundColor DarkGray
+    Write-Host "  number = start that service" -ForegroundColor DarkGray
     $ans = Read-Host "  Choose"
 
     if (-not $ans) { return }
@@ -460,36 +459,20 @@ function Action-StartServices {
     $public = $false
     if ($ans -eq 'A' -or $ans -eq 'a') { $target = 'all'; $action = 'start' }
     elseif ($ans -match '^(?i)Ap$')     { $target = 'all'; $action = 'start'; $public = $true }
-    elseif ($ans -match '^(?i)Ar$')     { $target = 'all'; $action = 'restart' }
-    elseif ($ans -match '^(?i)As$')     { $target = 'all'; $action = 'stop' }
-    elseif ($ans -match '^(\d+)([rs])?$') {
+    elseif ($ans -match '^(\d+)$') {
         $idx = [int]$Matches[1] - 1
         if ($idx -lt 0 -or $idx -ge $Services.Count) { Write-Host "  Invalid number." -ForegroundColor Yellow; Press-Enter; return }
         $target = $Services[$idx]
-        if ($Matches[2] -eq 'r') { $action = 'restart' }
-        elseif ($Matches[2] -eq 's') { $action = 'stop' }
-        else { $action = 'start' }
+        $action = 'start'
     }
     else { Write-Host "  ?" -ForegroundColor Yellow; Press-Enter; return }
 
-    # "Stop" path — no compile, no pre-flight, just kill
-    if ($action -eq 'stop') {
-        $toStop = if ($target -eq 'all') { @($running) } else { @($runningMap[$target.Name]) | Where-Object { $_ } }
-        if (-not $toStop.Count) { Write-Host "  Nothing to stop." -ForegroundColor Yellow; Press-Enter; return }
-        foreach ($p in $toStop) {
-            try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; Write-Host "  Stopped $($p.Service) (PID $($p.PID))" -ForegroundColor Green }
-            catch { Write-Host "  Failed: PID $($p.PID) — $_" -ForegroundColor Red }
-        }
-        Press-Enter; return
-    }
-
-    # Start / restart — do pre-flight + compile first
+    # Start path — pre-flight + compile
     if (-not (Ensure-PgAuth)) { Press-Enter; return }
 
-    # Pre-flight (only if we're starting something new, not restarting already-running)
+    # Pre-flight (only if we're starting something new)
     $needsStart = if ($target -eq 'all') { $Services | Where-Object { -not $runningMap[$_.Name] } } else { @($target) }
-    $needsRestart = if ($target -eq 'all' -and $action -eq 'restart') { $Services } elseif ($action -eq 'restart') { @($target) } else { @() }
-    if ($needsStart.Count -or $needsRestart.Count) {
+    if ($needsStart.Count) {
         if (-not (Invoke-PreFlight $db)) {
             $ans2 = Read-Host "`n  Pre-flight found issues. Continue anyway? (y/n)"
             if ($ans2 -ne 'y') { return }
@@ -497,10 +480,7 @@ function Action-StartServices {
     }
 
     # Build
-    $toCompile = @()
-    if ($needsStart.Count) { $toCompile += $needsStart }
-    if ($needsRestart.Count) { $toCompile += $needsRestart }
-    $toCompile = @($toCompile | Sort-Object Name -Unique)
+    $toCompile = @($needsStart | Sort-Object Name -Unique)
     if ($toCompile.Count) {
         $skip = Read-Host "  Build (package) before launch? (y/n, default y)"
         if ($skip -ne 'n') {
@@ -530,21 +510,11 @@ function Action-StartServices {
         if ($publicUrl) { $env:STRIPE_APP_BASE_URL = $publicUrl }
     }
 
-    # Restart: stop first, then start
-    if ($action -eq 'restart') {
-        $toKill = if ($target -eq 'all') { @($running) } else { @($runningMap[$target.Name]) | Where-Object { $_ } }
-        foreach ($p in $toKill) {
-            try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; Write-Host "  Stopped $($p.Service) (PID $($p.PID))" -ForegroundColor Green }
-            catch { Write-Host "  Failed to stop PID $($p.PID) — $_" -ForegroundColor Red }
-        }
-        Start-Sleep -Seconds 1
-    }
-
     # Launch
     $toLaunch = if ($target -eq 'all') { $Services } else { @($target) }
     $launched = 0
     foreach ($s in $toLaunch) {
-        if ($runningMap[$s.Name] -and $action -ne 'restart') {
+        if ($runningMap[$s.Name]) {
             Write-Host "    $($s.Name) — already running, skipped" -ForegroundColor Yellow
             continue
         }
@@ -597,7 +567,117 @@ function Action-StartServices {
     Press-Enter
 }
 
-# ---- 2) Stop services -----------------------------------------------------
+# ---- 2) Restart services ---------------------------------------------------
+function Action-RestartServices {
+    $db = Get-ActiveDb
+    Write-Host "`n  Restart Services — Active DB: $db" -ForegroundColor Cyan
+
+    $running = @(Get-RunningProcs)
+    $runningMap = @{}
+    foreach ($r in $running) { if ($r.Service) { $runningMap[$r.Service] = $r } }
+
+    if (-not $running.Count) { Write-Host "`n  No services running — nothing to restart. Use option 1 to start." -ForegroundColor Yellow; Press-Enter; return }
+
+    Write-Host ""
+    for ($i = 0; $i -lt $Services.Count; $i++) {
+        $s = $Services[$i]
+        $r = $runningMap[$s.Name]
+        if ($r) { Write-Host "    [$($i+1)] $($s.Name) :$($s.Port) — RUNNING (PID $($r.PID))" -ForegroundColor Green }
+        else     { Write-Host "    [$($i+1)] $($s.Name) :$($s.Port) — stopped (will be started)" -ForegroundColor DarkGray }
+    }
+    Write-Host "    [A] Restart ALL"
+    Write-Host "    [Enter] Back"
+    $ans = Read-Host "`n  Choose"
+
+    if (-not $ans) { return }
+
+    $target = $null
+    if ($ans -eq 'A' -or $ans -eq 'a') { $target = 'all' }
+    elseif ($ans -match '^(\d+)$') {
+        $idx = [int]$Matches[1] - 1
+        if ($idx -lt 0 -or $idx -ge $Services.Count) { Write-Host "  Invalid number." -ForegroundColor Yellow; Press-Enter; return }
+        $target = $Services[$idx]
+    }
+    else { Write-Host "  ?" -ForegroundColor Yellow; Press-Enter; return }
+
+    if (-not (Ensure-PgAuth)) { Press-Enter; return }
+
+    # Pre-flight
+    $toRestart = if ($target -eq 'all') { $Services } else { @($target) }
+    if (-not (Invoke-PreFlight $db)) {
+        $ans2 = Read-Host "`n  Pre-flight found issues. Continue anyway? (y/n)"
+        if ($ans2 -ne 'y') { return }
+    }
+
+    # Build
+    $toCompile = @($toRestart | Sort-Object Name -Unique)
+    $skip = Read-Host "  Build (package) before restart? (y/n, default y)"
+    if ($skip -ne 'n') {
+        foreach ($s in $toCompile) {
+            Write-Host "  Building $($s.Name)..."
+            if (-not (Compile-One $s)) { Write-Host "  FAILED: $($s.Name) did not build." -ForegroundColor Red; Press-Enter; return }
+        }
+        Write-Host "  All JARs built." -ForegroundColor Green
+    }
+
+    # Secret
+    $env:SCHOOLHUB_DB_NAME = $db
+    if (Test-Path $SecretsFile) {
+        Get-Content $SecretsFile | ForEach-Object { if ($_ -match '^([A-Z_]+)=(.+)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] } }
+    } else {
+        $env:SCHOOLHUB_JWT_SECRET = New-Secret
+        "SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET" | Set-Content -LiteralPath $SecretsFile -NoNewline
+        Write-Host "  Generated new JWT secret -> .schoolhub_secrets.txt" -ForegroundColor Green
+    }
+
+    # Stop first
+    $toKill = if ($target -eq 'all') { @($running) } else { @($runningMap[$target.Name]) | Where-Object { $_ } }
+    foreach ($p in $toKill) {
+        try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; Write-Host "  Stopped $($p.Service) (PID $($p.PID))" -ForegroundColor Green }
+        catch { Write-Host "  Failed to stop PID $($p.PID) — $_" -ForegroundColor Red }
+    }
+    Start-Sleep -Seconds 1
+
+    # Launch
+    $launched = 0
+    foreach ($s in $toRestart) {
+        Launch-One $s
+        $launched++
+    }
+    if (-not $launched) { Write-Host "  Nothing launched." -ForegroundColor Yellow; Press-Enter; return }
+
+    # Health checks
+    foreach ($s in $Services) {
+        if ($s.Health -and ($toRestart | Where-Object { $_.Name -eq $s.Name })) {
+            Write-Host "  Waiting for $($s.Name) ($($s.Port))..." -ForegroundColor Cyan
+            if (-not (Wait-Url "http://localhost:$($s.Port)$($s.Health)" 150)) {
+                Write-Host "  WARNING: $($s.Name) did not respond in time." -ForegroundColor Yellow
+            }
+        }
+    }
+
+    # Seed
+    if ($toRestart | Where-Object { $_.Name -eq 'ApiGateway' }) {
+        $seed = Read-Host "`n  Seed demo data? (y/n, default n)"
+        if ($seed -eq 'y') {
+            if (Wait-Url "$GatewayUrl/health/auth" 60) { Seed-DemoSchool }
+            else { Write-Host "  Gateway not reachable — cannot seed." -ForegroundColor Yellow }
+        }
+    }
+
+    if ($toRestart | Where-Object { $_.Name -eq 'SchoolService' -or $_.Name -eq 'TenantService' }) { Start-StripeListen }
+
+    Write-Host ""
+    Write-Host "  Local:  $GatewayUrl" -ForegroundColor Cyan
+    $lan = (Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+            Select-Object -First 1).IPv4Address.IPAddress
+    if ($lan) { Write-Host "  Wi-Fi:  http://${lan}:9000   (phone on the same network)" -ForegroundColor Cyan }
+
+    Press-Enter
+}
+
+# ---- 3) Stop services -----------------------------------------------------
 function Action-StopServices {
     $procs = @(Get-RunningProcs)
     if (-not $procs.Count) { Write-Host "`n  No SchoolHub processes detected." -ForegroundColor Yellow; Press-Enter; return }
@@ -630,7 +710,7 @@ function Action-StopServices {
     Press-Enter
 }
 
-# ---- 3) Switch database ---------------------------------------------------
+# ---- Switch database (DbTools > 1) ----------------------------------------
 function Action-SwitchDb {
     Write-Host ""; $chosen = Pick-Database "Select a number (or Enter to cancel)"
     if (-not $chosen) { return }
@@ -645,15 +725,17 @@ function Action-SwitchDb {
 function Action-DbTools {
     while ($true) {
         Write-Host "`n  Database Tools — Active DB: $(Get-ActiveDb)" -ForegroundColor Cyan
-        Write-Host "    1) Create database"
-        Write-Host "    2) Delete database"
-        Write-Host "    3) Rename database"
+        Write-Host "    1) Switch database"
+        Write-Host "    2) Create database"
+        Write-Host "    3) Delete database"
+        Write-Host "    4) Rename database"
         Write-Host "    b) Back"
         $ch = Read-Host "  Choose"
         switch ($ch) {
-            '1' { Action-CreateDb }
-            '2' { Action-DeleteDb }
-            '3' { Action-RenameDb }
+            '1' { Action-SwitchDb }
+            '2' { Action-CreateDb }
+            '3' { Action-DeleteDb }
+            '4' { Action-RenameDb }
             'b' { return }
             default { Write-Host "  ?" -ForegroundColor Yellow }
         }
@@ -674,14 +756,40 @@ function Action-CreateDb {
 }
 function Action-DeleteDb {
     if (-not (Ensure-PgAuth)) { Press-Enter; return }
-    $chosen = Pick-Database "Select a number to DELETE (or Enter to cancel)"
-    if (-not $chosen) { return }
-    if ((Read-Host "  Type '$chosen' to confirm deletion") -ne $chosen) { Write-Host "  Cancelled." -ForegroundColor Yellow; return }
-    Disconnect-Db $chosen
-    & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'postgres' -c "DROP DATABASE `"$chosen`";"
-    if ($LASTEXITCODE -ne 0) { Write-Host "  Delete failed." -ForegroundColor Red; return }
-    Write-Host "  Deleted '$chosen'." -ForegroundColor Green
-    if ((Get-ActiveDb) -eq $chosen) { Write-Host "  That was the active DB — switch to another (option 3)." -ForegroundColor Yellow }
+    $dbs = Get-Databases
+    if (-not $dbs.Count) { Write-Host "  No databases found on this server." -ForegroundColor Yellow; Press-Enter; return }
+    Write-Host ""
+    for ($i = 0; $i -lt $dbs.Count; $i++) { Write-Host ("  [{0}] {1}" -f ($i + 1), $dbs[$i]) }
+    Write-Host ""
+    $raw = Read-Host "  Numbers to DELETE (e.g. 1,3,5) or Enter to cancel"
+    if (-not $raw) { return }
+    # Parse comma-separated numbers (allow spaces, trailing comma)
+    $nums = $raw -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Sort-Object -Unique
+    if (-not $nums.Count) { Write-Host "  No valid numbers." -ForegroundColor Yellow; Press-Enter; return }
+    $targets = @()
+    foreach ($n in $nums) {
+        if ($n -ge 1 -and $n -le $dbs.Count) { $targets += $dbs[$n - 1] }
+    }
+    if (-not $targets.Count) { Write-Host "  No valid selections." -ForegroundColor Yellow; Press-Enter; return }
+
+    Write-Host ""
+    Write-Host "  About to DELETE:" -ForegroundColor Red
+    foreach ($t in $targets) { Write-Host "    $t" -ForegroundColor Red }
+    if ($targets -contains (Get-ActiveDb)) { Write-Host "  WARNING: '$($(Get-ActiveDb))' is the ACTIVE database!" -ForegroundColor Yellow }
+    $confirm = Read-Host "`n  Type 'yes' to confirm permanent deletion of $($targets.Count) database(s)"
+    if ($confirm -ne 'yes') { Write-Host "  Cancelled." -ForegroundColor Yellow; Press-Enter; return }
+
+    $deleted = 0; $failed = 0
+    foreach ($t in $targets) {
+        Write-Host "  Dropping '$t'..." -ForegroundColor Cyan
+        Disconnect-Db $t
+        & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'postgres' -c "DROP DATABASE `"$t`";"
+        if ($LASTEXITCODE -eq 0) { $deleted++; Write-Host "    Deleted." -ForegroundColor Green }
+        else { $failed++; Write-Host "    Failed." -ForegroundColor Red }
+    }
+    Write-Host "  Done: $deleted deleted, $failed failed." -ForegroundColor Green
+    if ($targets -contains (Get-ActiveDb)) { Write-Host "  Active DB was deleted — switch to another (option 4)." -ForegroundColor Yellow }
+    Press-Enter
 }
 function Action-RenameDb {
     if (-not (Ensure-PgAuth)) { Press-Enter; return }
@@ -818,7 +926,7 @@ function Action-FullDiagnostic {
     if (-not (Ensure-PgAuth)) { Press-Enter; return }
     Write-Host ""
     P 'Postgres reachable' (Check-Pg) 'Check PostgreSQL service, port, firewall.'
-    P "Database '$db' exists" (Check-DbExists $db) "Create it (option 4) or switch (option 3)."
+    P "Database '$db' exists" (Check-DbExists $db) "Create it (option 4 > 2) or switch (option 4 > 1)."
     P 'Schema applied' (Check-Schema $db) "Run option 7 or apply db/00_platform.sql."
     $s = Check-Secret
     $secretOk = $s -eq 'ok'
@@ -895,7 +1003,7 @@ function Action-RegenerateSecret {
     $env:SCHOOLHUB_JWT_SECRET = New-Secret
     "SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET" | Set-Content -LiteralPath $SecretsFile -NoNewline
     Write-Host "  New JWT secret generated ($($env:SCHOOLHUB_JWT_SECRET.Length) bytes)." -ForegroundColor Green
-    Write-Host "  Restart services (option 1) to pick it up." -ForegroundColor Yellow
+    Write-Host "  Restart services (option 2) to pick it up." -ForegroundColor Yellow
     Press-Enter
 }
 function Action-KillStale {
@@ -1044,9 +1152,9 @@ while ($true) {
     Write-Host " Active DB: $(Get-ActiveDb)" -ForegroundColor DarkGray
     Write-Host "==============================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  1) Start / Stop / Restart"
-    Write-Host "  2) Stop services"
-    Write-Host "  3) Switch database"
+    Write-Host "  1) Start services"
+    Write-Host "  2) Restart services"
+    Write-Host "  3) Stop services"
     Write-Host "  4) Database tools"
     Write-Host "  5) Super-admins"
     Write-Host "  6) Debug"
@@ -1058,8 +1166,8 @@ while ($true) {
     try {
         switch ($ch) {
             '1' { Action-StartServices }
-            '2' { Action-StopServices }
-            '3' { Action-SwitchDb }
+            '2' { Action-RestartServices }
+            '3' { Action-StopServices }
             '4' { Action-DbTools }
             '5' { Action-SuperAdmins }
             '6' { Action-Debug }

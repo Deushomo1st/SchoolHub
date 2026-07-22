@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-22 — SchoolHub Manager: cleanup, multi-delete, menu reorganization
+
+- **Start/Stop/Restart split:** menu item 1 is now "Start services" only (removed the old `Ar`/`As`/`number+r`/`number+s` modifier soup). Stop is its own item (3), Restart gets its own item (2) with full pre-flight/build/stop/start/health-check/seed flow.
+- **Multi-delete:** Delete database (DbTools > 3) now accepts comma-separated numbers (`1,3,5`) and drops them all after a single `yes` confirmation, with per-DB progress and a tally.
+- **Switch database moved:** "Switch database" is now inside Database tools (option 1) instead of a top-level menu item. Main menu slimmed from 8 items to 7.
+- All internal option-number references updated (pre-flight, debug, regenerate-secret, etc.).
+
 ## 2026-07-18 — fix: Stripe webhooks were silently dropping every event
 
 First end-to-end webhook test (Stripe CLI `listen` → real test-card payment) exposed a bug that had never fired before, because the webhook path had only ever been exercised without a signing secret configured.
