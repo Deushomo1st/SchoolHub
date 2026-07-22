@@ -6,10 +6,10 @@
 > Mark `[x]` when confirmed, `[ ]` if not yet checked, `[!]` if broken.
 
 ### Island
-- [ ] 1. Scroll down → island shrinks to a slim silver line
-- [ ] 2. Scroll all the way to the top → island pops out, shows "SchoolHub," retracts after ~2s
-- [ ] 3. Hover the slim line → island pops out (stays while hovering)
-- [ ] 4. Drawer is on the far **left**, bell is on the far **right** — no overlap on phone width
+- [x] 1. Scroll down → island shrinks to a slim silver line
+- [x] 2. Scroll all the way to the top → island pops out, shows "SchoolHub," retracts after ~2s
+- [x] 3. Hover the slim line → island pops out (stays while hovering)
+- [x] 4. Drawer is on the far **left**, bell is on the far **right** — no overlap on phone width
 
 ### Teacher Students section (drawer → Students, graduation-cap icon)
 - [ ] 5. You see students grouped by class, each with initials (or profile pic if set)
@@ -36,6 +36,33 @@
 ### Landing page
 - [ ] 17. `index.html` — SchoolHub brand badge is fixed top-left, content scrolls behind it
 - [ ] 18. Badge has glass-frost look (glossy sheen, blur, theme-sensitive)
+
+---
+
+## 2026-07-24 — Staff onboarding: per-role codes + typed profile tables
+
+> Approved: full flow for teacher/bursar/librarian; per-role codes stored as columns on `tenant`.
+
+### Problem
+- Staff self-signup (`/api/v1/tenants/staff-signup`) created only a generic `app_user` login in `TenantService`.
+- Approving the request flipped the account to `active` but never created a matching profile row in `SchoolService`.
+- A teacher who signed up with a code existed as a user but never appeared in the `teacher` table, so People/teacher cards, class assignments, and the teacher dashboard had no profile to link to.
+- Bursar and librarian had no profile tables at all — only roles.
+
+### Design decisions
+- **Per-role codes** on `tenant`: `teacher_code`, `bursar_code`, `librarian_code`. Each code determines the role at signup; no role dropdown on the public form.
+- **Typed profile tables** in `SchoolService`:
+  - `teacher` (existing)
+  - `bursar` (new, same shape as teacher)
+  - `library_staff` (extended with `staff_no`, `first_name`, `last_name`, `email`, `phone` — this becomes the librarian profile table)
+- **Approval creates the profile**: `TenantService` forwards the approving admin's JWT to a new `SchoolService` internal endpoint (`/internal/staff-profiles/{role}`) and creates the corresponding row, linked by `user_id`.
+- **Frontend**: `staff-signup.html` becomes code-only; admin People page shows separate code generation for each role.
+
+### Status
+- [x] Backend profile tables + internal endpoints
+- [x] TenantService per-role codes + approval forwarding
+- [x] Frontend signup + admin code UI
+- [x] Build + smoke test (teacher + librarian flows verified E2E on Supabase Deustest2)
 
 ---
 

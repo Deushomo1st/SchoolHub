@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .formLogin(f -> f.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/health", "/actuator/**").permitAll()
+                        .requestMatchers("/health", "/actuator/**", "/internal/**").permitAll()
                         // Stripe webhooks carry no JWT — authenticity is the signature check.
                         .requestMatchers("/api/v1/stripe/webhook").permitAll()
                         .anyRequest().authenticated()

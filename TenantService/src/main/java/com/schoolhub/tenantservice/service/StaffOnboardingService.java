@@ -13,16 +13,16 @@ import java.security.SecureRandom;
 import java.util.*;
 
 /**
- * Staff self-onboarding: a school issues a code, staff sign up with it into that
- * school as PENDING, and the school admin approves before they can sign in.
- * "the administration still covers it" - every code-signup waits for admin approval.
+ * Staff self-onboarding: a school issues per-role codes (teacher, bursar, librarian),
+ * staff sign up with the matching code into that school as PENDING, and the school
+ * admin approves before they can sign in. On approval the service calls SchoolService
+ * to create a typed profile row (teacher, bursar, or library_staff).
  */
 @Service
 public class StaffOnboardingService {
 
-    // Codes a person reads/types: no I, L, O, 0, 1 to avoid confusion.
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789".toCharArray();
-    private static final Set<String> SELF_SIGNUP_ROLES = Set.of("TEACHER", "BURSAR");
+    private static final Set<String> SELF_SIGNUP_ROLES = Set.of("TEACHER", "BURSAR", "LIBRARIAN");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TenantRepository tenantRepo;
@@ -30,43 +30,88 @@ public class StaffOnboardingService {
     private final RoleRepository roleRepo;
     private final BCryptPasswordEncoder encoder;
     private final AuditService audit;
+    private final SchoolServiceClient school;
 
-    public StaffOnboardingService(TenantRepository tenantRepo, AppUserRepository userRepo, RoleRepository roleRepo,
-                                  BCryptPasswordEncoder encoder, AuditService audit) {
+    public StaffOnboardingService(TenantRepository tenantRepo, AppUserRepository userRepo,
+                                  RoleRepository roleRepo, BCryptPasswordEncoder encoder,
+                                  AuditService audit, SchoolServiceClient school) {
         this.tenantRepo = tenantRepo;
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
         this.encoder = encoder;
         this.audit = audit;
+        this.school = school;
     }
 
-    // ---- Admin: issue / view the school's staff code ----
+    // ---- Admin: view / generate per-role codes ----
 
-    public String currentStaffCode(Long callerUserId) {
-        return callerTenant(callerUserId).getStaffCode();
+    /** Return all active staff codes for the caller's school. */
+    public Map<String, String> allStaffCodes(Long callerUserId) {
+        Tenant t = callerTenant(callerUserId);
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("teacher", t.getTeacherCode());
+        m.put("bursar", t.getBursarCode());
+        m.put("librarian", t.getLibrarianCode());
+        return m;
     }
 
     @Transactional
-    public String generateStaffCode(Long callerUserId) {
+    public String generateTeacherCode(Long callerUserId) {
         Tenant t = callerTenant(callerUserId);
         String code;
-        do { code = randomCode(); } while (tenantRepo.existsByStaffCode(code));
-        t.setStaffCode(code);
+        do { code = randomCode(); } while (tenantRepo.findByTeacherCode(code).isPresent());
+        t.setTeacherCode(code);
         tenantRepo.save(t);
-        audit.record(t.getId(), callerUserId, "STAFF_CODE_ISSUED", t.getName());
+        audit.record(t.getId(), callerUserId, "TEACHER_CODE_ISSUED", t.getName());
         return code;
     }
 
-    // ---- Public: staff signs up with the code ----
+    @Transactional
+    public String generateBursarCode(Long callerUserId) {
+        Tenant t = callerTenant(callerUserId);
+        String code;
+        do { code = randomCode(); } while (tenantRepo.findByBursarCode(code).isPresent());
+        t.setBursarCode(code);
+        tenantRepo.save(t);
+        audit.record(t.getId(), callerUserId, "BURSAR_CODE_ISSUED", t.getName());
+        return code;
+    }
+
+    @Transactional
+    public String generateLibrarianCode(Long callerUserId) {
+        Tenant t = callerTenant(callerUserId);
+        String code;
+        do { code = randomCode(); } while (tenantRepo.findByLibrarianCode(code).isPresent());
+        t.setLibrarianCode(code);
+        tenantRepo.save(t);
+        audit.record(t.getId(), callerUserId, "LIBRARIAN_CODE_ISSUED", t.getName());
+        return code;
+    }
+
+    // ---- Public: staff signs up with the per-role code ----
 
     @Transactional
     public Map<String, Object> staffSignup(StaffSignupRequest req) {
-        String roleName = (req.role() == null || req.role().isBlank()) ? "TEACHER" : req.role().toUpperCase();
-        if (!SELF_SIGNUP_ROLES.contains(roleName)) {
-            throw new IllegalArgumentException("Staff sign-up is only for TEACHER or BURSAR");
-        }
-        Tenant tenant = tenantRepo.findByStaffCode(req.code().trim())
+        String code = req.code().trim().toUpperCase();
+
+        // Try to find a tenant by any of the per-role codes
+        Tenant tenant = tenantRepo.findByTeacherCode(code)
+                .or(() -> tenantRepo.findByBursarCode(code))
+                .or(() -> tenantRepo.findByLibrarianCode(code))
                 .orElseThrow(() -> new IllegalArgumentException("That staff code is not valid"));
+
+        // Determine role from which code matched
+        String roleName;
+        if (code.equals(tenant.getTeacherCode())) {
+            roleName = "TEACHER";
+        } else if (code.equals(tenant.getBursarCode())) {
+            roleName = "BURSAR";
+        } else if (code.equals(tenant.getLibrarianCode())) {
+            roleName = "LIBRARIAN";
+        } else {
+            throw new IllegalArgumentException("That staff code is not valid");
+        }
+
         if (!"active".equals(tenant.getStatus())) {
             throw new IllegalArgumentException("This school is not active, so sign-up is closed");
         }
@@ -84,12 +129,13 @@ public class StaffOnboardingService {
         u.setLastName(req.lastName());
         u.setRoleId(role.getId());
         u.setTenantId(tenant.getId());
-        u.setAccountStatus("pending");     // waits for the school admin
+        u.setAccountStatus("pending");
         userRepo.save(u);
         audit.record(tenant.getId(), null, "STAFF_SIGNUP_REQUESTED", roleName + ": " + req.email());
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("school", tenant.getName());
+        m.put("role", roleName);
         m.put("status", "pending");
         m.put("message", "Request submitted. Your " + tenant.getName()
                 + " administrator must approve it before you can sign in.");
@@ -115,12 +161,39 @@ public class StaffOnboardingService {
         return out;
     }
 
+    /**
+     * Approve a pending staff member, activate their login, and create a typed
+     * profile row in SchoolService linked by userId.
+     */
     @Transactional
     public Map<String, Object> approveStaff(Long callerUserId, Long staffUserId) {
         AppUser staff = pendingStaffInCallerSchool(callerUserId, staffUserId);
         staff.setAccountStatus("active");
         userRepo.save(staff);
         audit.record(staff.getTenantId(), callerUserId, "STAFF_APPROVED", staff.getEmail());
+
+        String role = roleRepo.findById(staff.getRoleId()).map(Role::getName).orElse("?");
+        Tenant tenant = tenantRepo.findById(staff.getTenantId())
+                .orElseThrow(() -> new IllegalStateException("Tenant missing for approved staff"));
+
+        // Build profile body and call SchoolService
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("userId", staff.getId().toString());
+        body.put("staffNo", staff.getUsername());   // default: username is the staff number
+        body.put("firstName", staff.getFirstName());
+        body.put("lastName", staff.getLastName());
+        body.put("email", staff.getEmail());
+        body.put("phone", staff.getPhone());
+
+        try {
+            school.createStaffProfile(role, body);
+        } catch (Exception e) {
+            // Log but don't roll back the approval — the user is active; admin can
+            // manually fix the profile later via People section.
+            audit.record(staff.getTenantId(), callerUserId, "STAFF_PROFILE_FAILED",
+                    role + " " + staff.getEmail() + " — " + e.getMessage());
+        }
+
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", staff.getId());
         m.put("status", "active");
@@ -132,15 +205,14 @@ public class StaffOnboardingService {
         AppUser staff = pendingStaffInCallerSchool(callerUserId, staffUserId);
         Long tenantId = staff.getTenantId();
         String email = staff.getEmail();
-        userRepo.delete(staff);   // never activated; removing it lets the person re-apply with the same email
+        userRepo.delete(staff);
         audit.record(tenantId, callerUserId, "STAFF_REJECTED", email);
     }
 
     // ---- Admin: manage active staff (suspend / re-activate / remove) ----
 
-    private static final Set<String> STAFF_ROLES = Set.of("ADMIN", "PRINCIPAL", "BURSAR", "TEACHER");
+    private static final Set<String> STAFF_ROLES = Set.of("ADMIN", "PRINCIPAL", "BURSAR", "TEACHER", "LIBRARIAN");
 
-    /** Every staff login of the caller's school (pending ones live in the pending list instead). */
     public List<Map<String, Object>> listStaff(Long callerUserId) {
         Tenant t = callerTenant(callerUserId);
         Map<Long, String> roleNames = roleRepo.findAll().stream()
@@ -164,7 +236,6 @@ public class StaffOnboardingService {
         return out;
     }
 
-    /** Suspend / re-activate a staff login (account_status); a suspended member can't sign in. */
     @Transactional
     public void setStaffStatus(Long callerUserId, Long staffUserId, String status) {
         AppUser staff = staffInCallerSchool(callerUserId, staffUserId);
@@ -174,7 +245,6 @@ public class StaffOnboardingService {
                 "suspended".equals(status) ? "STAFF_SUSPENDED" : "STAFF_ACTIVATED", staff.getEmail());
     }
 
-    /** Set/clear a staff member's title (blank clears). Self allowed — an admin may title themself. */
     @Transactional
     public void setStaffTitle(Long callerUserId, Long staffUserId, String title) {
         Tenant t = callerTenant(callerUserId);
@@ -197,7 +267,6 @@ public class StaffOnboardingService {
                 staff.getEmail() + " -> " + (staff.getStaffTitle() == null ? "(cleared)" : staff.getStaffTitle()));
     }
 
-    /** Remove a staff login. Cascades role_assignment/notification via FK (moderator-delete pattern). */
     @Transactional
     public void deleteStaff(Long callerUserId, Long staffUserId) {
         AppUser staff = staffInCallerSchool(callerUserId, staffUserId);
@@ -207,7 +276,8 @@ public class StaffOnboardingService {
         audit.record(tenantId, callerUserId, "STAFF_REMOVED", email);
     }
 
-    /** Loads a staff member, asserts same school + staff role + not the caller themself. */
+    // ---- Helpers ----
+
     private AppUser staffInCallerSchool(Long callerUserId, Long staffUserId) {
         Tenant t = callerTenant(callerUserId);
         AppUser staff = userRepo.findById(staffUserId)
@@ -225,9 +295,6 @@ public class StaffOnboardingService {
         return staff;
     }
 
-    // ---- Helpers ----
-
-    /** The school of the calling admin/principal; rejects platform users (no tenant). */
     private Tenant callerTenant(Long callerUserId) {
         AppUser caller = userRepo.findById(callerUserId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
@@ -238,7 +305,6 @@ public class StaffOnboardingService {
                 .orElseThrow(() -> new IllegalStateException("Caller references missing school"));
     }
 
-    /** Loads a pending staff member and asserts they belong to the caller's school. */
     private AppUser pendingStaffInCallerSchool(Long callerUserId, Long staffUserId) {
         Tenant t = callerTenant(callerUserId);
         AppUser staff = userRepo.findById(staffUserId)

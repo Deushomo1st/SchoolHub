@@ -1589,32 +1589,50 @@ async function adminPeople(pane) {
     }
   });
 
+  // ---- Per-role staff sign-up codes ----
   document.getElementById('peStaffCode').onclick = async () => {
-    let code = '';
-    try { code = (await api('/api/v1/tenants/staff-code')).staffCode || ''; } catch (e) {}
+    let codes = { teacher: null, bursar: null, librarian: null };
+    try { codes = await api('/api/v1/tenants/staff-codes'); } catch (e) {}
+
+    const codeRow = (label, key, role) => {
+      const c = codes[key] || '';
+      return '<div style="margin-bottom:14px">' +
+        '<div class="subtle" style="margin-bottom:2px"><strong>' + label + '</strong></div>' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+        '<span data-' + key + ' style="font-size:20px;font-weight:700;letter-spacing:2px">' + esc(c || 'not generated') + '</span>' +
+        '<button class="btn ghost small" data-gen="' + role + '">Generate</button>' +
+        '</div></div>';
+    };
+
     const ctrl = openGlassModal({
       className: 'plan-edit-modal',
-      html: `<h2>Staff sign-up code</h2>
-        <p class="subtle">Share this code with new teachers/bursars. They sign up at the link below, then appear
-        under "Pending staff" for you to approve. Rotating the code stops anyone using the old one.</p>
-        <div class="msg" data-m></div>
-        <div style="font-size:26px;font-weight:700;letter-spacing:3px;margin:10px 0" data-code>${esc(code || 'not generated yet')}</div>
-        <div class="subtle">${esc(location.origin + '/staff-signup.html')}</div>
-        <div class="glass-actions" style="margin-top:18px">
-          <button class="btn ghost" data-x="cancel">Close</button>
-          <button class="btn secondary" data-x="rotate">Generate / rotate</button>
-        </div>`
+      html: '<h2>Staff sign-up codes</h2>' +
+        '<p class="subtle">Share the matching code with new staff. They sign up at<br>' +
+        '<code>' + esc(location.origin + '/staff-signup.html') + '</code><br>' +
+        'and appear under "Pending staff" for you to approve.</p>' +
+        '<div class="msg" data-m></div>' +
+        codeRow('Teacher', 'teacher', 'teacher') +
+        codeRow('Bursar', 'bursar', 'bursar') +
+        codeRow('Librarian', 'librarian', 'librarian') +
+        '<div class="glass-actions" style="margin-top:18px">' +
+        '<button class="btn ghost" data-x="cancel">Close</button>' +
+        '</div>'
     });
     ctrl.panel.querySelector('[data-x="cancel"]').onclick = ctrl.close;
-    ctrl.panel.querySelector('[data-x="rotate"]').onclick = async () => {
-      if (!(await glassConfirm('Generate a new staff code? Any code you shared before will stop working.', { title: 'New staff code', okText: 'Generate' }))) return;
-      const m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
-      try {
-        const r = await api('/api/v1/tenants/staff-code', { method: 'POST' });
-        ctrl.panel.querySelector('[data-code]').textContent = r.staffCode;
-        showMsg(m, 'New code generated.', 'ok');
-      } catch (e) { showMsg(m, e.message, 'err'); }
-    };
+    ctrl.panel.querySelectorAll('[data-gen]').forEach(b => {
+      b.onclick = async () => {
+        var role = b.dataset.gen;
+        var label = role.charAt(0).toUpperCase() + role.slice(1);
+        if (!(await glassConfirm('Generate a new ' + label + ' code? Any old code stops working.', { title: 'New ' + label + ' code', okText: 'Generate' }))) return;
+        var m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
+        try {
+          var r = await api('/api/v1/tenants/staff-codes/' + role, { method: 'POST' });
+          var key = role + 'Code';
+          ctrl.panel.querySelector('[data-' + role + ']').textContent = r[key];
+          showMsg(m, 'New ' + label + ' code generated.', 'ok');
+        } catch (e) { showMsg(m, e.message, 'err'); }
+      };
+    });
   };
 
   // ---- Wiring: filters + search ----

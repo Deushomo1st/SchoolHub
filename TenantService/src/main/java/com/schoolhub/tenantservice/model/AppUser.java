@@ -66,6 +66,7 @@ public class AppUser {
     public String getUsername() { return username; }
     public String getFirstName() { return firstName; }
     public String getLastName() { return lastName; }
+    public String getPhone() { return phone; }
     public Long getRoleId() { return roleId; }
     public Long getTenantId() { return tenantId; }
     public String getAccountStatus() { return accountStatus; }

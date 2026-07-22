@@ -2,26 +2,28 @@ package com.schoolhub.schoolservice.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+
 import java.time.LocalDateTime;
 
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
-@Table(name = "library_staff")
-public class LibraryStaff {
+@Table(name = "bursar")
+public class Bursar {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false, unique = true)
+    @Column(name = "user_id")
     private Long userId;
 
-    @Column(name = "staff_no", unique = true)
+    @Column(name = "staff_no", nullable = false, unique = true)
     private String staffNo;
 
-    @Column(name = "first_name")
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @Column(name = "last_name")
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
     private String email;
@@ -34,7 +36,10 @@ public class LibraryStaff {
     private LocalDateTime createdAt;
 
     @PrePersist
-    void pre() { if (createdAt == null) createdAt = LocalDateTime.now(); }
+    void pre() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (status == null) status = "active";
+    }
 
     public Long getId() { return id; }
     public Long getUserId() { return userId; }

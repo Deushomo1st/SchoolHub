@@ -22,24 +22,36 @@ public class StaffOnboardingController {
         this.staff = staff;
     }
 
-    // Public: a staff member signs up with the school's code.
+    // Public: a staff member signs up with the school's per-role code.
     @PostMapping("/staff-signup")
     public ResponseEntity<?> staffSignup(@Valid @RequestBody StaffSignupRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(staff.staffSignup(req));
     }
 
-    // Admin: view / (re)issue this school's staff code.
-    @GetMapping("/staff-code")
+    // Admin: get all per-role staff codes for this school.
+    @GetMapping("/staff-codes")
     @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
-    public ResponseEntity<?> currentCode(Authentication auth) {
-        String code = staff.currentStaffCode((Long) auth.getPrincipal());
-        return ResponseEntity.ok(Map.of("staffCode", code == null ? "" : code));
+    public ResponseEntity<?> allCodes(Authentication auth) {
+        return ResponseEntity.ok(staff.allStaffCodes((Long) auth.getPrincipal()));
     }
 
-    @PostMapping("/staff-code")
+    // Admin: generate individual per-role codes.
+    @PostMapping("/staff-codes/teacher")
     @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
-    public ResponseEntity<?> issueCode(Authentication auth) {
-        return ResponseEntity.ok(Map.of("staffCode", staff.generateStaffCode((Long) auth.getPrincipal())));
+    public ResponseEntity<?> generateTeacherCode(Authentication auth) {
+        return ResponseEntity.ok(Map.of("teacherCode", staff.generateTeacherCode((Long) auth.getPrincipal())));
+    }
+
+    @PostMapping("/staff-codes/bursar")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> generateBursarCode(Authentication auth) {
+        return ResponseEntity.ok(Map.of("bursarCode", staff.generateBursarCode((Long) auth.getPrincipal())));
+    }
+
+    @PostMapping("/staff-codes/librarian")
+    @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
+    public ResponseEntity<?> generateLibrarianCode(Authentication auth) {
+        return ResponseEntity.ok(Map.of("librarianCode", staff.generateLibrarianCode((Long) auth.getPrincipal())));
     }
 
     // Admin: review pending staff and approve / reject.
@@ -83,7 +95,6 @@ public class StaffOnboardingController {
         return ResponseEntity.ok().build();
     }
 
-    // Admin: give a staff member a title everybody sees (blank clears it).
     @PutMapping("/staff/{id}/title")
     @PreAuthorize("hasAnyRole('ADMIN','PRINCIPAL')")
     public ResponseEntity<?> setStaffTitle(@PathVariable Long id, @RequestBody Map<String, String> body,

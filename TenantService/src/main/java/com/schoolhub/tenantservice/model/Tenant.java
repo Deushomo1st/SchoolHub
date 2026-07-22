@@ -36,6 +36,15 @@ public class Tenant {
     @Column(name = "staff_code", unique = true)
     private String staffCode;
 
+    @Column(name = "teacher_code", unique = true)
+    private String teacherCode;
+
+    @Column(name = "bursar_code", unique = true)
+    private String bursarCode;
+
+    @Column(name = "librarian_code", unique = true)
+    private String librarianCode;
+
     @Column(nullable = false)
     private String status = "active";
 
@@ -77,6 +86,12 @@ public class Tenant {
     public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
     public String getStaffCode() { return staffCode; }
     public void setStaffCode(String staffCode) { this.staffCode = staffCode; }
+    public String getTeacherCode() { return teacherCode; }
+    public void setTeacherCode(String teacherCode) { this.teacherCode = teacherCode; }
+    public String getBursarCode() { return bursarCode; }
+    public void setBursarCode(String bursarCode) { this.bursarCode = bursarCode; }
+    public String getLibrarianCode() { return librarianCode; }
+    public void setLibrarianCode(String librarianCode) { this.librarianCode = librarianCode; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
