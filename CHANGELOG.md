@@ -24,6 +24,13 @@
 
   *Frontend: static copy to target only. Backend: SchoolService JAR rebuild required (Maven wrapper incompatible with Java 25; use IntelliJ Build).*
 
+## 2026-07-22 — Supabase cloud database integration
+
+- **Cloud connection in Manager:** `c` menu — set up JDBC URL, toggle LOCAL/CLOUD, test connectivity. All existing DbTools (create, delete, rename, switch) transparently target the cloud when active.
+- **Auto supabase profile:** `Launch-One` appends `--spring.profiles.active=supabase` when cloud mode is on, so services connect to Supabase automatically.
+- **Schema pushed:** `db/00_platform.sql` applied to Supabase; platform owner bootstrapped directly.
+- **Security:** `.schoolhub_cloud.txt` and all `application-supabase.properties` files are gitignored.
+
 ## 2026-07-22 — SchoolHub Manager: cleanup, multi-delete, menu reorganization
 
 - **Start/Stop/Restart split:** menu item 1 is now "Start services" only (removed the old `Ar`/`As`/`number+r`/`number+s` modifier soup). Stop is its own item (3), Restart gets its own item (2) with full pre-flight/build/stop/start/health-check/seed flow.
