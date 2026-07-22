@@ -31,6 +31,12 @@
 - **Schema pushed:** `db/00_platform.sql` applied to Supabase; platform owner bootstrapped directly.
 - **Security:** `.schoolhub_cloud.txt` and all `application-supabase.properties` files are gitignored.
 
+## 2026-07-22 — Windows Terminal tab support
+
+- **`SchoolHub-Manager (Terminal).cmd`:** new launcher that opens the Manager inside Windows Terminal. Falls back to new Terminal window if reuse fails, or standard PowerShell if Terminal isn't installed.
+- **`Launch-One` tab detection:** when `$env:WT_SESSION` is set, services launch as new **tabs** in the same Terminal window instead of separate `cmd.exe` windows. Uses `wt -w 0 nt` for current-window reuse.
+- **Clean rewrite:** `cd /d` to project root, all paths relative — no space/quoting issues.
+
 ## 2026-07-22 — SchoolHub Manager: cleanup, multi-delete, menu reorganization
 
 - **Start/Stop/Restart split:** menu item 1 is now "Start services" only (removed the old `Ar`/`As`/`number+r`/`number+s` modifier soup). Stop is its own item (3), Restart gets its own item (2) with full pre-flight/build/stop/start/health-check/seed flow.
