@@ -9,7 +9,11 @@ if not exist "%PSCRIPT%" (
 )
 where wt >nul 2>nul
 if %ERRORLEVEL%==0 (
-    wt -w 0 nt --title "SchoolHub Manager" cmd /c "C:\Users\Deus\Desktop\Springworld\SchoolHub refix\SchoolHub-Manager.cmd"
+    REM Try to open in current Terminal window; fall back to new window
+    wt -w 0 nt --title "SchoolHub Manager" cmd /c ""%~dp0SchoolHub-Manager.cmd"" 2>nul
+    if %ERRORLEVEL% NEQ 0 (
+        start "" wt nt --title "SchoolHub Manager" cmd /c ""%~dp0SchoolHub-Manager.cmd""
+    )
 ) else (
     where pwsh >nul 2>nul
     if %ERRORLEVEL%==0 (
