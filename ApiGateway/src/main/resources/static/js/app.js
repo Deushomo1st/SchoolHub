@@ -140,6 +140,40 @@ function initTheme() {
     };
     document.body.appendChild(island);
   }
+  // Pop on scroll-to-top, retract after leaving top. Pure spatial trigger.
+  let autoRetractTimer = null;
+  
+  function retractIsland() {
+    island.classList.remove('di-popped');
+  }
+  
+  function checkScroll() {
+    if (window.scrollY === 0) {
+      island.classList.add('di-popped');
+      // Auto-retract after 2 seconds if popped by scroll
+      clearTimeout(autoRetractTimer);
+      autoRetractTimer = setTimeout(retractIsland, 2000);
+    } else {
+      island.classList.remove('di-popped');
+      clearTimeout(autoRetractTimer);
+    }
+  }
+  
+  // Also retract if mouse leaves the island while it's popped
+  island.addEventListener('mouseleave', function() {
+    if (island.classList.contains('di-popped') && window.scrollY !== 0) {
+      clearTimeout(autoRetractTimer);
+      autoRetractTimer = setTimeout(retractIsland, 2000);
+    }
+  });
+  
+  // Don't auto-retract if mouse enters while popped
+  island.addEventListener('mouseenter', function() {
+    clearTimeout(autoRetractTimer);
+  });
+  
+  window.addEventListener('scroll', checkScroll, { passive: true });
+  checkScroll();
 })();
 
 // ---- Notifications: the top-bar bell opens a layer-2 glass modal (bell stays in place) ----

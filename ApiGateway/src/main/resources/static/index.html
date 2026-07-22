@@ -13,6 +13,11 @@
 .mkt-wrap{max-width:1120px;margin:0 auto;padding:0 22px}
 .mkt-top{display:flex;align-items:center;justify-content:space-between;padding:18px 0;position:relative;z-index:3}
 .mkt-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.02em;color:var(--brand-dark);text-decoration:none}
+/* Fixed top-bar brand — sits in the top-bar layer, doesn't scroll */
+.mkt-brand-fixed{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.02em;color:var(--brand-dark);text-decoration:none;position:fixed;top:22px;left:28px;z-index:70;padding:8px 14px;border-radius:14px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);overflow:hidden}
+/* Glossy top reflection — same glass recipe every other surface uses */
+.mkt-brand-fixed::before{content:"";position:absolute;top:0;left:5%;width:90%;height:35%;background:var(--glass-sheen);border-radius:14px 14px 0 0;pointer-events:none;mix-blend-mode:screen}
+.mkt-brand-fixed svg{width:28px;height:28px}
 .mkt-brand svg{width:36px;height:36px}
 .mkt-nav{display:flex;align-items:center;gap:10px}
 .mkt h2.sec{font-size:34px;letter-spacing:-.02em;text-align:center;margin:0 0 8px}
@@ -163,11 +168,14 @@ section{padding:36px 0}
 </style>
 </head>
 <body class="mkt">
+
+<!-- Fixed top-bar brand: stays put while the landing page scrolls underneath -->
+<a class="mkt-brand-fixed" href="/index.html"><span id="brandMark"></span>SchoolHub</a>
+
 <div class="mkt-wrap">
 
   <header class="mkt-top">
-    <a class="mkt-brand" href="/index.html"><span id="brandMark"></span>SchoolHub</a>
-    <nav class="mkt-nav">
+    <nav class="mkt-nav" style="margin-left:auto">
       <a class="btn secondary" href="/login.html">Log in</a>
       <a class="btn" href="/signup.html">Get started free</a>
     </nav>
@@ -462,7 +470,7 @@ document.getElementById("yr").textContent=new Date().getFullYear();
 document.getElementById("brandMark").innerHTML=window.shLogoSvg;
 document.getElementById("heroMark").innerHTML=window.shLogoSvg;
 document.getElementById("footMark").innerHTML=window.shLogoSvg;
-document.querySelector("#brandMark svg").style.cssText="width:36px;height:36px;display:block";
+document.querySelector("#brandMark svg").style.cssText="width:28px;height:28px;display:block";
 document.querySelector("#footMark svg").style.cssText="width:34px;height:34px;display:block";
 
 // Newsletter: front-end only (no mailing backend yet) — acknowledge and stop.

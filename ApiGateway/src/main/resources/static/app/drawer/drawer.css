@@ -1,6 +1,6 @@
-/* ---- macOS-style floating drawer ---- */
+/* ---- macOS-style floating drawer (top-left corner) ---- */
 .drawer-container {
-  position: fixed; top: 0; left: 96px; z-index: 50;
+  position: fixed; top: 0; left: 16px; z-index: 50;
   width: 48px; height: 44px;
   overflow: hidden;
   transition: width .28s cubic-bezier(.25,.1,.25,1), height .28s cubic-bezier(.25,.1,.25,1);
