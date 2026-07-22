@@ -434,9 +434,9 @@ function Start-StripeListen {
         $cmd = "title SchoolHub-Stripe-$($t.Name) & `"$stripe`" listen --events $($t.Events) --forward-to $($t.Path)"
         $wt = (Get-Command wt.exe -ErrorAction SilentlyContinue).Source
         if ($wt -and $env:WT_SESSION) {
-            $proc = Start-Process -FilePath $wt -ArgumentList '-w','0','nt','--title',"SchoolHub-Stripe-$($t.Name)",'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "-w 0 nt --title `"SchoolHub-Stripe-$($t.Name)`" cmd /k $cmd" -PassThru
         } elseif ($wt) {
-            $proc = Start-Process -FilePath $wt -ArgumentList 'nt','--title',"SchoolHub-Stripe-$($t.Name)",'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "nt --title `"SchoolHub-Stripe-$($t.Name)`" cmd /k $cmd" -PassThru
         } else {
             $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -PassThru
         }
@@ -471,9 +471,9 @@ function Launch-All {
         # Launch as a tab in the current Windows Terminal window if possible
         $wt = (Get-Command wt.exe -ErrorAction SilentlyContinue).Source
         if ($wt -and $env:WT_SESSION) {
-            $proc = Start-Process -FilePath $wt -ArgumentList '-w','0','nt','--title',"SchoolHub-$($s.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "-w 0 nt --title `"SchoolHub-$($s.Name)`" -d `"$dir`" cmd /k $cmd" -PassThru
         } elseif ($wt) {
-            $proc = Start-Process -FilePath $wt -ArgumentList 'nt','--title',"SchoolHub-$($s.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "nt --title `"SchoolHub-$($s.Name)`" -d `"$dir`" cmd /k $cmd" -PassThru
         } else {
             $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         }
@@ -546,9 +546,9 @@ function Launch-One($svc) {
         # Launch in same Windows Terminal window as a tab if possible
         $wt = (Get-Command wt.exe -ErrorAction SilentlyContinue).Source
         if ($wt -and $env:WT_SESSION) {
-            $proc = Start-Process -FilePath $wt -ArgumentList '-w','0','nt','--title',"SchoolHub-$($svc.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "-w 0 nt --title `"SchoolHub-$($svc.Name)`" -d `"$dir`" cmd /k $cmd" -PassThru
         } elseif ($wt) {
-            $proc = Start-Process -FilePath $wt -ArgumentList 'nt','--title',"SchoolHub-$($svc.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+            $proc = Start-Process -FilePath $wt -ArgumentList "nt --title `"SchoolHub-$($svc.Name)`" -d `"$dir`" cmd /k $cmd" -PassThru
         } else {
             $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
         }
@@ -1378,6 +1378,7 @@ while ($true) {
     Write-Host "  5) Super-admins"
     Write-Host "  6) Debug"
     Write-Host "  7) New laptop setup"
+    Write-Host "  8) Switch preset"
     Write-Host "  q) Quit"
     Write-Host ""
     $ch = Read-Host "Choose"
@@ -1390,6 +1391,7 @@ while ($true) {
             '5' { Action-SuperAdmins }
             '6' { Action-Debug }
             '7' { Action-NewLaptopSetup }
+            '8' { Action-SwitchPreset }
             'q' { Write-Host "Bye." -ForegroundColor Cyan; exit 0 }
             default { Write-Host "?" -ForegroundColor Yellow; Start-Sleep -Milliseconds 600 }
         }

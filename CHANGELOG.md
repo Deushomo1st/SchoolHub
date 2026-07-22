@@ -60,8 +60,10 @@
 - **`5) Switch preset`:** lists all presets from JSON, pick by number to switch. Active preset shown in DbTools header.
 - **`6) Create new preset`:** prompts for name + display label → appends a blank entry to `db-presets.json` → opens the file in your editor so you fill in host/port/user/password. Validates no duplicates, lowercase-slug-only name.
 - **`7) Edit presets file`:** opens `db-presets.json` in VS Code (or notepad fallback). First-run auto-creates from example template.
+- **Main menu `8) Switch preset`:** quick shortcut to switch presets without entering DbTools.
 - Backward-compat: legacy `.schoolhub_cloud.txt` helpers preserved.
-- Byte-safe edits: 101→237 insertions across the session; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
+- **Fix:** `Launch-All`, `Launch-One`, and `Start-StripeListen` tab-launch arguments switched from array to single-quoted-string to fix path-with-spaces bug (`0x80070002` when project path contains a space like "SchoolHub refix").
+- Byte-safe edits throughout; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
 
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
 
