@@ -470,6 +470,7 @@ function Launch-One($svc) {
         return
     }
     $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& set STRIPE_APP_BASE_URL=$env:STRIPE_APP_BASE_URL&& java -jar `"$($jar.FullName)`""
+    if ($CloudActive) { $cmd += " --spring.profiles.active=supabase" }
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
     Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
