@@ -22,7 +22,9 @@ $TenantSql    = Join-Path $ProjectRoot 'db\tenant_template.sql'
 $DbHost       = 'localhost'
 $DbPort       = 5432
 $DbUser       = 'postgres'
-# ---- Cloud connection (Supabase / remote PG) --------------------------------
+# ---- DB presets (JSON) -------------------------------------------------------
+$PresetsFile  = Join-Path $ProjectRoot 'db-presets.json'
+# Legacy cloud file (backward compat)
 $CloudFile    = Join-Path $ProjectRoot '.schoolhub_cloud.txt'
 $CloudActive  = $false
 $CloudHost    = ''
@@ -30,8 +32,42 @@ $CloudPort    = ''
 $CloudUser    = ''
 $CloudPass    = ''
 
-function Cloud-ModeLabel { if ($CloudActive) { ("CLOUD ({0})" -f $CloudHost) } else { "localhost" } }
+function Cloud-ModeLabel {
+    $p = Get-ActivePreset
+    if ($p) { return $p.label } else { return "localhost" }
+}
 
+function Load-DbPresets {
+    if (-not (Test-Path $PresetsFile)) { return @() }
+    try {
+        $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json
+        return @($json.presets)
+    } catch { return @() }
+}
+
+function Get-ActivePreset {
+    if (-not (Test-Path $PresetsFile)) { return $null }
+    try {
+        $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json
+        $active = $json.activePreset
+        foreach ($p in $json.presets) { if ($p.name -eq $active) { return $p } }
+    } catch {}
+    return $null
+}
+
+function Apply-DbPreset($preset) {
+    $script:DbHost   = $preset.host
+    $script:DbPort   = $preset.port
+    $script:DbUser   = $preset.user
+    $script:CloudHost   = $preset.host
+    $script:CloudPort   = $preset.port
+    $script:CloudUser   = $preset.user
+    $script:CloudPass   = $preset.password
+    $script:CloudActive = ($preset.name -ne 'local')
+    $env:PGPASSWORD = $preset.password
+}
+
+# ---- Legacy cloud-file helpers (backward compat) ---------------------------
 function Load-CloudConnection {
     if (-not (Test-Path $CloudFile)) { return $false }
     $raw = Get-Content -Raw -LiteralPath $CloudFile
@@ -75,6 +111,25 @@ function Toggle-CloudMode {
             Write-Host "  No cloud connection configured. Use option 1 to set up." -ForegroundColor Yellow
         }
     }
+}
+
+function Edit-DbPresets {
+    $editor = $env:EDITOR
+    if (-not $editor) { $editor = (Get-Command code.cmd -ErrorAction SilentlyContinue).Source }
+    if (-not $editor) { $editor = 'notepad.exe' }
+    if (-not (Test-Path $PresetsFile)) {
+        Write-Host "  No db-presets.json yet. Creating from example..." -ForegroundColor Yellow
+        $example = Join-Path $ProjectRoot 'db-presets.example.json'
+        if (Test-Path $example) { Copy-Item $example $PresetsFile }
+        else {
+            $default = @{ activePreset='local'; presets=@(
+                @{ name='local'; label='Local Postgres'; host='localhost'; port=5432; database='SchoolManagementtester'; user='postgres'; password='postgres'; springProfile=$null }
+            ) } | ConvertTo-Json -Depth 4
+            $default | Set-Content -LiteralPath $PresetsFile -NoNewline
+        }
+    }
+    & $editor $PresetsFile
+    Write-Host "  Presets file opened. Changes take effect on next Apply." -ForegroundColor Cyan
 }
 $GatewayUrl   = 'http://localhost:9000'
 
@@ -1116,34 +1171,54 @@ function Action-KillStale {
     else { Write-Host "  ?" -ForegroundColor Yellow }
     Press-Enter
 }
-# ---- Cloud connection ------------------------------------------------------
+# ---- DB presets picker -----------------------------------------------------
 function Action-CloudConnect {
     while ($true) {
-        Write-Host "`n  Cloud Connection" -ForegroundColor Cyan
-        if ($CloudActive) {
-            Write-Host "  Status: CONNECTED -- ${CloudHost}:${CloudPort} as ${CloudUser}" -ForegroundColor Green
+        $presets = Load-DbPresets
+        $active  = Get-ActivePreset
+        Write-Host "`n  DB Presets" -ForegroundColor Cyan
+        if ($active) {
+            $status = if ($active.name -eq 'local') { "LOCAL" } else { "CLOUD" }
+            Write-Host "  Active: $status -- $($active.label)  ($($active.host):$($active.port) as $($active.user))" -ForegroundColor Green
         } else {
-            Write-Host "  Status: LOCAL (localhost:5432)" -ForegroundColor Yellow
+            Write-Host "  Active: LOCAL (localhost:5432) [no presets file]" -ForegroundColor Yellow
         }
         Write-Host ""
-        Write-Host "    1) Set up / update cloud connection"
-        Write-Host "    2) Toggle cloud <-> local"
-        if ($CloudActive) { Write-Host "    3) Test connectivity" }
-        Write-Host "    b) Back"
-        $ch = Read-Host "  Choose"
-        switch ($ch) {
-            '1' {
-                Write-Host "  Paste the Supabase JDBC URL (Session mode):" -ForegroundColor Cyan
-                $url = Read-Host "  JDBC URL"
-                if ($url) { Set-CloudConnection $url }
+        if ($presets.Count -gt 0) {
+            for ($i=0; $i -lt $presets.Count; $i++) {
+                $mark = if ($active -and $presets[$i].name -eq $active.name) { " [ACTIVE]" } else { "" }
+                Write-Host "    $($i+1)) $($presets[$i].label)  ($($presets[$i].host):$($presets[$i].port))$mark"
             }
-            '2' { Toggle-CloudMode }
-            '3' {
-                if ($CloudActive) {
-                    if (Test-PgAuth) { Write-Host "  Cloud connection: OK" -ForegroundColor Green }
-                    else { Write-Host "  Cloud connection: FAILED" -ForegroundColor Red }
+        } else {
+            Write-Host "    (no presets configured)"
+        }
+        Write-Host ""
+        Write-Host "    t) Test active connection"
+        Write-Host "    e) Edit presets file (JSON)"
+        Write-Host "    b) Back"
+        Write-Host ""
+        $ch = Read-Host "  Choose (1..$($presets.Count) or t/e/b)"
+        switch -Regex ($ch) {
+            '^[0-9]+$' {
+                $idx = [int]$ch - 1
+                if ($idx -ge 0 -and $idx -lt $presets.Count) {
+                    $p = $presets[$idx]
+                    Apply-DbPreset $p
+                    try {
+                        $json = Get-Content -Raw -LiteralPath $PresetsFile | ConvertFrom-Json
+                        $json.activePreset = $p.name
+                        $json | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PresetsFile -NoNewline
+                    } catch {}
+                    $label = if ($p.name -eq 'local') { "LOCAL" } else { "CLOUD" }
+                    Write-Host "  Switched to $label -- $($p.label)" -ForegroundColor Cyan
                 }
             }
+            't' {
+                if (Test-PgAuth) { Write-Host "  Connection: OK" -ForegroundColor Green }
+                else { Write-Host "  Connection: FAILED" -ForegroundColor Red }
+                Press-Enter
+            }
+            'e' { Edit-DbPresets }
             'b' { return }
             default { Write-Host "  ?" -ForegroundColor Yellow }
         }
@@ -1271,7 +1346,8 @@ while ($true) {
     Write-Host "  5) Super-admins"
     Write-Host "  6) Debug"
     Write-Host "  7) New laptop setup"
-    Write-Host "  c) Cloud connect"
+    Write-Host "  c) DB presets"
+    Write-Host "  e) Edit DB presets"
     Write-Host ""
     Write-Host "  q) Quit"
     Write-Host ""
@@ -1286,6 +1362,7 @@ while ($true) {
             '6' { Action-Debug }
             '7' { Action-NewLaptopSetup }
             'c' { Action-CloudConnect }
+            'e' { Edit-DbPresets }
             'q' { Write-Host "Bye." -ForegroundColor Cyan; exit 0 }
             default { Write-Host "?" -ForegroundColor Yellow; Start-Sleep -Milliseconds 600 }
         }

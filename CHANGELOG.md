@@ -52,6 +52,16 @@
 ### Cloud mode parity
 - **Fix:** `Launch-All` now appends `--spring.profiles.active=supabase` when cloud mode is active — same check `Launch-One` already had (line ~488). All launch paths now honour the cloud toggle.
 
+### DB presets system (JSON)
+
+- **`db-presets.json`:** externalised all DB connection details (host, port, database, user, password, Spring profile) into a gitignored JSON presets file. Supports any number of named connection presets (local, Supabase, staging, etc.).
+- **`db-presets.example.json`:** tracked template with blank passwords — clone-and-edit to get started.
+- **Manager `c` menu → DB presets picker:** lists all presets from JSON, pick by number to switch. Active preset shown in header (replaces old "CLOUD / localhost" binary toggle). Backward-compat: old `.schoolhub_cloud.txt` helpers preserved.
+- **Manager `e` key:** opens `db-presets.json` in editor (VS Code / notepad fallback) — add, rename, or reconfigure presets without touching the `.ps1`.
+- **`Edit-DbPresets`:** first-run auto-creates the JSON from the example template (or a minimal local-only bootstrap).
+- **`Apply-DbPreset`:** sets all globals (`$DbHost`, `$DbPort`, `$DbUser`, `$CloudActive`, `$env:PGPASSWORD`) from a preset — `$CloudActive` is derived (`name != 'local'`), so any non-local preset triggers `--spring.profiles.active=supabase` on launch.
+- Byte-safe edit: 101 insertions, 23 deletions; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
+
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
 
 ### Dynamic island — scroll-pop + auto-retract + corner layout

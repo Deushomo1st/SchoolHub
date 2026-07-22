@@ -1,0 +1,25 @@
+{
+  "activePreset": "local",
+  "presets": [
+    {
+      "name": "local",
+      "label": "Local Postgres",
+      "host": "localhost",
+      "port": 5432,
+      "database": "SchoolManagementtester",
+      "user": "postgres",
+      "password": "",
+      "springProfile": null
+    },
+    {
+      "name": "supabase",
+      "label": "Supabase Cloud (EU North)",
+      "host": "aws-0-eu-north-1.pooler.supabase.com",
+      "port": 5432,
+      "database": "postgres",
+      "user": "",
+      "password": "",
+      "springProfile": "supabase"
+    }
+  ]
+}
