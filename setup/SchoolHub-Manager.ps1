@@ -470,9 +470,18 @@ function Launch-One($svc) {
         return
     }
     $cmd = "title SchoolHub-$($svc.Name) & set SCHOOLHUB_JWT_SECRET=$env:SCHOOLHUB_JWT_SECRET&& set SCHOOLHUB_DB_NAME=$env:SCHOOLHUB_DB_NAME&& set STRIPE_SECRET_KEY=$env:STRIPE_SECRET_KEY&& set STRIPE_WEBHOOK_SECRET=$env:STRIPE_WEBHOOK_SECRET&& set STRIPE_APP_BASE_URL=$env:STRIPE_APP_BASE_URL&& java -jar `"$($jar.FullName)`""
-    if ($CloudActive) { $cmd += " --spring.profiles.active=supabase" }
-    $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
-    Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
+        if ($CloudActive) { $cmd += " --spring.profiles.active=supabase" }
+
+        # Launch in same Windows Terminal window as a tab if possible
+        $wt = (Get-Command wt.exe -ErrorAction SilentlyContinue).Source
+        if ($wt -and $env:WT_SESSION) {
+            $proc = Start-Process -FilePath $wt -ArgumentList '-w','0','nt','--title',"SchoolHub-$($svc.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+        } elseif ($wt) {
+            $proc = Start-Process -FilePath $wt -ArgumentList 'nt','--title',"SchoolHub-$($svc.Name)",'-d',$dir,'cmd','/k',$cmd -PassThru
+        } else {
+            $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $cmd -WorkingDirectory $dir -PassThru
+        }
+        Write-Host "    $($svc.Name) launched (PID $($proc.Id), port $($svc.Port))" -ForegroundColor Green
     Start-Sleep -Milliseconds 400
 }
 function Compile-One($svc) {
