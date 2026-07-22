@@ -13,6 +13,8 @@ target/
 
 # Secrets & local config
 .schoolhub_secrets.txt
+.schoolhub_cloud.txt
+application-supabase.properties
 active-db.properties
 
 # OS
