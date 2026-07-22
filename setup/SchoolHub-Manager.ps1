@@ -1310,7 +1310,7 @@ function Action-NewLaptopSetup {
     # Step 2: Connect
     Write-Host "  Step 2/6 — Connect to PostgreSQL..." -ForegroundColor Cyan
     if (-not (Ensure-PgAuth)) { Write-Host "    Cannot connect. Check password / service." -ForegroundColor Red; Press-Enter; return }
-    Write-Host "    [OK] localhost:5432" -ForegroundColor Green
+    Write-Host "    [OK] ${DbHost}:${DbPort}" -ForegroundColor Green
 
     # Step 3: Create database
     Write-Host "  Step 3/6 — Database..." -ForegroundColor Cyan
