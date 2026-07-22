@@ -63,6 +63,8 @@
 - **Main menu `8) Switch preset`:** quick shortcut to switch presets without entering DbTools.
 - Backward-compat: legacy `.schoolhub_cloud.txt` helpers preserved.
 - **Fix:** `Launch-All`, `Launch-One`, and `Start-StripeListen` tab-launch arguments switched from array to single-quoted-string to fix path-with-spaces bug (`0x80070002` when project path contains a space like "SchoolHub refix").
+- **Fix:** `BootstrapRunner` and `DbResolver` (all three services) now detect `--spring.profiles.active=supabase` and skip localhost bootstrap — Spring Boot's `application-supabase.properties` handles the cloud connection instead of hardcoded `localhost:5432`.
+- **Fix:** Schema application in `BootstrapRunner` switched from naive `split(";")` (which broke on semicolons inside `--` SQL comments, producing "syntax error at end of input") to a line-based parser that strips comment lines before splitting.
 - Byte-safe edits throughout; canaries identical (576 non-ASCII / 61 em-dash / 7 arrow).
 
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover

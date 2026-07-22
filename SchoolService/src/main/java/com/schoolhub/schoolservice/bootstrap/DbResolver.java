@@ -10,7 +10,16 @@ import java.util.Properties;
  */
 public class DbResolver {
 
-    public static String resolve() {
+    public static String resolve(String[] args) {
+        // When running against a remote/cloud database, skip the localhost check
+        // entirely — Spring Boot's application-supabase.properties has the real connection.
+        for (String arg : args) {
+            if (arg.startsWith("--spring.profiles.active=") && arg.contains("supabase")) {
+                String name = resolveDbName();
+                System.out.println("[SchoolHub] DB: " + name + " (cloud) — starting SchoolService...");
+                return name;
+            }
+        }
         String name = resolveDbName();
         if (!check(name)) {
             System.err.println();

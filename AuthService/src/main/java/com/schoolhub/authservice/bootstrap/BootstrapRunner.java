@@ -29,6 +29,23 @@ public class BootstrapRunner {
         resolvedDbName = resolveDbName();
         System.out.println("[SchoolHub] Active DB: " + resolvedDbName);
 
+        // When running against a remote/cloud database, skip the localhost bootstrap
+        // entirely — Spring Boot's application-supabase.properties has the real connection
+        // details, and the Manager already handled DB creation + schema via psql.
+        boolean cloudMode = false;
+        for (String arg : args) {
+            if (arg.startsWith("--spring.profiles.active=") && arg.contains("supabase")) {
+                cloudMode = true;
+                break;
+            }
+        }
+        if (cloudMode) {
+            System.out.println("[SchoolHub] Cloud mode (supabase profile) — skipping localhost bootstrap.");
+            System.out.println("[SchoolHub] DB must already exist on the cloud server (use Manager option 7).");
+            System.out.println("[SchoolHub] Starting Spring Boot...");
+            return;
+        }
+
         if (!connectToPostgres()) {
             System.err.println("[SchoolHub] Cannot connect to PostgreSQL at " + DB_HOST + ":" + DB_PORT);
             System.err.println("  Check that PostgreSQL is running and the password is correct.");
@@ -129,6 +146,31 @@ public class BootstrapRunner {
 
     // ---- Interactive menu (DB missing) -------------------------------------
 
+    /**
+     * Splits a multi-statement SQL string into individual statements,
+     * ignoring semicolons inside {@code --} single-line comments.
+     */
+    private static List<String> splitSqlStatements(String sql) {
+        List<String> stmts = new ArrayList<>();
+        StringBuilder buf = new StringBuilder();
+        for (String line : sql.split("\n")) {
+            // Strip -- comments (only outside string literals — safe for schema files)
+            int commentIdx = line.indexOf("--");
+            String codeLine = (commentIdx >= 0) ? line.substring(0, commentIdx) : line;
+            buf.append(codeLine).append("\n");
+            if (codeLine.trim().endsWith(";")) {
+                String stmt = buf.toString().trim();
+                // Remove trailing semicolon then whitespace
+                if (stmt.endsWith(";")) stmt = stmt.substring(0, stmt.length() - 1).trim();
+                if (!stmt.isEmpty()) stmts.add(stmt);
+                buf.setLength(0);
+            }
+        }
+        String remainder = buf.toString().trim();
+        if (!remainder.isEmpty()) stmts.add(remainder);
+        return stmts;
+    }
+
     private static void interactiveMenu() {
         System.out.println();
         System.out.println("==============================================");
@@ -196,10 +238,9 @@ public class BootstrapRunner {
         try (Connection c = newConnection(resolvedDbName);
              Statement s = c.createStatement()) {
             s.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
-            String sql = Files.readString(schemaFile.toPath());
-            for (String stmt : sql.split(";")) {
-                stmt = stmt.trim();
-                if (!stmt.isEmpty()) s.execute(stmt);
+            List<String> statements = splitSqlStatements(Files.readString(schemaFile.toPath()));
+            for (String stmt : statements) {
+                if (!stmt.isBlank()) s.execute(stmt);
             }
             System.out.println("  [OK] Schema applied.");
         } catch (Exception e) {

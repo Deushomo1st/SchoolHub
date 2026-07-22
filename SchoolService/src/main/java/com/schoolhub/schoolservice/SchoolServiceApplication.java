@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class SchoolServiceApplication {
     public static void main(String[] args) {
-        DbResolver.resolve();
+        DbResolver.resolve(args);
         SpringApplication.run(SchoolServiceApplication.class, args);
     }
 }
