@@ -856,8 +856,29 @@ function Action-SwitchDb {
     Press-Enter
 }
 
+# ---- Cloud admin guard -----------------------------------------------------
+function Guard-CloudAdmin {
+    if (-not $CloudActive) { return }
+    $procs = @(Get-RunningProcs)
+    if (-not $procs.Count) { return }
+    Write-Host ""
+    Write-Host "  WARNING: $($procs.Count) SchoolHub service(s) running on cloud pooler." -ForegroundColor Yellow
+    Write-Host "  Pooler limit is 15 connections — DB admin may fail without stopping them." -ForegroundColor Yellow
+    $ans = Read-Host "  Stop services to free connections? (y/n, default y)"
+    if ($ans -eq 'n') { return }
+    $killed = 0
+    foreach ($p in $procs) {
+        try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; $killed++ }
+        catch {}
+    }
+    Write-Host "  Stopped $killed/$($procs.Count) service(s)." -ForegroundColor Green
+    if (Test-Path $PidsFile) { Remove-Item $PidsFile -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 500
+}
+
 # ---- 4) Database tools (sub-menu) -----------------------------------------
 function Action-DbTools {
+    Guard-CloudAdmin
     while ($true) {
         $active = Get-ActivePreset
         Write-Host "`n  Database Tools — Active DB: $(Get-ActiveDb)  |  $(Cloud-ModeLabel)" -ForegroundColor Cyan
@@ -957,6 +978,7 @@ function Action-RenameDb {
 
 # ---- 5) Super-admins (sub-menu) -------------------------------------------
 function Action-SuperAdmins {
+    Guard-CloudAdmin
     while ($true) {
         $db = Get-ActiveDb
         Write-Host "`n  Super-Admins — Active DB: $db" -ForegroundColor Cyan
