@@ -42,11 +42,14 @@
 ## 2026-07-22 — Manager auto-relaunch into Windows Terminal (tab support)
 
 ### Entry point consolidation
-- **`SchoolHub-Manager.cmd`**: now self-relaunches inside Windows Terminal when not already in a WT session (`if defined WT_SESSION` guard → `wt -w 0 nt` into the current window). This sets `WT_SESSION` for the manager, which flips on the existing tab logic in `Launch-One` (services start as **tabs**, not new windows). Falls back to plain console if `wt` is absent.
+- **`SchoolHub-Manager.cmd`**: now self-relaunches inside Windows Terminal when not already in a WT session (`if defined WT_SESSION` guard → `wt -w 0 nt` into the current window). This sets `WT_SESSION` for the manager, which flips on the tab logic in `Launch-One`/`Launch-All`/Stripe (services start as **tabs**, not new windows). Falls back to plain console if `wt` is absent. **Fix:** strip the trailing backslash from `%~dp0` before passing to `wt -d` — `"...refix\"` made wt read `\"` as an escaped quote and mangle the path (error `0x80070002`).
 - **`SchoolHub-Manager (Terminal).cmd`**: deleted — now redundant, the single `.cmd` handles the WT relaunch itself. One entry point, can't pick the wrong one.
 
-### Pending (manual VS Code edits — NOT yet applied)
-- `setup/SchoolHub-Manager.ps1` `Launch-All` (line ~408) and `Start-StripeListen` (line ~380) still use plain `cmd.exe`, so "Start all" + Stripe listeners open as separate windows even inside WT. Fix = port the `wt -w 0 nt` block from `Launch-One` (lines 476–483). Must be done manually — the `.ps1` corrupts under automated edits (em-dash/arrow/box-drawing chars).
+### Launch-All + Stripe listeners now open as tabs
+- `setup/SchoolHub-Manager.ps1` `Launch-All` (line ~408) and `Start-StripeListen` (line ~380): ported the `wt -w 0 nt` tab block from `Launch-One`. "Start all" now opens 4 tabs; Stripe listeners open as tabs too (when inside WT). Falls back to separate windows if `wt` absent or not in a WT session.
+- Edit applied via byte-level ASCII replace (not `patch`/`write_file`) to respect the file's non-ASCII fragility — verified: byte canaries identical (576 non-ASCII / 61 em-dash / 7 arrow unchanged), diff touches only the two intended regions, parse-error count matches the pristine backup (60 = baseline, not corruption).
+
+### Still pending
 - **Known gap flagged:** `Launch-All` doesn't append `--spring.profiles.active=supabase` in cloud mode (line 473 `Launch-One` does). "Start all" in CLOUD may miss the Supabase profile.
 
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
