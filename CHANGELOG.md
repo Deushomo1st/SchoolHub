@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
+
+### Dynamic island — scroll-pop + auto-retract + corner layout
+- **Island** (`app.js`, `style.css`): resting state is a 7px slim black line at top-center with silver edge glow. Pops to full pill (showing "SchoolHub") on scroll-to-top (`scrollY === 0`) or mouse hover. Auto-retracts 2s after leaving the top edge. `transition: 400ms`.
+- **Corners:** drawer moved to `left: 16px` (top-left corner), bell moved to `right: 32px` (top-right corner). Eliminates phone-width overlap between drawer and island.
+- **Island badge** (`di-badge`): text fades in with 150ms delay on pop, hidden when slim.
+
+### Landing page — fixed glass brand badge
+- **`index.html`**: SchoolHub logo + text moved from the scrolling `.mkt-top` header to a fixed `position: fixed` pill at `top: 22px; left: 28px; z-index: 70`. Uses full glass recipe (`--glass-bg`, `--glass-blur`, `--glass-border`, `--glass-sheen` via `::before`, `--glass-shadow`) — same language as the drawer and modals.
+
+### Teacher → student profiles → parents
+- **Backend** (`StudentService.java`, `StudentController.java`): new `GET /api/v1/students/{id}/guardians` endpoint returns linked guardians with name, email, phone, relationship, and `userId` (for avatar lookup). Visibility enforced: a teacher only sees guardians of students in classes they teach.
+- **Teacher Students section** (`dashboards.js`): new drawer item (graduation-cap icon). Lists all students across the teacher's classes, grouped by class name. Each student card shows avatar (profile pic if set, initials otherwise) and is clickable → opens a frost-glass modal with student details + guardian cards.
+- **Attendance wiring:** clicking a student name in the in-class attendance modal now opens the student profile (instead of just highlighting the tilt card). Tilt card click still highlights.
+
+### Teacher groups → assignments (Snapchat-style)
+- **"Assign work" button** on every group card in the Groups pane opens a glass modal: subject picker, assessment title, max score, member pills as confirmation. Creates an assessment scoped to that group via `POST /api/v1/assessments` with `groupId` — same backend pipeline the Results pane already uses.
+
+### Tilt card hover — names above the card
+- **`tiltstack.css`**: `.tc-name` repositioned from `top: -6px` (overlapping the face) to `top: -52px` — name + subtitle now float clearly above the card. Font sizes trimmed (13/10px) for a floating-label feel. Spotlight class still persists on click — selected card keeps its name visible without hover.
+- **Avatar fallback fix:** teacher student cards and guardian cards now check `avatarOf(userId)` before falling back to initials — no more profile pics hidden behind initials.
+
+  *Frontend: static copy to target only. Backend: SchoolService JAR rebuild required (Maven wrapper incompatible with Java 25; use IntelliJ Build).*
+
 ## 2026-07-22 — SchoolHub Manager: cleanup, multi-delete, menu reorganization
 
 - **Start/Stop/Restart split:** menu item 1 is now "Start services" only (removed the old `Ar`/`As`/`number+r`/`number+s` modifier soup). Stop is its own item (3), Restart gets its own item (2) with full pre-flight/build/stop/start/health-check/seed flow.
