@@ -888,6 +888,7 @@ function Action-DbTools {
         Write-Host "    2) Create database"
         Write-Host "    3) Delete database"
         Write-Host "    4) Rename database"
+        Write-Host "    8) Apply platform schema"
         Write-Host ""
         Write-Host "  -- Presets -----------------------------------"
         Write-Host "    5) Switch preset"
@@ -902,6 +903,7 @@ function Action-DbTools {
             '2' { Action-CreateDb }
             '3' { Action-DeleteDb }
             '4' { Action-RenameDb }
+            '8' { Action-ApplySchema }
             '5' { Action-SwitchPreset }
             '6' { Action-CreatePreset }
             '7' { Edit-DbPresets }
@@ -911,6 +913,18 @@ function Action-DbTools {
         }
     }
 }
+function Action-ApplySchema {
+    if (-not (Ensure-PgAuth)) { Press-Enter; return }
+    $db = Get-ActiveDb
+    if (-not (Check-DbExists $db)) { Write-Host "  Database '$db' does not exist." -ForegroundColor Yellow; Press-Enter; return }
+    if (-not (Test-Path $PlatformSql)) { Write-Host "  Schema file not found: $PlatformSql" -ForegroundColor Red; Press-Enter; return }
+    Write-Host "  Applying platform schema to '$db' on $(Cloud-ModeLabel)..." -ForegroundColor Cyan
+    & $Psql -U $DbUser -h $DbHost -p $DbPort -d $db -v ON_ERROR_STOP=1 -f $PlatformSql
+    if ($LASTEXITCODE -eq 0) { Write-Host "  Schema applied." -ForegroundColor Green }
+    else { Write-Host "  Schema apply failed (exit code $LASTEXITCODE)." -ForegroundColor Red }
+    Press-Enter
+}
+
 function Action-CreateDb {
     if (-not (Ensure-PgAuth)) { Press-Enter; return }
     $name = (Read-Host "  New database name").Trim()
