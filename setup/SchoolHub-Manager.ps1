@@ -323,9 +323,9 @@ function Invoke-PreFlight($db) {
     P 'Java' ([bool](Check-Java)) 'Install Java 21 and ensure java is on PATH.'
     P 'Maven wrapper' (Check-Maven) 'Missing mvnw.cmd — project may be corrupted.'
     if ($ok) { Write-Host "  Pre-flight: all clear" -ForegroundColor Green }
-    # Bonus: check if the default "schoolhub" fallback DB exists for IDE runs
-    if (-not (Check-DbExists 'schoolhub')) {
-        Write-Host "  [NOTE] Safety-net DB 'schoolhub' doesn't exist — it's the fallback when active-db.properties isn't found." -ForegroundColor Yellow
+    # Bonus: check if the default "schoolhub" fallback DB exists (local-dev only)
+    if (-not $CloudActive -and -not (Check-DbExists 'schoolhub')) {
+        Write-Host "  [NOTE] Safety-net DB 'schoolhub' doesn't exist — it's the local fallback when active-db.properties isn't found." -ForegroundColor Yellow
         $create = Read-Host "  Create it now? (y/n)"
         if ($create -eq 'y') {
             & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'postgres' -c "CREATE DATABASE schoolhub;"
@@ -1336,8 +1336,8 @@ VALUES ('$eEsc', crypt('$pEsc', gen_salt('bf', 10)), '$first', '$last',
     Set-ActiveDb $db
     $env:SCHOOLHUB_DB_NAME = $db
 
-    # Also create "schoolhub" as the IDE fallback database
-    if (-not (Check-DbExists 'schoolhub')) {
+    # Also create "schoolhub" as the IDE fallback database (local-dev only)
+    if (-not $CloudActive -and -not (Check-DbExists 'schoolhub')) {
         if ((Read-Host "`n  Also create 'schoolhub' as the IDE fallback database? (y/n, default y)") -ne 'n') {
             & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'postgres' -c "CREATE DATABASE schoolhub;"
             & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'schoolhub' -v ON_ERROR_STOP=1 -f $PlatformSql
