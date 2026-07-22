@@ -49,8 +49,8 @@
 - `setup/SchoolHub-Manager.ps1` `Launch-All` (line ~408) and `Start-StripeListen` (line ~380): ported the `wt -w 0 nt` tab block from `Launch-One`. "Start all" now opens 4 tabs; Stripe listeners open as tabs too (when inside WT). Falls back to separate windows if `wt` absent or not in a WT session.
 - Edit applied via byte-level ASCII replace (not `patch`/`write_file`) to respect the file's non-ASCII fragility — verified: byte canaries identical (576 non-ASCII / 61 em-dash / 7 arrow unchanged), diff touches only the two intended regions, parse-error count matches the pristine backup (60 = baseline, not corruption).
 
-### Still pending
-- **Known gap flagged:** `Launch-All` doesn't append `--spring.profiles.active=supabase` in cloud mode (line 473 `Launch-One` does). "Start all" in CLOUD may miss the Supabase profile.
+### Cloud mode parity
+- **Fix:** `Launch-All` now appends `--spring.profiles.active=supabase` when cloud mode is active — same check `Launch-One` already had (line ~488). All launch paths now honour the cloud toggle.
 
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
 
