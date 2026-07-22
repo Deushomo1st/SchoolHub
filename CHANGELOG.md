@@ -1,5 +1,44 @@
 # Changelog
 
+## ⏳ VERIFICATION CHECKLIST — 2026-07-22 changes (remove when confirmed)
+
+> Log in as a teacher (or admin → People section) and walk through each item.
+> Mark `[x]` when confirmed, `[ ]` if not yet checked, `[!]` if broken.
+
+### Island
+- [ ] 1. Scroll down → island shrinks to a slim silver line
+- [ ] 2. Scroll all the way to the top → island pops out, shows "SchoolHub," retracts after ~2s
+- [ ] 3. Hover the slim line → island pops out (stays while hovering)
+- [ ] 4. Drawer is on the far **left**, bell is on the far **right** — no overlap on phone width
+
+### Teacher Students section (drawer → Students, graduation-cap icon)
+- [ ] 5. You see students grouped by class, each with initials (or profile pic if set)
+- [ ] 6. Click a student → glass modal shows name, class, admission no, **Guardians** list with names + relationship
+
+### Teacher Attendance → Student Profile
+- [ ] 7. Drawer → Attendance → pick a class → "Mark attendance"
+- [ ] 8. In the modal, click a student's **name** → student profile modal opens with guardians
+
+### Teacher Groups → Assign Work
+- [ ] 9. Drawer → Groups → pick a class
+- [ ] 10. Each group card has an "**Assign work**" button (left of Edit/Delete)
+- [ ] 11. Click it → modal with subject picker, title, max score, member pills
+- [ ] 12. Fill in subject + title, click "Create assessment" → success message
+
+### Tilt card hover
+- [ ] 13. Admin People section (or any tilt cards): hover a card → name floats **above** the card, not on it
+- [ ] 14. Click a card → name stays visible (spotlight persists)
+
+### Avatar fallback
+- [ ] 15. A user WITH a profile picture shows their picture on cards + small avatar boxes everywhere
+- [ ] 16. A user WITHOUT a profile picture shows initials only — no broken images
+
+### Landing page
+- [ ] 17. `index.html` — SchoolHub brand badge is fixed top-left, content scrolls behind it
+- [ ] 18. Badge has glass-frost look (glossy sheen, blur, theme-sensitive)
+
+---
+
 ## 2026-07-22 — Dynamic island, teacher student profiles, group assignments, tilt hover
 
 ### Dynamic island — scroll-pop + auto-retract + corner layout
