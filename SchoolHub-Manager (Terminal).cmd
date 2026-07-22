@@ -9,7 +9,7 @@ if not exist "%PSCRIPT%" (
 )
 where wt >nul 2>nul
 if %ERRORLEVEL%==0 (
-    wt -w 0 nt --title "SchoolHub Manager" -d "%~dp0" cmd /c "pwsh -NoProfile -ExecutionPolicy Bypass -File \"%PSCRIPT%\""
+    wt -w 0 nt --title "SchoolHub Manager" -d "%~dp0" powershell -NoProfile -ExecutionPolicy Bypass -File "%PSCRIPT%"
 ) else (
     where pwsh >nul 2>nul
     if %ERRORLEVEL%==0 (
