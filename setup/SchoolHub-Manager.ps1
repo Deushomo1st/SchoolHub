@@ -307,17 +307,19 @@ function Get-RunningProcs {
             elseif ($cmd -match 'SchoolHub-(\\w+)')          { $svc = $Matches[1] }
             [PSCustomObject]@{ PID = $_.ProcessId; Service = $svc; Port = $port }
         })
-        if ($found.Count) { return $found }
+        if ($found.Count) { return @($found | Where-Object { $_.PID -gt 0 }) }
     } catch {}
 
     # Fallback: netstat port scan (no admin needed, always works)
     $ports = @{9000='ApiGateway'; 9001='AuthService'; 9002='TenantService'; 9003='SchoolService'}
-    $net = netstat -ano 2>$null | Select-String 'LISTENING'
+    $net = netstat -ano 2>$null
     foreach ($p in $ports.GetEnumerator()) {
-        $match = $net | Where-Object { $_ -match ":($($p.Key))\s+.*LISTENING\s+(\d+)" }
-        if ($match -and $match.Matches.Count) {
-            $pidNum = [int]$match.Matches[0].Groups[2].Value
-            [PSCustomObject]@{ PID = $pidNum; Service = $p.Value; Port = $p.Key }
+        foreach ($line in $net) {
+            if ($line -match ":$($p.Key)\s+.*LISTENING\s+(\d+)") {
+                $pidNum = [int]$Matches[1]
+                [PSCustomObject]@{ PID = $pidNum; Service = $p.Value; Port = $p.Key }
+                break
+            }
         }
     }
 }
@@ -846,6 +848,7 @@ function Action-StopServices {
     if ($ans -eq 'A' -or $ans -eq 'a') {
         $killed = 0
         foreach ($p in $procs) {
+            if ($p.PID -eq 0) { Write-Host "  Skipped PID 0 (kernel idle)" -ForegroundColor DarkGray; continue }
             try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; $killed++; Write-Host "  Killed $($p.Service) (PID $($p.PID))" -ForegroundColor Green }
             catch { Write-Host "  Failed: PID $($p.PID) — $_" -ForegroundColor Red }
         }
@@ -1288,6 +1291,7 @@ function Action-KillStale {
     if ($ans -eq 'A' -or $ans -eq 'a') {
         $killed = 0
         foreach ($p in $procs) {
+            if ($p.PID -eq 0) { Write-Host "  Skipped PID 0 (kernel idle)" -ForegroundColor DarkGray; continue }
             try { Stop-Process -Id $p.PID -Force -ErrorAction Stop; $killed++; Write-Host "  Killed $($p.Service) (PID $($p.PID))" -ForegroundColor Green }
             catch { Write-Host "  Failed: PID $($p.PID)" -ForegroundColor Red }
         }
