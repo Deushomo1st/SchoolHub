@@ -8,7 +8,8 @@
 //   0 = first modal → clear (layer 1)
 //   1 = second modal → frost (layer 2)
 //   2+ = third+ modal → frost-2 (layer 3+)
-// Manual `opts.frost` still works as an override but triggers a console warning.
+// opts.frost acts as a FLOOR (minimum frost): frost:true means never clearer than layer 2.
+// Auto-stacking only upgrades (clear→frost→frost-2), never downgrades.
 (function () {
   var stack = [];
 
@@ -67,18 +68,13 @@
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   // Glass replacements for native confirm()/alert(). Both return a Promise.
-  // opts: { title, okText, cancelText, danger, frost }
+  // opts.frost is passed through to openGlassModal as a floor (see above).
   window.glassConfirm = function (message, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
       var answered = false;
-      // Auto-stacking: depth detected by openGlassModal; opts.frost is an override.
-      var frostOpt = {};
-      if (opts.frost !== undefined) {
-        console.warn('[modal] manual opts.frost is deprecated in glassConfirm — stacking depth auto-detected');
-        frostOpt.frost = opts.frost;
-      }
-      var ctrl = openGlassModal(Object.assign({
+      var ctrl = openGlassModal({
+        frost: opts.frost,
         className: 'confirm-glass-panel',
         html: '<h2>' + esc(opts.title || 'Are you sure?') + '</h2>'
           + '<p class="subtle">' + esc(message || '') + '</p>'
@@ -87,7 +83,7 @@
           + '<button class="btn ' + (opts.danger ? 'danger' : '') + '" data-x="yes">' + esc(opts.okText || 'Confirm') + '</button>'
           + '</div>',
         onClose: function () { if (!answered) { answered = true; resolve(false); } }
-      }, frostOpt));
+      });
       ctrl.panel.querySelector('[data-x="no"]').onclick = function () { answered = true; resolve(false); ctrl.close(); };
       ctrl.panel.querySelector('[data-x="yes"]').onclick = function () { answered = true; resolve(true); ctrl.close(); };
     });
@@ -96,19 +92,14 @@
   window.glassAlert = function (message, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
-      // Auto-stacking: depth detected by openGlassModal; opts.frost is an override.
-      var frostOpt = {};
-      if (opts.frost !== undefined) {
-        console.warn('[modal] manual opts.frost is deprecated in glassAlert — stacking depth auto-detected');
-        frostOpt.frost = opts.frost;
-      }
-      var ctrl = openGlassModal(Object.assign({
+      var ctrl = openGlassModal({
+        frost: opts.frost,
         className: 'confirm-glass-panel',
         html: '<h2>' + esc(opts.title || 'Notice') + '</h2>'
           + '<p class="subtle" style="white-space:pre-line">' + esc(message || '') + '</p>'
           + '<div class="glass-actions"><button class="btn" data-x="ok">' + esc(opts.okText || 'OK') + '</button></div>',
         onClose: function () { resolve(); }
-      }, frostOpt));
+      });
       ctrl.panel.querySelector('[data-x="ok"]').onclick = function () { ctrl.close(); };
     });
   };
