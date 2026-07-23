@@ -42,7 +42,6 @@ async function payInvoice(id, label) {
 // ---------------- Shared drawer navigation ----------------
 function confirmLogout() {
   var m = openGlassModal({
-    frost: false,                 // first-layer clear glass (see-through, no page darkening)
     className: 'confirm-glass-panel',
     html: '<h2>Sign out?</h2>'
       + '<p class="subtle">You\'ll need to log in again to get back in.</p>'
@@ -158,7 +157,6 @@ var MODERATOR_PERMISSIONS = [
 ];
 function openModeratorPermissions(name) {
   var ctrl = openGlassModal({
-    frost: true,
     className: 'plan-edit-modal',
     html: '<h2>Delegated permissions</h2>'
       + '<p class="subtle">' + esc(name || 'Moderator') + ' can act across the whole platform:</p>'
@@ -354,7 +352,6 @@ async function renderCalendar(container, canCreate) {
     const e = events.find(x => x.id === id);
     if (!e) return;
     const ctrl = openGlassModal({
-      frost: true,
       className: 'confirm-glass-panel',
       html: `<h2>Forward event</h2>
         <p class="subtle">"${esc(e.title)}" · ${fmt(e.startDate)} — send a notification to…</p>
@@ -1053,8 +1050,8 @@ function platformDesigns(pane) {
   markActive();
 
   const demos = {
-    glass: () => openGlassModal({ frost: false, html: '<h2>Layer-1 glass</h2><p class="subtle">See-through, no page darkening.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
-    frost: () => openGlassModal({ frost: true, html: '<h2>Layer-2 frost</h2><p class="subtle">Blurs + darkens what is behind.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
+    glass: () => openGlassModal({ html: '<h2>Layer-1 glass</h2><p class="subtle">See-through, no page darkening.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
+    frost: () => openGlassModal({ html: '<h2>Layer-2 frost</h2><p class="subtle">Blurs + darkens what is behind.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
     confirm: () => glassConfirm('This is the glass confirm dialog.', { title: 'Confirm', okText: 'OK' }),
     calendar: () => window.openDualCalendar && window.openDualCalendar({}),
   };
@@ -1711,7 +1708,7 @@ async function adminPeople(pane) {
       b.onclick = async () => {
         var role = b.dataset.gen;
         var label = role.charAt(0).toUpperCase() + role.slice(1);
-        if (!(await glassConfirm('Generate a new ' + label + ' code? Any old code stops working.', { title: 'New ' + label + ' code', okText: 'Generate', frost: true }))) return;
+        if (!(await glassConfirm('Generate a new ' + label + ' code? Any old code stops working.', { title: 'New ' + label + ' code', okText: 'Generate' }))) return;
         var m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
         try {
           var r = await api('/api/v1/tenants/staff-codes/' + role, { method: 'POST' });
@@ -2000,7 +1997,6 @@ async function openStudentProfile(sid) {
   var p = d.profile;
   var gs = d.guardians || [];
   var ctrl = openGlassModal({
-    frost: true,
     className: 'progress-modal',
     html: '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
       + '<h2 style="margin:0">' + esc(p.firstName + ' ' + p.lastName) + '</h2>'
@@ -3479,7 +3475,6 @@ function wireForm(formId, msgId, url, transform, after) {
 // Tapping a card gives it the raised "hover" state and jumps to that student's row. ----
 async function openAttendanceModal(classId, className) {
   const ctrl = openGlassModal({
-    frost: true,
     className: 'progress-modal',
     html: `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h2 style="margin:0">Mark attendance${className ? ' — ' + esc(className) : ''}</h2>
@@ -3544,7 +3539,6 @@ async function openAttendanceModal(classId, className) {
 // ---- Student progress modal ----
 async function openStudentProgress(studentId) {
   const ctrl = openGlassModal({
-    frost: true,                    // large content panel — frost reads better behind it
     className: 'progress-modal',
     html: `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <h2 style="margin:0">Student progress</h2>

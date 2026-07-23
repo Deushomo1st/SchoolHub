@@ -936,9 +936,13 @@ section.block { margin-bottom: 28px; }
   --glass-border:   rgba(255, 255, 255, .48);
   --glass-sheen:    linear-gradient(135deg, rgba(255,255,255,.26), transparent 42%, transparent 72%, rgba(255,255,255,.10));
   --glass-blur:     blur(16px) saturate(160%);
-  --glass-blur-frost: blur(28px) saturate(150%);       /* denser frost-panel blur (layer 2+) */
-  --glass-backdrop-bg: rgba(2, 18, 30, .40);            /* frost backdrop darkening */
-  --glass-backdrop-blur: blur(9px) saturate(115%);      /* frost backdrop blur */
+  --glass-blur-frost: blur(28px) saturate(150%);         /* denser frost-panel blur (layer 2+) */
+  --glass-blur-frost2: blur(36px) saturate(130%);        /* deepest frost-panel blur (layer 3+) */
+  --glass-backdrop-bg: rgba(2, 18, 30, .40);             /* frost backdrop darkening */
+  --glass-backdrop-bg-frost2: rgba(2, 18, 30, .55);      /* deepest backdrop darkening (layer 3+) */
+  --glass-backdrop-blur: blur(9px) saturate(115%);        /* frost backdrop blur */
+  --glass-backdrop-blur-frost2: blur(12px) saturate(120%);/* deepest backdrop blur (layer 3+) */
+  --glass-sheen-frost2: linear-gradient(135deg, rgba(255,255,255,.18), transparent 42%, transparent 72%, rgba(255,255,255,.06));
   --glass-shadow:   0 30px 70px rgba(2,48,71,.26), inset 0 1px 0 rgba(255,255,255,.6);
   --glass-shadow-soft: 0 10px 30px rgba(2,48,71,.10), inset 0 1px 0 rgba(255,255,255,.5);   /* page cards */
 }
@@ -949,9 +953,13 @@ section.block { margin-bottom: 28px; }
   --glass-border:   rgba(214, 221, 233, .34);
   --glass-sheen:    linear-gradient(135deg, rgba(244,247,253,.28), transparent 40%, transparent 72%, rgba(205,213,227,.14));
   --glass-blur:     blur(18px) saturate(150%);
-  --glass-blur-frost: blur(30px) saturate(160%);        /* denser frost-panel blur (layer 2+) */
+  --glass-blur-frost: blur(30px) saturate(160%);         /* denser frost-panel blur (layer 2+) */
+  --glass-blur-frost2: blur(38px) saturate(140%);        /* deepest frost-panel blur (layer 3+) */
   --glass-backdrop-bg: rgba(0, 0, 0, .48);              /* frost backdrop darkening */
-  --glass-backdrop-blur: blur(10px) saturate(130%);     /* frost backdrop blur */
+  --glass-backdrop-bg-frost2: rgba(0, 0, 0, .62);       /* deepest backdrop darkening (layer 3+) */
+  --glass-backdrop-blur: blur(10px) saturate(130%);      /* frost backdrop blur */
+  --glass-backdrop-blur-frost2: blur(14px) saturate(140%);/* deepest backdrop blur (layer 3+) */
+  --glass-sheen-frost2: linear-gradient(135deg, rgba(244,247,253,.20), transparent 40%, transparent 72%, rgba(205,213,227,.08));
   --glass-shadow:   0 30px 70px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -16px 34px rgba(175,186,208,.10);
   --glass-shadow-soft: 0 12px 30px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);    /* page cards */
 }

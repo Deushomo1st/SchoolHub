@@ -59,6 +59,30 @@
 - **Fix:** `glassConfirm()` call inside the staff-code generation modal was missing `frost: true` — the confirmation was rendering as clear Layer 1 glass instead of darkening Layer 2
 - Added `frost: true` — notifications inside the staff-codes modal now correctly darken + blur the layer behind
 
+### Auto-stacking modal system (frost → frost-2) — `modal.js`, `modal.css`, `style.css`, all callers
+
+#### CSS token expansion — `style.css`
+- **8 new `--glass-*-frost2` tokens** added to both light and dusk theme roots:
+  - `--glass-blur-frost2` — deepest frost-panel blur for Layer 3+ (light: `blur(36px) saturate(130%)`, dusk: `blur(38px) saturate(140%)`)
+  - `--glass-backdrop-bg-frost2` — deepest backdrop darkening (light: `rgba(2,18,30,.55)`, dusk: `rgba(0,0,0,.62)`)
+  - `--glass-backdrop-blur-frost2` — deepest backdrop blur (light: `blur(12px) saturate(120%)`, dusk: `blur(14px) saturate(140%)`)
+  - `--glass-sheen-frost2` — deepest sheen gradient (muted relative to lighter layers)
+
+#### Glass modal CSS — `modal.css`
+- **`.glass-modal-bg.frost-2`** — backdrop for 3+ stacked modals using `--glass-backdrop-bg-frost2` and `--glass-backdrop-blur-frost2`
+- **`.glass-panel.frost-2`** — panel for 3+ stacked modals using `--glass-blur-frost2` and `--glass-sheen-frost2`
+
+#### Auto-stacking engine — `modal.js`
+- **Auto-detect modal depth** from `stack.length` at open time: 0 = clear (Layer 1), 1 = frost (Layer 2), 2+ = frost-2 (Layer 3+)
+- **Manual `opts.frost` deprecated**: still accepted as override for backward compat, but triggers a `console.warn` — stacking depth is auto-detected
+- `glassConfirm()` and `glassAlert()` defaults stripped of manual `frost` — both now auto-detect depth like all other modals
+
+#### Caller cleanup — `app.js`, `dashboards.js`, `calendar.js`
+- **`app.js`**: removed `frost: true` from notification panel (1 occurrence)
+- **`dashboards.js`**: removed manual `frost` from: confirm logout (`frost: false`), moderator permissions, forward-event, designs layer-1/frost demos, staff-code confirm, student profile, attendance modal, student progress (7 occurrences)
+- **`calendar.js`**: removed manual `frost: true` from dual calendar modal (3 occurrences)
+- **Net result: zero callers pass `frost: true` or `frost: false`** — the modal system auto-detects stacking depth universally
+
 ---
 
 ## 2026-07-24 — Staff onboarding: per-role codes + typed profile tables

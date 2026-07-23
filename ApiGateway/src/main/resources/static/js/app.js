@@ -200,7 +200,6 @@ function initTheme() {
 
   function openPanel() {
     var m = openGlassModal({
-      frost: true,                         // layer 2: blurs + darkens the page behind
       className: 'notif-panel',
       html: '<div class="notif-head"><h2>Notifications</h2>'
         + '<button class="notif-cal-btn" title="Filter by date"><i data-lucide="calendar-days"></i></button></div>'

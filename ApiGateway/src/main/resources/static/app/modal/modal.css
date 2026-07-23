@@ -15,6 +15,12 @@
   backdrop-filter: var(--glass-backdrop-blur);
   -webkit-backdrop-filter: var(--glass-backdrop-blur);
 }
+/* Layer 3+: deepest backdrop for 3+ stacked modals */
+.glass-modal-bg.frost-2 {
+  background: var(--glass-backdrop-bg-frost2);
+  backdrop-filter: var(--glass-backdrop-blur-frost2);
+  -webkit-backdrop-filter: var(--glass-backdrop-blur-frost2);
+}
 /* Dusk theme adjusts via --glass-backdrop-bg token — no separate rule needed. */
 
 /* ---- Layer-1 panel: see-through glass (glass-white light / glossy silver dark) ---- */
@@ -58,6 +64,15 @@
   background: var(--glass-bg-frost);
   backdrop-filter: var(--glass-blur-frost);
   -webkit-backdrop-filter: var(--glass-blur-frost);
+}
+/* ---- Deep frost panel (layer 3+): densest, most opaque ---- */
+.glass-panel.frost-2 {
+  background: var(--glass-bg-frost);
+  backdrop-filter: var(--glass-blur-frost2);
+  -webkit-backdrop-filter: var(--glass-blur-frost2);
+}
+.glass-panel.frost-2::before {
+  background: var(--glass-sheen-frost2);
 }
 
 .glass-panel h2 { margin: 0 0 6px; }

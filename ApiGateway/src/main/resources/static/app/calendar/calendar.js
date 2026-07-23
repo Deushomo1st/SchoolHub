@@ -73,7 +73,6 @@
     var toView = { y: tbase.getFullYear(), m: tbase.getMonth() };
 
     var ctrl = openGlassModal({
-      frost: true,                       // opens over the notification panel → stacks/darkens (rule 2/3)
       className: 'dual-cal-modal',
       html: '<div class="dual-cal">'
         + '<div class="cal-col"><div class="cal-label">From</div><div class="cal-pane" id="calFrom"></div></div>'
