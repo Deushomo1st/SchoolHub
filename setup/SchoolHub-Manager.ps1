@@ -293,20 +293,33 @@ function Check-Maven {
     return Test-Path $m
 }
 function Get-RunningProcs {
+    # Try WMI first (most reliable for command-line inspection)
     try {
-        Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction Stop | ForEach-Object {
+        $found = @(Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction Stop | ForEach-Object {
             $cmd = $_.CommandLine
             if ($cmd -notmatch 'schoolhub|spring-boot') { return }
-            $port = ''; if ($cmd -match '--server\.port=(\d+)') { $port = $Matches[1] }
+            $port = ''; if ($cmd -match '--server\\.port=(\\d+)') { $port = $Matches[1] }
             $svc = ''
             if    ($cmd -match 'AuthServiceApplication')    { $svc = 'AuthService' }
             elseif ($cmd -match 'TenantServiceApplication') { $svc = 'TenantService' }
             elseif ($cmd -match 'SchoolServiceApplication') { $svc = 'SchoolService' }
             elseif ($cmd -match 'ApiGatewayApplication')    { $svc = 'ApiGateway' }
-            elseif ($cmd -match 'SchoolHub-(\w+)')          { $svc = $Matches[1] }
+            elseif ($cmd -match 'SchoolHub-(\\w+)')          { $svc = $Matches[1] }
             [PSCustomObject]@{ PID = $_.ProcessId; Service = $svc; Port = $port }
+        })
+        if ($found.Count) { return $found }
+    } catch {}
+
+    # Fallback: netstat port scan (no admin needed, always works)
+    $ports = @{9000='ApiGateway'; 9001='AuthService'; 9002='TenantService'; 9003='SchoolService'}
+    $net = netstat -ano 2>$null | Select-String 'LISTENING'
+    foreach ($p in $ports.GetEnumerator()) {
+        $match = $net | Where-Object { $_ -match ":($($p.Key))\s+.*LISTENING\s+(\d+)" }
+        if ($match -and $match.Matches.Count) {
+            $pidNum = [int]$match.Matches[0].Groups[2].Value
+            [PSCustomObject]@{ PID = $pidNum; Service = $p.Value; Port = $p.Key }
         }
-    } catch { return @() }
+    }
 }
 function Check-SuperAdmins($db) {
     Ensure-Pgcrypto $db | Out-Null
