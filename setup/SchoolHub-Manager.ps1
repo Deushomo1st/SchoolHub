@@ -183,6 +183,9 @@ function Ensure-PgAuth {
 
 # ---- Active-db.properties -------------------------------------------------
 function Get-ActiveDb {
+    # Cloud (Supabase) has a single shared 'postgres' database — the local
+    # active-db.properties name only applies to localhost.
+    if ($CloudActive) { return 'postgres' }
     if (Test-Path $RefFile) {
         foreach ($line in Get-Content -LiteralPath $RefFile) {
             if ($line -match '^\s*schoolhub\.db\.name\s*=\s*(.+)$') { return $Matches[1].Trim() }
