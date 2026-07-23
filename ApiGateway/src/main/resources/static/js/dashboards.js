@@ -1288,8 +1288,8 @@ async function adminPeople(pane) {
     <div class="tilt-host" id="tpStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
-        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
-        <tbody id="tpRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th><th></th></tr></thead>
+        <tbody id="tpRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
       </table></div>
       <div class="list-foot"><button class="btn" id="peAddTeacher"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add teacher</button></div>
     </div>
@@ -1298,8 +1298,8 @@ async function adminPeople(pane) {
     <div class="tilt-host" id="bsStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
-        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
-        <tbody id="bsRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th><th></th></tr></thead>
+        <tbody id="bsRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
       </table></div>
     </div>
 
@@ -1307,8 +1307,8 @@ async function adminPeople(pane) {
     <div class="tilt-host" id="lbStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
-        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
-        <tbody id="lbRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th><th></th></tr></thead>
+        <tbody id="lbRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
       </table></div>
     </div>
 
@@ -1460,13 +1460,19 @@ async function adminPeople(pane) {
     });
     const list = visibleTeachers();
     const tbody = document.getElementById('tpRows');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No teachers found.</td></tr>'; return; }
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No teachers found.</td></tr>'; return; }
     tbody.innerHTML = list.map(x =>
       `<tr data-id="${x.id}" style="cursor:pointer"><td>${esc(x.staffNo)}</td><td><strong>${esc(x.lastName)}, ${esc(x.firstName)}</strong></td><td>${esc(x.email || '-')}</td>
-       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+       <td>${x.userId ? '<span class="pill">yes</span>' : '-'}</td>
+       <td class="right"><button class="btn ghost danger-text" data-del="${x.id}" style="padding:3px 10px;font-size:11px">Remove</button></td></tr>`).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
       if (ev.target.closest('button')) return;
       highlightTiltCard(tpStack, tr.dataset.id);
+    });
+    tbody.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (!(await glassConfirm('Remove this teacher profile? Their login stays active.', { title: 'Remove teacher', danger: true, okText: 'Remove' }))) return;
+      try { await api('/api/v1/teachers/' + b.dataset.del, { method: 'DELETE' }); showMsg(msg, 'Teacher removed.', 'ok'); await loadTeachers(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
     });
   }
   async function loadTeachers() {
@@ -1487,13 +1493,19 @@ async function adminPeople(pane) {
       onClick: it => flashRow('#bsRows', it.id)
     });
     const tbody = document.getElementById('bsRows');
-    if (!bursars.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No bursars found.</td></tr>'; return; }
+    if (!bursars.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No bursars found.</td></tr>'; return; }
     tbody.innerHTML = bursars.map(b =>
       `<tr data-id="${b.id}" style="cursor:pointer"><td>${esc(b.staffNo)}</td><td><strong>${esc(b.lastName)}, ${esc(b.firstName)}</strong></td><td>${esc(b.email || '-')}</td>
-       <td>${b.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+       <td>${b.userId ? '<span class="pill">yes</span>' : '-'}</td>
+       <td class="right"><button class="btn ghost danger-text" data-del="${b.id}" style="padding:3px 10px;font-size:11px">Remove</button></td></tr>`).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
       if (ev.target.closest('button')) return;
       highlightTiltCard(bsStack, tr.dataset.id);
+    });
+    tbody.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (!(await glassConfirm('Remove this bursar profile? Their login stays active.', { title: 'Remove bursar', danger: true, okText: 'Remove' }))) return;
+      try { await api('/api/v1/bursars/' + b.dataset.del, { method: 'DELETE' }); showMsg(msg, 'Bursar removed.', 'ok'); await loadBursars(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
     });
   }
   async function loadBursars() {
@@ -1513,13 +1525,19 @@ async function adminPeople(pane) {
       onClick: it => flashRow('#lbRows', it.id)
     });
     const tbody = document.getElementById('lbRows');
-    if (!librarians.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No librarians found.</td></tr>'; return; }
+    if (!librarians.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No librarians found.</td></tr>'; return; }
     tbody.innerHTML = librarians.map(l =>
       `<tr data-id="${l.id}" style="cursor:pointer"><td>${esc(l.staffNo || '-')}</td><td><strong>${esc((l.lastName) ? l.lastName + ', ' + l.firstName : (l.firstName || 'User #' + l.userId))}</strong></td><td>${esc(l.email || '-')}</td>
-       <td>${l.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+       <td>${l.userId ? '<span class="pill">yes</span>' : '-'}</td>
+       <td class="right"><button class="btn ghost danger-text" data-del="${l.id}" style="padding:3px 10px;font-size:11px">Remove</button></td></tr>`).join('');
     tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
       if (ev.target.closest('button')) return;
       highlightTiltCard(lbStack, tr.dataset.id);
+    });
+    tbody.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (!(await glassConfirm('Remove this librarian profile? Their login stays active.', { title: 'Remove librarian', danger: true, okText: 'Remove' }))) return;
+      try { await api('/api/v1/librarians/' + b.dataset.del, { method: 'DELETE' }); showMsg(msg, 'Librarian removed.', 'ok'); await loadLibrarians(); }
+      catch (e) { showMsg(msg, e.message, 'err'); }
     });
   }
   async function loadLibrarians() {

@@ -20,4 +20,10 @@ public class LibrarianController {
     public List<LibraryStaff> list() {
         return repo.findByStatus("active");
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id) {
+        repo.deleteById(id);
+    }
 }

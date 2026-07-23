@@ -20,4 +20,10 @@ public class BursarController {
     public List<Bursar> list() {
         return repo.findAll();
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id) {
+        repo.deleteById(id);
+    }
 }
