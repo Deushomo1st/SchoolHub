@@ -160,6 +160,9 @@ function Find-Psql {
 $Psql = Find-Psql
 if (-not $Psql) { Write-Host "PostgreSQL (psql.exe) not found. Install PostgreSQL 14+ and retry." -ForegroundColor Red; exit 1 }
 
+$PgDump = Find-Psql | ForEach-Object { $d = Join-Path (Split-Path -Parent (Split-Path -Parent $_)) 'bin\pg_dump.exe'; if (Test-Path $d) { $d } } | Select-Object -First 1
+if (-not $PgDump) { Write-Host "pg_dump.exe not found alongside psql. Export disabled." -ForegroundColor Yellow }
+
 if (-not $env:PGPASSWORD) { $env:PGPASSWORD = $DbUser }
 function Test-PgAuth {
     & $Psql -U $DbUser -h $DbHost -p $DbPort -d 'postgres' -c 'SELECT 1' -t -A *>$null
@@ -889,6 +892,8 @@ function Action-DbTools {
         Write-Host "    3) Delete database"
         Write-Host "    4) Rename database"
         Write-Host "    8) Apply platform schema"
+        Write-Host "    9) Export database (dump)"
+        Write-Host "    0) Import database (restore)"
         Write-Host ""
         Write-Host "  -- Presets -----------------------------------"
         Write-Host "    5) Switch preset"
@@ -904,6 +909,8 @@ function Action-DbTools {
             '3' { Action-DeleteDb }
             '4' { Action-RenameDb }
             '8' { Action-ApplySchema }
+            '9' { Action-ExportDb }
+            '0' { Action-ImportDb }
             '5' { Action-SwitchPreset }
             '6' { Action-CreatePreset }
             '7' { Edit-DbPresets }
@@ -988,6 +995,66 @@ function Action-RenameDb {
     if ($LASTEXITCODE -ne 0) { Write-Host "  Rename failed." -ForegroundColor Red; return }
     Write-Host "  Renamed '$chosen' → '$newName'." -ForegroundColor Green
     if ((Get-ActiveDb) -eq $chosen) { Set-ActiveDb $newName; Write-Host "  Active DB updated." -ForegroundColor Green }
+}
+
+# ---- Export / Import database --------------------------------------------
+function Action-ExportDb {
+    if (-not $PgDump) { Write-Host "  pg_dump.exe not found. Export unavailable." -ForegroundColor Red; Press-Enter; return }
+    if (-not (Ensure-PgAuth)) { Press-Enter; return }
+    $db = Get-ActiveDb
+    if (-not (Check-DbExists $db)) { Write-Host "  Database '$db' does not exist." -ForegroundColor Yellow; Press-Enter; return }
+    $dumpsDir = Join-Path $ProjectRoot 'dumps'
+    if (-not (Test-Path $dumpsDir)) { New-Item -ItemType Directory -Path $dumpsDir -Force | Out-Null }
+    $ts = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $file = Join-Path $dumpsDir "$db`_$ts.sql"
+    Write-Host "  Exporting '$db' on $(Cloud-ModeLabel) -> $file ..." -ForegroundColor Cyan
+    & $PgDump -U $DbUser -h $DbHost -p $DbPort --clean --if-exists --no-owner -f $file $db 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $size = (Get-Item $file).Length
+        Write-Host "  Done. $($size.ToString('N0')) bytes written." -ForegroundColor Green
+    } else {
+        Write-Host "  Export failed (exit code $LASTEXITCODE)." -ForegroundColor Red
+        if (Test-Path $file) { Remove-Item $file }
+    }
+    Press-Enter
+}
+
+function Action-ImportDb {
+    if (-not (Ensure-PgAuth)) { Press-Enter; return }
+    $db = Get-ActiveDb
+    $dumpsDir = Join-Path $ProjectRoot 'dumps'
+    if (-not (Test-Path $dumpsDir)) { Write-Host "  No dumps/ directory yet. Export a DB first." -ForegroundColor Yellow; Press-Enter; return }
+    $files = @(Get-ChildItem $dumpsDir -Filter '*.sql' | Sort-Object LastWriteTime -Descending)
+    if (-not $files.Count) { Write-Host "  No .sql dumps in $dumpsDir." -ForegroundColor Yellow; Press-Enter; return }
+    Write-Host ""
+    for ($i = 0; $i -lt $files.Count; $i++) {
+        $sz = "{0,8:N0}" -f $files[$i].Length
+        Write-Host "  [$($i+1)] $sz bytes  $($files[$i].LastWriteTime.ToString('yyyy-MM-dd HH:mm'))  $($files[$i].Name)"
+    }
+    Write-Host ""
+    $raw = Read-Host "  Number to IMPORT (or Enter to cancel)"
+    if (-not $raw -or $raw -notmatch '^\d+$') { return }
+    $idx = [int]$raw - 1
+    if ($idx -lt 0 -or $idx -ge $files.Count) { Write-Host "  Invalid selection." -ForegroundColor Yellow; Press-Enter; return }
+    $file = $files[$idx]
+    Write-Host "`n  About to RESTORE:" -ForegroundColor Yellow
+    Write-Host "    File  : $($file.Name)"
+    Write-Host "    Size  : $($file.Length.ToString('N0')) bytes"
+    Write-Host "    Target: $db on $(Cloud-ModeLabel)"
+    Write-Host ""
+    if ($CloudActive) {
+        Write-Host "  WARNING: Target is CLOUD. This will overwrite remote data." -ForegroundColor Red
+    }
+    $confirm = Read-Host "  Type 'yes' to confirm"
+    if ($confirm -ne 'yes') { Write-Host "  Cancelled." -ForegroundColor Yellow; Press-Enter; return }
+    Write-Host "  Restoring... " -NoNewline
+    & $Psql -U $DbUser -h $DbHost -p $DbPort -d $db -v ON_ERROR_STOP=1 -f $file.FullName 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Done." -ForegroundColor Green
+    } else {
+        Write-Host "Restore failed (exit code $LASTEXITCODE)." -ForegroundColor Red
+    }
+    Press-Enter
 }
 
 # ---- 5) Super-admins (sub-menu) -------------------------------------------
