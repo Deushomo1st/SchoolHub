@@ -1264,13 +1264,13 @@ async function adminPeople(pane) {
         <thead><tr><th>Name</th><th>Email</th><th>Username</th><th>Requested role</th><th></th></tr></thead>
         <tbody id="pePendingRows"></tbody></table></div></div>
 
-    <h2 class="pe-sub">Staff</h2>
+    <h2 class="pe-sub">Admins &amp; Principals</h2>
     <div class="tilt-host" id="stStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="filter-bar" style="display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap">
       <button class="act-scale-btn active" data-sf="all">All</button>
       <button class="act-scale-btn" data-sf="active">Active</button>
       <button class="act-scale-btn" data-sf="suspended">Suspended</button>
-      <input id="stSearch" class="list-search" placeholder="Search staff…" style="flex:1;min-width:160px">
+      <input id="stSearch" class="list-search" placeholder="Search admins…" style="flex:1;min-width:160px">
     </div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
@@ -1278,13 +1278,13 @@ async function adminPeople(pane) {
         <tbody id="stRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
       </table></div>
       <div class="list-foot" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="peAddStaff"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add staff</button>
+        <button class="btn" id="peAddStaff"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add admin/principal</button>
         <button class="btn secondary" id="peStaffCode">Staff sign-up code</button>
         <button class="btn ghost" id="peResetPwd">Reset a password</button>
       </div>
     </div>
 
-    <h2 class="pe-sub">Teacher profiles</h2>
+    <h2 class="pe-sub">Teachers</h2>
     <div class="tilt-host" id="tpStack"><p class="muted" style="padding:20px">Loading…</p></div>
     <div class="card list-card">
       <div class="list-scroll sleek-scroll"><table>
@@ -1292,6 +1292,24 @@ async function adminPeople(pane) {
         <tbody id="tpRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
       </table></div>
       <div class="list-foot"><button class="btn" id="peAddTeacher"><i data-lucide="user-plus" style="width:15px;height:15px;vertical-align:-2px"></i> Add teacher</button></div>
+    </div>
+
+    <h2 class="pe-sub">Bursars</h2>
+    <div class="tilt-host" id="bsStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
+        <tbody id="bsRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <h2 class="pe-sub">Librarians</h2>
+    <div class="tilt-host" id="lbStack"><p class="muted" style="padding:20px">Loading…</p></div>
+    <div class="card list-card">
+      <div class="list-scroll sleek-scroll"><table>
+        <thead><tr><th>Staff no.</th><th>Name</th><th>Email</th><th>Login</th></tr></thead>
+        <tbody id="lbRows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table></div>
     </div>
 
     <h2 class="pe-sub">Students</h2>
@@ -1335,7 +1353,7 @@ async function adminPeople(pane) {
   const visibleStaff = () => staff.filter(m => {
     if (sFilter !== 'all' && m.status !== sFilter) return false;
     if (sQuery && (m.name + ' ' + m.email + ' ' + (m.username || '') + ' ' + m.role).toLowerCase().indexOf(sQuery) === -1) return false;
-    return true;
+    return ['ADMIN','PRINCIPAL'].indexOf(m.role) !== -1;
   });
 
   function renderStaff() {
@@ -1455,6 +1473,58 @@ async function adminPeople(pane) {
     await userAvatars();
     teachers = await api('/api/v1/teachers');
     renderTeachers();
+  }
+
+  // ---- Bursars: tilt-stack + list ----
+  const bsStack = document.getElementById('bsStack');
+  let bursars = [];
+
+  function renderBursars() {
+    renderTiltStack(bsStack, bursars.map(b => ({
+      id: b.id, name: b.firstName + ' ' + b.lastName, subtitle: b.staffNo + (b.email ? ' · ' + b.email : ''), avatar: avatarOf(b.userId), status: b.userId ? 'active' : 'pending'
+    })), {
+      showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No bursars yet.',
+      onClick: it => flashRow('#bsRows', it.id)
+    });
+    const tbody = document.getElementById('bsRows');
+    if (!bursars.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No bursars found.</td></tr>'; return; }
+    tbody.innerHTML = bursars.map(b =>
+      `<tr data-id="${b.id}" style="cursor:pointer"><td>${esc(b.staffNo)}</td><td><strong>${esc(b.lastName)}, ${esc(b.firstName)}</strong></td><td>${esc(b.email || '-')}</td>
+       <td>${b.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(bsStack, tr.dataset.id);
+    });
+  }
+  async function loadBursars() {
+    bursars = await api('/api/v1/bursars').catch(() => []);
+    renderBursars();
+  }
+
+  // ---- Librarians: tilt-stack + list ----
+  const lbStack = document.getElementById('lbStack');
+  let librarians = [];
+
+  function renderLibrarians() {
+    renderTiltStack(lbStack, librarians.map(l => ({
+      id: l.id, name: l.firstName || 'Librarian #' + l.id, subtitle: (l.staffNo || '') + (l.email ? ' · ' + l.email : ''), avatar: avatarOf(l.userId), status: l.userId ? 'active' : 'pending'
+    })), {
+      showStatus: true, statusBadge: s => s === 'active' ? 'holiday' : 'announcement', emptyText: 'No librarians yet.',
+      onClick: it => flashRow('#lbRows', it.id)
+    });
+    const tbody = document.getElementById('lbRows');
+    if (!librarians.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted">No librarians found.</td></tr>'; return; }
+    tbody.innerHTML = librarians.map(l =>
+      `<tr data-id="${l.id}" style="cursor:pointer"><td>${esc(l.staffNo || '-')}</td><td><strong>${esc((l.lastName) ? l.lastName + ', ' + l.firstName : (l.firstName || 'User #' + l.userId))}</strong></td><td>${esc(l.email || '-')}</td>
+       <td>${l.userId ? '<span class="pill">yes</span>' : '-'}</td></tr>`).join('');
+    tbody.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = ev => {
+      if (ev.target.closest('button')) return;
+      highlightTiltCard(lbStack, tr.dataset.id);
+    });
+  }
+  async function loadLibrarians() {
+    librarians = await api('/api/v1/librarians').catch(() => []);
+    renderLibrarians();
   }
 
   // ---- Students: tilt-stack + list ----
@@ -1643,7 +1713,7 @@ async function adminPeople(pane) {
   document.getElementById('stSearch').addEventListener('input', ev => { sQuery = ev.target.value.trim().toLowerCase(); renderStaff(); });
   document.getElementById('sdSearch').addEventListener('input', ev => { dQuery = ev.target.value.trim().toLowerCase(); renderStudents(); });
 
-  await Promise.all([loadStaff(), loadPendingStaff(), loadTeachers(), loadStudents(), loadGuardians()]);
+  await Promise.all([loadStaff(), loadPendingStaff(), loadTeachers(), loadBursars(), loadLibrarians(), loadStudents(), loadGuardians()]);
 }
 
 async function adminAcademics(pane) {
