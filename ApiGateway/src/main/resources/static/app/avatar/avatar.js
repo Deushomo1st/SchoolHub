@@ -31,10 +31,9 @@
     var img = null, zoom = 1, base = 1, off = { x: 0, y: 0 };
     var drag = null;
 
-    var back = document.createElement('div');
-    back.className = 'avatar-modal-bg';
-    back.innerHTML =
-      '<div class="avatar-modal glass">' +
+    var ctrl = openGlassModal({
+      className: 'avatar-glass',
+      html:
         '<h2>Profile picture</h2>' +
         '<p class="subtle">Drag to reposition, zoom to fit the 4:3 frame.</p>' +
         '<div class="crop-stage">' +
@@ -49,17 +48,16 @@
           '<span style="flex:1"></span>' +
           '<button class="btn ghost" data-act="cancel">Cancel</button>' +
           '<button class="btn" data-act="save" disabled>Save</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(back);
-    if (window.lucide) lucide.createIcons({ root: back });
+        '</div>'
+    });
+    var panel = ctrl.panel;
 
-    var canvas = back.querySelector('.crop-canvas');
+    var canvas = panel.querySelector('.crop-canvas');
     var ctx = canvas.getContext('2d');
-    var file = back.querySelector('.crop-file');
-    var zoomEl = back.querySelector('.crop-zoom');
-    var emptyEl = back.querySelector('.crop-empty');
-    var saveBtn = back.querySelector('[data-act="save"]');
+    var file = panel.querySelector('.crop-file');
+    var zoomEl = panel.querySelector('.crop-zoom');
+    var emptyEl = panel.querySelector('.crop-empty');
+    var saveBtn = panel.querySelector('[data-act="save"]');
 
     function clamp() {
       var dw = img.naturalWidth * base * zoom, dh = img.naturalHeight * base * zoom;
@@ -113,12 +111,11 @@
       clamp(); draw();
     });
 
-    back.querySelector('[data-act="pick"]').onclick = function () { file.click(); };
+    panel.querySelector('[data-act="pick"]').onclick = function () { file.click(); };
     file.onchange = function () { loadFile(file.files[0]); };
-    back.querySelector('[data-act="cancel"]').onclick = close;
-    back.addEventListener('click', function (ev) { if (ev.target === back) close(); });
-    var removeBtn = back.querySelector('[data-act="remove"]');
-    if (removeBtn) removeBtn.onclick = function () { if (opts.onSave) opts.onSave(null); close(); };
+    panel.querySelector('[data-act="cancel"]').onclick = ctrl.close;
+    var removeBtn = panel.querySelector('[data-act="remove"]');
+    if (removeBtn) removeBtn.onclick = function () { if (opts.onSave) opts.onSave(null); ctrl.close(); };
 
     saveBtn.onclick = function () {
       if (!img) return;
@@ -129,10 +126,9 @@
       var dw = img.naturalWidth * base * zoom, dh = img.naturalHeight * base * zoom;
       octx.drawImage(img, off.x * scale, off.y * scale, dw * scale, dh * scale);
       if (opts.onSave) opts.onSave(out.toDataURL('image/jpeg', 0.85));
-      close();
+      ctrl.close();
     };
 
-    function close() { back.remove(); }
     // Seed with the current picture so re-opening shows it (as a starting frame).
     if (opts.current) loadFile(null);
   };

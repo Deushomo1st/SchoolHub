@@ -1,20 +1,24 @@
 /* ---- Layered glass modal system ---- */
+/* Default: every modal frosts + darkens the page. Auto-stacking deepens
+   the glass as more modals stack. Use opts.clear:true for rare transparent-glass cases. */
 .glass-modal-bg {
   position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center;
   opacity: 0; transition: opacity .18s ease;
-  background: transparent;                 /* layer 1: no darkening */
+  background: var(--glass-backdrop-bg);  /* default: frost backdrop */
+  backdrop-filter: var(--glass-backdrop-blur);
+  -webkit-backdrop-filter: var(--glass-backdrop-blur);
 }
 .glass-modal-bg.show { opacity: 1; }
 .glass-modal-bg.closing { opacity: 0; }
 
-/* Layer 2+: frosted backdrop blurs + darkens everything behind. Each stacked
-   .frost composites over the previous one, so more modals = darker + blurrier. */
-.glass-modal-bg.frost {
-  background: var(--glass-backdrop-bg);
-  backdrop-filter: var(--glass-backdrop-blur);
-  -webkit-backdrop-filter: var(--glass-backdrop-blur);
+/* Clear glass (opt-in via opts.clear:true at depth 0): see-through, no darkening */
+.glass-modal-bg:not(.frost):not(.frost-2) {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
+
 /* Layer 3+: deepest backdrop for 3+ stacked modals */
 .glass-modal-bg.frost-2 {
   background: var(--glass-backdrop-bg-frost2);

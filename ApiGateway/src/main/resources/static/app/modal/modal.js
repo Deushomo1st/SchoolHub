@@ -1,33 +1,32 @@
 // ---- Layered glass modal system ----
-// Layer 1 (clear): see-through refractive glass; does NOT darken the page.
-// Layer 2+ (frost): frosted glass that blurs + darkens everything behind it. Because each
-// frosted backdrop composites over the one below, stacking N of them gets progressively
-// darker/blurrier on its own — no manual bookkeeping needed.
+// Every modal blurs + darkens the page behind it by default. The auto-stacking
+// depth enriches the glass further as more modals stack:
 //
 // Auto-stacking: depth is detected from `stack.length` at open time.
-//   0 = first modal → clear (layer 1)
-//   1 = second modal → frost (layer 2)
-//   2+ = third+ modal → frost-2 (layer 3+)
-// opts.frost acts as a FLOOR (minimum frost): frost:true means never clearer than layer 2.
-// Auto-stacking only upgrades (clear→frost→frost-2), never downgrades.
+//   0 = first modal → frost (layer 1 — blur + slight darken)
+//   1 = second modal → frost (layer 2 — denser blur)
+//   2+ = third+ modal → frost-2 (layer 3+ — deepest blur + darkest backdrop)
+// opts.clear:true  → forces clear see-through glass at depth 0 (rare: previews, demos).
+//   Auto-stacking only upgrades (frost→frost-2), never downgrades — clear is depth-0 ONLY.
+//
+// Because every frosted backdrop composites over the one below, more modals =
+// progressively darker/blurrier with no manual bookkeeping.
 (function () {
   var stack = [];
 
-  // opts: { frost, className, html, dismissable, onClose }
+  // opts: { clear, className, html, dismissable, onClose }
   window.openGlassModal = function (opts) {
     opts = opts || {};
 
     // Auto-detect depth from current stack (before we push onto it)
     var depth = stack.length;  // 0=first, 1=second, 2+=third+
-    var frostClass = '';
+    var frostClass = ' frost';  // default: every modal frosts the page
     if (depth >= 2) frostClass = ' frost-2';
-    else if (depth === 1) frostClass = ' frost';
-    // depth 0 = clear (no class)
+    // depth 0 or 1 = frost (no upgrade needed)
 
-    // frost option acts as a FLOOR (minimum frost):
-    //   frost:true  → never clearer than frost, even at depth 0 (e.g. notifications)
-    //   auto-stacking only upgrades, never downgrades
-    if (opts.frost && frostClass === '') frostClass = ' frost';
+    // clear:true forces see-through glass — ONLY honoured at depth 0.
+    // At depth 1+ there's always something beneath, so clear makes no sense.
+    if (opts.clear && depth === 0) frostClass = '';
 
     var bg = document.createElement('div');
     bg.className = 'glass-modal-bg' + frostClass;
@@ -68,13 +67,13 @@
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   // Glass replacements for native confirm()/alert(). Both return a Promise.
-  // opts.frost is passed through to openGlassModal as a floor (see above).
+  // opts.clear is passed through to openGlassModal (rare: see-through glass at depth 0).
   window.glassConfirm = function (message, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
       var answered = false;
       var ctrl = openGlassModal({
-        frost: opts.frost,
+        clear: opts.clear,
         className: 'confirm-glass-panel',
         html: '<h2>' + esc(opts.title || 'Are you sure?') + '</h2>'
           + '<p class="subtle">' + esc(message || '') + '</p>'
@@ -93,7 +92,7 @@
     opts = opts || {};
     return new Promise(function (resolve) {
       var ctrl = openGlassModal({
-        frost: opts.frost,
+        clear: opts.clear,
         className: 'confirm-glass-panel',
         html: '<h2>' + esc(opts.title || 'Notice') + '</h2>'
           + '<p class="subtle" style="white-space:pre-line">' + esc(message || '') + '</p>'

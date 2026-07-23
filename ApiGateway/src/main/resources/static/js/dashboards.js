@@ -1050,7 +1050,7 @@ function platformDesigns(pane) {
   markActive();
 
   const demos = {
-    glass: () => openGlassModal({ html: '<h2>Layer-1 glass</h2><p class="subtle">See-through, no page darkening.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
+    glass: () => openGlassModal({ clear: true, html: '<h2>Layer-1 glass</h2><p class="subtle">See-through, no page darkening.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
     frost: () => openGlassModal({ html: '<h2>Layer-2 frost</h2><p class="subtle">Blurs + darkens what is behind.</p><div class="glass-actions"><button class="btn" onclick="this.closest(\'.glass-modal-bg\').remove()">Close</button></div>' }),
     confirm: () => glassConfirm('This is the glass confirm dialog.', { title: 'Confirm', okText: 'OK' }),
     calendar: () => window.openDualCalendar && window.openDualCalendar({}),
