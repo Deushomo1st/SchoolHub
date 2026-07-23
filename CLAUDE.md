@@ -26,11 +26,26 @@
 - PLATFORM_OWNER login is padlock-only by design — do not relax it (see the design memory).
 
 ## Design rules — GLASS MODAL SYSTEM (general, apply everywhere)
-Use `openGlassModal({frost})` for modals; the layered glass is the standard.
-1. **Layer 1** (first modal over the page) = see-through glass, causes NO darkening.
-2. **Layer 2** (e.g. notifications) = frosted glass that blurs + slightly darkens the layer behind.
-3. **Layer 3+** = adds more blur + darkening.
-4. More modals stacked ⇒ progressively darker + blurrier (each `.frost` backdrop composites on its own).
+Use `openGlassModal(opts)` for modals; the layered glass is the standard. **All helpers auto-detect stack depth — callers only need `frost: true` to declare a semantic floor.**
+
+### Auto-stacking (depth detected from `stack.length` at open time)
+| Depth at open | Auto class   | With `frost: true` floor | Visual                  |
+|---------------|-------------|--------------------------|-------------------------|
+| 0 (first)     | (none) clear | `frost`                  | See-through vs frosted  |
+| 1 (second)    | `frost`      | `frost`                  | Blurs + darkens beneath |
+| 2+ (third+)   | `frost-2`    | `frost-2`                | Deeper blur + darker    |
+
+Auto-stacking **only upgrades, never downgrades** from the floor. `frost: true` means "never clearer than Layer 2."
+
+### Semantic floor — when to set `frost: true`
+Set `frost: true` on modals that conceptually sit **above** page content regardless of stack state:
+- **Notifications, slide-out panels, overlays** — they are never "see-through glass over the page"
+- **Do NOT set** on dialogs, forms, confirms, alerts — they auto-detect correctly
+
+### Layer definitions
+1. **Layer 1** (first modal over the page) = see-through glass, causes NO darkening. The page IS the backdrop.
+2. **Layer 2** = frosted glass that blurs + slightly darkens the layer behind. Use `frost: true` as a floor.
+3. **Layer 3+** (frost-2) = deeper blur + darker. Auto-applied when two or more modals are already open.
 
 **Glass surface look (theme-sensitive, one recipe — the `--glass-*` tokens in style.css):**
 - **Light theme** = frosted **glass-white** (the activity-widget look).
@@ -45,7 +60,7 @@ Every glass surface (modals, avatar modal, activity widget) reads from `--glass-
 | `static/css/style.css` | All styles (palette, glass, modals, island, toggle, activity panel) |
 | `static/app/drawer/drawer.js` | macOS-style floating drawer state machine + trigger icon |
 | `static/app/drawer/drawer.css` | Drawer chrome gradient, stages, logout styling |
-| `static/app/modal/modal.js` | `openGlassModal({frost})` — the layered glass modal system |
+| `static/app/modal/modal.js` | `openGlassModal(opts)` — layered glass modal system with auto-stacking + frost floor |
 | `static/app/modal/modal.css` | Glass panels (layer-1 / frost), notification + pwd modals |
 | `static/app/avatar/avatar.js` | `avatarCard()` + `openAvatarUpload()` (drag/zoom crop to 4:3) |
 | `static/app/tiltstack/tiltstack.js` | `renderTiltStack()` / `highlightTiltCard()` — side-scrolling tilt cards |
