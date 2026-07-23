@@ -39,6 +39,28 @@
 
 ---
 
+## 2026-07-23 — Glass modal blur/darkening tokenised + Layer 2 frost fix
+
+### CSS token expansion — `style.css`
+- **Three new `--glass-*` tokens** added to both light and dusk theme roots:
+  - `--glass-backdrop-bg` — frost backdrop darkening colour (per-theme)
+  - `--glass-backdrop-blur` — frost backdrop blur (per-theme)
+  - `--glass-blur-frost` — denser frost-panel blur for Layer 2+ panels (per-theme)
+- **`--glass-blur-frost`**: light = `blur(28px) saturate(150%)`, dusk = `blur(30px) saturate(160%)` (darker/heavier than light for premium look)
+- **`.glass-module`**: replaced hardcoded `backdrop-filter: blur(16px)` with `var(--glass-blur)` — now theme-sensitive
+
+### Glass modal CSS — `modal.css`
+- **`.glass-modal-bg.frost`**: replaced hardcoded `background: rgba(2,18,30,.40)` with `var(--glass-backdrop-bg)` and `backdrop-filter: blur(9px) saturate(115%)` with `var(--glass-backdrop-blur)`
+- **Removed hardcoded dusk override** `:root[data-theme="dusk"] .glass-modal-bg.frost { background: rgba(0,0,0,.48) }` — now handled by `--glass-backdrop-bg` token
+- **`.glass-panel.frost`**: replaced hardcoded `backdrop-filter: blur(28px) saturate(150%)` with `var(--glass-blur-frost)`
+- Net effect: every glass surface that stacks (Layer 2+ frosted modals, notifications) is now fully theme-driven via tokens — no hardcoded colours or blur values anywhere in the glass system
+
+### Staff-codes modal frost fix — `dashboards.js`
+- **Fix:** `glassConfirm()` call inside the staff-code generation modal was missing `frost: true` — the confirmation was rendering as clear Layer 1 glass instead of darkening Layer 2
+- Added `frost: true` — notifications inside the staff-codes modal now correctly darken + blur the layer behind
+
+---
+
 ## 2026-07-24 — Staff onboarding: per-role codes + typed profile tables
 
 > Approved: full flow for teacher/bursar/librarian; per-role codes stored as columns on `tenant`.

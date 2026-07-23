@@ -11,11 +11,11 @@
 /* Layer 2+: frosted backdrop blurs + darkens everything behind. Each stacked
    .frost composites over the previous one, so more modals = darker + blurrier. */
 .glass-modal-bg.frost {
-  background: rgba(2, 18, 30, .40);
-  backdrop-filter: blur(9px) saturate(115%);
-  -webkit-backdrop-filter: blur(9px) saturate(115%);
+  background: var(--glass-backdrop-bg);
+  backdrop-filter: var(--glass-backdrop-blur);
+  -webkit-backdrop-filter: var(--glass-backdrop-blur);
 }
-:root[data-theme="dusk"] .glass-modal-bg.frost { background: rgba(0, 0, 0, .48); }
+/* Dusk theme adjusts via --glass-backdrop-bg token — no separate rule needed. */
 
 /* ---- Layer-1 panel: see-through glass (glass-white light / glossy silver dark) ---- */
 .glass-panel {
@@ -56,8 +56,8 @@
 /* ---- Frost panel (layer 2+): denser, less see-through ---- */
 .glass-panel.frost {
   background: var(--glass-bg-frost);
-  backdrop-filter: blur(28px) saturate(150%);
-  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: var(--glass-blur-frost);
+  -webkit-backdrop-filter: var(--glass-blur-frost);
 }
 
 .glass-panel h2 { margin: 0 0 6px; }

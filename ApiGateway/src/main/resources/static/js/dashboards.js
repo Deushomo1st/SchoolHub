@@ -1711,7 +1711,7 @@ async function adminPeople(pane) {
       b.onclick = async () => {
         var role = b.dataset.gen;
         var label = role.charAt(0).toUpperCase() + role.slice(1);
-        if (!(await glassConfirm('Generate a new ' + label + ' code? Any old code stops working.', { title: 'New ' + label + ' code', okText: 'Generate' }))) return;
+        if (!(await glassConfirm('Generate a new ' + label + ' code? Any old code stops working.', { title: 'New ' + label + ' code', okText: 'Generate', frost: true }))) return;
         var m = ctrl.panel.querySelector('[data-m]'); hideMsg(m);
         try {
           var r = await api('/api/v1/tenants/staff-codes/' + role, { method: 'POST' });
