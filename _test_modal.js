@@ -23,10 +23,12 @@
     else if (depth === 1) frostClass = ' frost';
     // depth 0 = clear (no class)
 
-    // frost option acts as a FLOOR (minimum frost):
-    //   frost:true  → never clearer than frost, even at depth 0 (e.g. notifications)
-    //   auto-stacking only upgrades, never downgrades
-    if (opts.frost && frostClass === '') frostClass = ' frost';
+    // Manual frost override (backward compat)
+    if (opts.frost !== undefined) {
+      console.warn('[modal] manual opts.frost is deprecated — stacking depth auto-detected from stack.length. Depth=' + depth);
+      if (opts.frost === true && frostClass === '') frostClass = ' frost'; // force at least frost
+      if (opts.frost === false) frostClass = ''; // force clear
+    }
 
     var bg = document.createElement('div');
     bg.className = 'glass-modal-bg' + frostClass;
