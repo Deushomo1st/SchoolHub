@@ -42,6 +42,19 @@
 ## 2026-07-23 — Glass modal blur/darkening tokenised + Layer 2 frost fix
 
 ### CSS token expansion — `style.css`
+
+## 2026-07-23 — Admin People section button wiring audit + final frost param cleanup
+
+### Audit results — all wiring verified correct
+- **Staff table (Admins & Principals):** Suspend, Activate, Title, Remove — all wired to correct `TenantService` endpoints
+- **Teachers, Bursars, Librarians:** Remove buttons wired to correct `DELETE` endpoints in `PeopleController`, `BursarController`, `LibrarianController`
+- **Pending staff:** Approve and Reject wired to correct `POST` endpoints
+- **Add modals:** Add admin/principal, Add teacher, Add student, Add guardian, Reset password — all `glassForm` calls correct
+- **Staff codes:** `openGlassModal` + inner `glassConfirm` for Generate — auto-stacking correctly applies Layer 2 frost for the confirm
+- **All 12+ modal calls in `adminPeople()`:** zero manual `frost` params — auto-detection handles every case
+
+### Fix — `app.html`
+- **Removes the last remaining manual `frost: false` param** from `openPwd()` (change-password modal). Auto-stacking produces identical Layer 1 clear glass for the first modal — no behavioral change.
 - **Three new `--glass-*` tokens** added to both light and dusk theme roots:
   - `--glass-backdrop-bg` — frost backdrop darkening colour (per-theme)
   - `--glass-backdrop-blur` — frost backdrop blur (per-theme)
