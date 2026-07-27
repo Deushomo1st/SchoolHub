@@ -39,6 +39,12 @@
 
 ---
 
+## 2026-07-27 — Landing footer: coming-soon indicators
+
+- Marked non-functional landing-footer items as coming soon: social icons now have `title="Coming soon"`, store chips use the `.soon` badge, and the newsletter button uses `.soon`.
+- Newsletter form no longer shows a false success message; it now says newsletter subscriptions are coming soon.
+- Copied `ApiGateway/src/main/resources/static/index.html` to `ApiGateway/target/classes/static/index.html` for static deploy.
+
 ## 2026-07-23 — Glass modal blur/darkening tokenised + Layer 2 frost fix
 
 ### CSS token expansion — `style.css`
