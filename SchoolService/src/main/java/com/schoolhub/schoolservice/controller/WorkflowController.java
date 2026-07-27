@@ -32,16 +32,19 @@ public class WorkflowController {
     // Any signed-in tenant user can propose; an Admin proposing gets applied immediately
     // (standing permission), everyone else lands pending an Admin's confirm.
     @PostMapping("/org-units")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> proposeOrgUnit(@Valid @RequestBody OrgUnitReq req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.proposeOrgUnitCreate(req));
     }
 
     @PostMapping("/offerings")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> proposeOffering(@Valid @RequestBody OfferingReq req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.proposeOfferingCreate(req));
     }
 
     @PostMapping("/progression-rules")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> proposeProgressionRule(@Valid @RequestBody ProgressionRuleReq req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.proposeProgressionRuleCreate(req));
     }
@@ -73,6 +76,7 @@ public class WorkflowController {
     public ResponseEntity<?> protests(@PathVariable Long id) { return ResponseEntity.ok(service.protestsFor(id)); }
 
     @PostMapping("/{id}/protests")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> raiseProtest(@PathVariable Long id, @RequestBody(required = false) ProtestReq req) {
         String comment = req == null ? null : req.comment();
         return ResponseEntity.status(HttpStatus.CREATED).body(service.raiseProtest(id, comment));
