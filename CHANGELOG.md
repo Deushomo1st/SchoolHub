@@ -39,6 +39,11 @@
 
 ---
 
+## 2026-07-27 — Landing footer: desktop app chips get `.soon` badge
+
+- Windows, macOS, and Chrome mini store chips previously only had a `title="Coming soon"` tooltip; they now also carry the `.soon` amber pill, consistent with the mobile Play Store / App Store chips.
+- Copied `ApiGateway/src/main/resources/static/index.html` to `ApiGateway/target/classes/static/index.html` for static deploy.
+
 ## 2026-07-27 — Landing footer: coming-soon indicators
 
 - Marked non-functional landing-footer items as coming soon: social icons now have `title="Coming soon"`, store chips use the `.soon` badge, and the newsletter button uses `.soon`.
