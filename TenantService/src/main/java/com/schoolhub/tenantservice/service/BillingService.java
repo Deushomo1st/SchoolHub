@@ -110,6 +110,59 @@ public class BillingService {
         }
     }
 
+
+    /**
+     * Checkout for a freshly-registered school (no authenticated user yet).
+     * Returns the Stripe Checkout URL, or null if the plan is free, Stripe is
+     * not configured, or any Stripe error occurs (signup must never break).
+     */
+    public String checkoutForNewTenant(Tenant t, SubscriptionPlan plan) {
+        if (!enabled) return null;
+        if (plan.getPriceNaira() == null || plan.getPriceNaira() == 0) return null;
+        try {
+            String priceId = ensurePrice(plan);
+            String customerId = ensureCustomer(t);
+            var params = com.stripe.param.checkout.SessionCreateParams.builder()
+                    .setMode(com.stripe.param.checkout.SessionCreateParams.Mode.SUBSCRIPTION)
+                    .setCustomer(customerId)
+                    .addLineItem(com.stripe.param.checkout.SessionCreateParams.LineItem.builder()
+                            .setPrice(priceId).setQuantity(1L).build())
+                    .setSuccessUrl(appBaseUrl + "/login.html?billing=success")
+                    .setCancelUrl(appBaseUrl + "/login.html?billing=cancelled")
+                    .putMetadata("tenantId", String.valueOf(t.getId()))
+                    .setSubscriptionData(com.stripe.param.checkout.SessionCreateParams.SubscriptionData.builder()
+                            .putMetadata("tenantId", String.valueOf(t.getId())).build())
+                    .build();
+            var session = com.stripe.model.checkout.Session.create(params);
+            audit.record(t.getId(), null, "BILLING_CHECKOUT_STARTED", plan.getName() + " (signup)");
+            return session.getUrl();
+        } catch (Exception e) {
+            // Stripe hiccup: school is still registered; they can subscribe from the dashboard later.
+            return null;
+        }
+    }
+
+    /**
+     * Switch the caller's school to a different plan (right-size up or down).
+     * Honours the "no destructive Stripe calls on switch" rule: we only move the
+     * local plan pointer; the next checkout mints/uses the new plan's Stripe price.
+     * Only surfaced via the payment gate today (unpaid context) - see class note.
+     */
+    @Transactional
+    public Map<String, Object> changePlan(Long callerUserId, Long planId) {
+        Tenant t = callerTenant(callerUserId);
+        if (planId == null) throw new IllegalArgumentException("planId is required");
+        SubscriptionPlan plan = planRepo.findById(planId)
+                .orElseThrow(() -> new EntityNotFoundException("Plan not found"));
+        if (!plan.getId().equals(t.getPlanId())) {
+            t.setPlanId(plan.getId());
+            tenantRepo.save(t);
+            audit.record(t.getId(), callerUserId, "PLAN_CHANGED",
+                    "switched to " + plan.getName() + " - N" + plan.getPriceNaira());
+        }
+        return status(callerUserId);
+    }
+
     /** Stripe Customer Portal (manage/cancel/update card). */
     public Map<String, Object> portal(Long callerUserId) {
         requireEnabled();

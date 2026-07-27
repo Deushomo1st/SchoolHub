@@ -405,3 +405,221 @@ window.shLogoSvg = SH_LOGO_SVG; // landing hero reuses the same mark
   }
   if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
 })();
+
+// ---- Payment gate: "Complete payment to proceed" ---------------------------------
+// An unpaid school on a PAID plan is met at the door of the app by a full-screen glass
+// gate. Only billing-capable roles (ADMIN / PRINCIPAL) are checked — they are the only
+// roles the billing endpoint authorises and the only ones who can pay. The gate FAILS
+// OPEN: any error, 403, free plan, or Stripe-off state means NO gate, so a missing key
+// or a non-admin can never be locked out by mistake. Paying (or "I already paid")
+// re-checks live status and lifts the gate without a reload.
+(function () {
+  if (_isPublicPage()) return;
+  if (!/app\.html$/.test(location.pathname)) return;          // account shell only
+  var u = getUser();
+  if (!u) return;
+  var role = u.roleCode || u.role || '';
+  if (role !== 'ADMIN' && role !== 'PRINCIPAL') return;       // payer roles only
+  if (new URLSearchParams(location.search).get('billing') === 'success') return; // just paid
+
+  function money(n) { return '\u20a6' + Number(n || 0).toLocaleString(); }
+  function goodStanding(b) { return b && (b.subStatus === 'active' || b.subStatus === 'trialing'); }
+
+  api('/api/v1/tenants/billing').then(function (b) {
+    if (!b || !b.stripeEnabled) return;                        // Stripe off -> never brick
+    if (b.priceNaira == null || b.priceNaira <= 0) return;     // free plan -> walk straight in
+    if (goodStanding(b)) return;                               // already paid -> straight in
+    mount(b);
+  }).catch(function () { /* fail open */ });
+
+  function mount(b) {
+    var isAdmin = role === 'ADMIN';
+    var st = document.createElement('style');
+    st.textContent = [
+'#paygate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;',
+'  background:color-mix(in srgb,var(--ink) 28%,transparent);',
+'  backdrop-filter:blur(16px) saturate(120%);-webkit-backdrop-filter:blur(16px) saturate(120%);',
+'  opacity:0;transition:opacity .5s ease}',
+'#paygate.on{opacity:1}',
+'#paygate .pg-field{position:absolute;inset:0;overflow:hidden;pointer-events:none}',
+'#paygate .pg-glow{position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(72px);opacity:.5}',
+'#paygate .pg-glow.a{background:radial-gradient(circle,color-mix(in srgb,var(--brand) 55%,transparent),transparent 70%);top:-18vmax;left:-12vmax}',
+'#paygate .pg-glow.b{background:radial-gradient(circle,color-mix(in srgb,var(--amber) 50%,transparent),transparent 70%);bottom:-20vmax;right:-14vmax}',
+'#paygate .pg-shard{position:absolute;border-radius:22px;background:var(--glass-bg);border:1px solid var(--glass-border);',
+'  box-shadow:var(--glass-shadow-soft);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);',
+'  animation:pgFloat var(--d,16s) ease-in-out infinite}',
+'#paygate .pg-shard::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--glass-sheen);mix-blend-mode:screen}',
+'#paygate .pg-shard.tint{background:color-mix(in srgb,var(--brand) 20%,transparent)}',
+'@keyframes pgFloat{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-26px) rotate(calc(var(--r,0deg) + 5deg))}}',
+'@media (prefers-reduced-motion:reduce){#paygate .pg-shard{animation:none}}',
+'#paygate .pg-panel{position:relative;width:min(440px,92vw);border-radius:26px;padding:40px 36px 28px;text-align:center;',
+'  background:var(--glass-bg-frost);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);',
+'  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);overflow:hidden;',
+'  transform:translateY(18px) scale(.97);transition:transform .55s cubic-bezier(.22,1,.36,1)}',
+'#paygate.on .pg-panel{transform:translateY(0) scale(1)}',
+'#paygate .pg-panel::before{content:"";position:absolute;inset:0;background:var(--glass-sheen);mix-blend-mode:screen;pointer-events:none}',
+'#paygate .pg-mark{width:64px;height:64px;margin:0 auto 16px;filter:drop-shadow(0 12px 26px var(--shadow-brand))}',
+'#paygate .pg-mark svg{width:100%;height:100%}',
+'#paygate .pg-kicker{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-ink);',
+'  background:var(--amber-soft);display:inline-block;padding:5px 12px;border-radius:20px;margin-bottom:14px}',
+'#paygate h1{font-size:27px;line-height:1.12;letter-spacing:-.02em;margin:0 0 10px;color:var(--ink)}',
+'#paygate .pg-sub{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 20px}',
+'#paygate .pg-plan{display:flex;align-items:baseline;justify-content:center;gap:10px;margin:0 0 22px;',
+'  padding:16px;border-radius:16px;background:color-mix(in srgb,var(--card) 55%,transparent);border:1px solid var(--glass-border)}',
+'#paygate .pg-plan .pg-pname{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--brand)}',
+'#paygate .pg-plan .pg-pprice{font-size:30px;font-weight:800;color:var(--ink)}',
+'#paygate .pg-plan .pg-pprice span{font-size:13px;font-weight:500;color:var(--muted)}',
+'#paygate .pg-actions{display:flex;flex-direction:column;gap:10px;position:relative;z-index:1}',
+'#paygate .pg-pay{padding:14px 22px;font-size:16px;font-weight:700}',
+'#paygate .pg-links{display:flex;justify-content:center;gap:18px;margin-top:16px;font-size:13px}',
+'#paygate .pg-links button{background:none;border:none;color:var(--muted);cursor:pointer;font:inherit;padding:0;text-decoration:underline}',
+'#paygate .pg-links button:hover{color:var(--brand)}',
+'#paygate .pg-note{font-size:13px;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--glass-border);',
+'  border-radius:12px;padding:12px 14px;margin:0 0 18px;line-height:1.5}',
+'#paygate .pg-msg{min-height:18px;font-size:13px;margin-top:12px}',
+'#paygate .pg-msg.err{color:var(--danger,#e5484d)}',
+'#paygate .pg-msg.ok{color:var(--ok)}',
+'#paygate .pg-actions .pg-change{padding:11px 18px;font-size:14px;font-weight:600}',
+'#pgPicker{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .3s ease}',
+'#pgPicker.on{opacity:1}',
+'#pgPicker .pgpk-back{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 30%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}',
+'#pgPicker .pgpk-panel{position:relative;width:min(460px,92vw);max-height:86vh;border-radius:22px;padding:26px 24px 20px;background:var(--glass-bg-frost);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);overflow:hidden;transform:translateY(14px) scale(.98);transition:transform .35s cubic-bezier(.22,1,.36,1)}',
+'#pgPicker.on .pgpk-panel{transform:translateY(0) scale(1)}',
+'#pgPicker .pgpk-panel::before{content:"";position:absolute;inset:0;background:var(--glass-sheen);mix-blend-mode:screen;pointer-events:none}',
+'#pgPicker .pgpk-x{position:absolute;top:14px;right:14px;z-index:2;width:32px;height:32px;border-radius:10px;border:1px solid var(--glass-border);background:color-mix(in srgb,var(--card) 55%,transparent);color:var(--muted);font-size:20px;line-height:1;cursor:pointer;transition:color .2s ease,border-color .2s ease}',
+'#pgPicker .pgpk-x:hover{color:var(--brand);border-color:var(--brand)}',
+'#pgPicker h2{font-size:20px;letter-spacing:-.01em;margin:0 0 6px;color:var(--ink)}',
+'#pgPicker .pgpk-sub{font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5}',
+'#pgPicker .pgpk-list{display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow:auto;padding:2px;position:relative;z-index:1}',
+'#pgPicker .pgpk-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--card) 55%,transparent);border:1px solid var(--glass-border);transition:border-color .2s ease,transform .2s ease}',
+'#pgPicker .pgpk-row:hover{transform:translateY(-1px)}',
+'#pgPicker .pgpk-row.current{border-color:var(--brand)}',
+'#pgPicker .pgpk-name{font-size:15px;font-weight:700;color:var(--ink)}',
+'#pgPicker .pgpk-cur{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);margin-left:8px}',
+'#pgPicker .pgpk-desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}',
+'#pgPicker .pgpk-price{font-size:13px;color:var(--muted);margin-top:5px}',
+'#pgPicker .pgpk-price b{color:var(--ink);font-size:16px;font-weight:800}',
+'#pgPicker .pgpk-btn{flex:0 0 auto}',
+'#pgPicker .pgpk-msg{min-height:18px;font-size:13px;margin-top:12px;color:var(--danger,#e5484d);position:relative;z-index:1}'
+    ].join('\n');
+    document.head.appendChild(st);
+
+    var gate = document.createElement('div');
+    gate.id = 'paygate';
+    gate.innerHTML =
+      '<div class="pg-field" aria-hidden="true">' +
+        '<div class="pg-glow a"></div><div class="pg-glow b"></div>' +
+        '<div class="pg-shard tint" style="width:120px;height:170px;left:6%;top:12%;--r:-12deg;--d:17s"></div>' +
+        '<div class="pg-shard" style="width:82px;height:82px;right:9%;top:18%;--r:9deg;--d:13s"></div>' +
+        '<div class="pg-shard tint" style="width:64px;height:64px;left:13%;bottom:14%;--r:6deg;--d:11s"></div>' +
+        '<div class="pg-shard" style="width:112px;height:150px;right:7%;bottom:9%;--r:-8deg;--d:19s"></div>' +
+      '</div>' +
+      '<div class="pg-panel" role="dialog" aria-modal="true" aria-labelledby="pgTitle">' +
+        '<div class="pg-mark">' + (window.shLogoSvg || '') + '</div>' +
+        '<span class="pg-kicker">Subscription pending</span>' +
+        '<h1 id="pgTitle">Complete payment to proceed</h1>' +
+        '<p class="pg-sub">' + (isAdmin
+            ? 'Your school is on a paid plan. Settle the subscription below and your dashboard unlocks at once.'
+            : 'This school has a pending subscription. Please ask your school administrator to complete the payment.') + '</p>' +
+        '<div class="pg-plan"><span class="pg-pname">' + esc(b.plan || 'Plan') + '</span>' +
+          '<span class="pg-pprice">' + money(b.priceNaira) + '<span>/month</span></span></div>' +
+        (isAdmin
+          ? '<div class="pg-actions"><button class="btn pg-pay" id="pgPay">Pay with Stripe</button>'
+          + '<button class="btn ghost pg-change" id="pgChange">Change plan</button></div>'
+          : '<div class="pg-note">Only a school administrator can complete this payment.</div>') +
+        '<div class="pg-msg" id="pgMsg"></div>' +
+        '<div class="pg-links">' +
+          (isAdmin ? '<button type="button" id="pgRefresh">I already paid \u2014 check status</button>' : '') +
+          '<button type="button" id="pgOut">Log out</button>' +
+        '</div>' +
+      '</div>';
+
+    function gateMsg(t, isErr) {
+      var mm = gate.querySelector('#pgMsg');
+      if (mm) { mm.className = 'pg-msg ' + (isErr ? 'err' : 'ok'); mm.textContent = t; }
+    }
+
+    function openPlanPicker() {
+      var old = document.getElementById('pgPicker'); if (old) old.remove();
+      api('/api/v1/tenants/plans').then(function (plans) {
+        if (!plans || !plans.length) { gateMsg('No plans available right now.', true); return; }
+        function perkList(d) { return (d || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
+        var rows = plans.map(function (p) {
+          var isCur = (p.name === b.plan);
+          var free = (p.priceNaira == null || p.priceNaira <= 0);
+          var price = free ? '<b>Free</b>' : ('<b>' + money(p.priceNaira) + '</b>/month');
+          var perks = perkList(p.description).slice(0, 3).join(' \u00b7 ');
+          return '<div class="pgpk-row' + (isCur ? ' current' : '') + '">'
+            + '<div><div class="pgpk-name">' + esc(p.name) + (isCur ? '<span class="pgpk-cur">Current</span>' : '') + '</div>'
+            + (perks ? '<div class="pgpk-desc">' + esc(perks) + '</div>' : '')
+            + '<div class="pgpk-price">' + price + (p.maxStudents ? ' \u00b7 up to ' + p.maxStudents + ' students' : '') + '</div></div>'
+            + (isCur ? '' : '<button class="btn secondary pgpk-btn" data-pid="' + p.id + '">Switch</button>')
+            + '</div>';
+        }).join('');
+        var pk = document.createElement('div');
+        pk.id = 'pgPicker';
+        pk.innerHTML = '<div class="pgpk-back"></div>'
+          + '<div class="pgpk-panel" role="dialog" aria-modal="true" aria-labelledby="pgpkTitle">'
+          + '<button class="pgpk-x" type="button" aria-label="Close">&times;</button>'
+          + '<h2 id="pgpkTitle">Choose your plan</h2>'
+          + '<p class="pgpk-sub">Switch any time. Picking a free plan removes the payment step.</p>'
+          + '<div class="pgpk-list sleek-scroll">' + rows + '</div>'
+          + '<div class="pgpk-msg" id="pgpkMsg"></div>'
+          + '</div>';
+        document.body.appendChild(pk);
+        requestAnimationFrame(function () { pk.classList.add('on'); });
+        var pmsg = pk.querySelector('#pgpkMsg');
+        function closePk() { pk.classList.remove('on'); setTimeout(function () { pk.remove(); }, 300); }
+        pk.querySelector('.pgpk-x').onclick = closePk;
+        pk.querySelector('.pgpk-back').onclick = closePk;
+        pk.querySelectorAll('[data-pid]').forEach(function (btn) {
+          btn.onclick = async function () {
+            btn.disabled = true; pmsg.textContent = 'Switching plan\u2026';
+            try {
+              var s = await api('/api/v1/tenants/billing/plan', { method: 'POST', body: JSON.stringify({ planId: Number(btn.dataset.pid) }) });
+              closePk();
+              if (s.priceNaira == null || s.priceNaira <= 0) {
+                gate.classList.remove('on'); setTimeout(function () { gate.remove(); }, 500);
+              } else {
+                b = s;
+                var pn = gate.querySelector('.pg-pname'); if (pn) pn.textContent = s.plan || 'Plan';
+                var pp = gate.querySelector('.pg-pprice'); if (pp) pp.innerHTML = money(s.priceNaira) + '<span>/month</span>';
+                gateMsg('Plan updated to ' + (s.plan || '') + '.', false);
+              }
+            } catch (e) { pmsg.textContent = e.message; btn.disabled = false; }
+          };
+        });
+      }).catch(function (e) { gateMsg(e.message, true); });
+    }
+
+    function ready() {
+      document.body.appendChild(gate);
+      requestAnimationFrame(function () { gate.classList.add('on'); });
+      var msg = gate.querySelector('#pgMsg');
+      var pay = gate.querySelector('#pgPay');
+      if (pay) pay.onclick = async function () {
+        pay.disabled = true; msg.className = 'pg-msg'; msg.textContent = 'Opening secure checkout\u2026';
+        try {
+          var r = await api('/api/v1/tenants/billing/checkout', { method: 'POST' });
+          if (r && r.url) { location.href = r.url; return; }
+          msg.className = 'pg-msg err'; msg.textContent = 'Could not start checkout \u2014 please try again.';
+        } catch (e) { msg.className = 'pg-msg err'; msg.textContent = e.message; }
+        pay.disabled = false;
+      };
+      var ref = gate.querySelector('#pgRefresh');
+      if (ref) ref.onclick = async function () {
+        ref.disabled = true; msg.className = 'pg-msg'; msg.textContent = 'Checking your subscription\u2026';
+        try {
+          var s = await api('/api/v1/tenants/billing/sync', { method: 'POST' });
+          if (goodStanding(s)) { gate.classList.remove('on'); setTimeout(function () { gate.remove(); }, 500); return; }
+          msg.className = 'pg-msg err'; msg.textContent = 'No active subscription yet \u2014 it can take a moment after paying.';
+        } catch (e) { msg.className = 'pg-msg err'; msg.textContent = e.message; }
+        ref.disabled = false;
+      };
+      var chg = gate.querySelector('#pgChange');
+      if (chg) chg.onclick = function () { openPlanPicker(); };
+      gate.querySelector('#pgOut').onclick = function () { logout(); };
+    }
+    if (document.body) ready(); else document.addEventListener('DOMContentLoaded', ready);
+  }
+})();

@@ -32,6 +32,9 @@ public class BillingController {
         this.webhookSecret = webhookSecret;
     }
 
+    /** Body for POST /billing/plan - switch the school plan. */
+    public record ChangePlanReq(Long planId) {}
+
     @GetMapping("/billing")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> status(Authentication auth) {
@@ -54,6 +57,12 @@ public class BillingController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> sync(Authentication auth) {
         return ResponseEntity.ok(billing.sync((Long) auth.getPrincipal()));
+    }
+
+    @PostMapping("/billing/plan")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> changePlan(Authentication auth, @RequestBody ChangePlanReq req) {
+        return ResponseEntity.ok(billing.changePlan((Long) auth.getPrincipal(), req.planId()));
     }
 
     /** Stripe → subscription lifecycle. No JWT; authenticity is the signature. */

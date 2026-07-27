@@ -176,7 +176,10 @@ document.getElementById("backLink").addEventListener("click",function(ev){ev.pre
 async function submitSignup(planName){
 hideMsg(msg2);
 var cards=stage.querySelectorAll(".plan-card-3d");cards.forEach(function(c){c.style.pointerEvents="none"});
-try{var body=Object.assign({},details,{planName:planName});var res=await api("/api/v1/tenants/signup",{method:"POST",body:JSON.stringify(body)});showMsg(msg2,res.schoolName+" is ready! Redirecting to login...","ok");setTimeout(function(){location.href="/login.html"},1500)}catch(e){showMsg(msg2,e.message,"err");cards.forEach(function(c){c.style.pointerEvents=""})}
+try{var body=Object.assign({},details,{planName:planName});var res=await api("/api/v1/tenants/signup",{method:"POST",body:JSON.stringify(body)});
+if(res.checkoutUrl){showMsg(msg2,res.schoolName+" is ready! Redirecting to payment...","ok");setTimeout(function(){location.href=res.checkoutUrl},800)}
+else{showMsg(msg2,res.schoolName+" is ready! Redirecting to login...","ok");setTimeout(function(){location.href="/login.html"},1500)}
+}catch(e){showMsg(msg2,e.message,"err");cards.forEach(function(c){c.style.pointerEvents=""})}
 }
 </script>
 </body>

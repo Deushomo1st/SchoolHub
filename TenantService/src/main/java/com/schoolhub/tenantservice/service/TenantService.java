@@ -33,11 +33,12 @@ public class TenantService {
     private final BCryptPasswordEncoder encoder;
     private final DataSource dataSource;
     private final PlatformNotificationService notif;
+    private final BillingService billing;
 
     public TenantService(TenantRepository tenantRepo, SubscriptionPlanRepository planRepo,
                          RoleRepository roleRepo, AppUserRepository userRepo,
                          BCryptPasswordEncoder encoder, DataSource dataSource,
-                         PlatformNotificationService notif) {
+                         PlatformNotificationService notif, BillingService billing) {
         this.tenantRepo = tenantRepo;
         this.planRepo = planRepo;
         this.roleRepo = roleRepo;
@@ -45,6 +46,7 @@ public class TenantService {
         this.encoder = encoder;
         this.dataSource = dataSource;
         this.notif = notif;
+        this.billing = billing;
     }
 
     public List<TemplateDto> templates() {
@@ -105,9 +107,15 @@ public class TenantService {
 
         provisionSchema(schema);
 
+        // Kick off Stripe Checkout for paid plans (null for free / Stripe-off / errors).
+        String checkoutUrl = billing.checkoutForNewTenant(tenant, plan);
+
         return new SignupResponse(tenant.getId(), tenant.getName(), schema, schema, req.getAdminEmail(),
-                "School registered. A SchoolHub administrator will review and approve it shortly; "
-                        + "the admin can sign in once it is approved.");
+                checkoutUrl != null
+                        ? "School registered! Complete your subscription to activate."
+                        : "School registered. A SchoolHub administrator will review and approve it shortly; "
+                                + "the admin can sign in once it is approved.",
+                checkoutUrl);
     }
 
     /**
