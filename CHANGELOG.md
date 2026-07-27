@@ -39,6 +39,31 @@
 
 ---
 
+## 2026-07-27 — Billing at the door: pay on signup, a "Complete payment to proceed" gate, and change-plan
+
+### Pay the moment you register — `TenantService` + `signup.html`
+- New `BillingService.checkoutForNewTenant(tenant, plan)` builds the same Stripe subscription Checkout as the in-dashboard path but with **no authenticated user**; success URL points at `/login.html?billing=success`. Returns `null` for free plans, when Stripe is not configured, or on any Stripe error — so a hiccup never breaks registration.
+- `TenantService.signup()` calls it after the school + first admin are saved and hands the URL back; `SignupResponse` gained a nullable `checkoutUrl`.
+- `signup.html` confirm handler: if `checkoutUrl` is present, redirect straight to Stripe; otherwise fall through to login (free plan / Stripe-off). The school can still subscribe later from the dashboard.
+
+### "Complete payment to proceed" gate — `app.js`
+- An unpaid school on a **paid** plan is met at the app door by a full-screen glass gate: ambient brand + amber glows and four drifting glass shards lifted from the landing motif (`prefers-reduced-motion` honoured), built entirely on the `--glass-*` tokens (frosted glass-white in light, glossy silver in dusk).
+- **ADMIN** sees the plan + price, **Pay with Stripe** (existing `POST /billing/checkout`), **I already paid — check status** (calls `/billing/sync` and lifts the gate live, no reload — the safety net for webhook lag), and **Log out**.
+- Non-admin payer roles see an amber "ask your administrator" note instead of the button.
+- **Fails open** by design: any error, 403, free plan, or Stripe-off state shows no gate, so a missing key or a non-admin can never be locked out.
+
+### Change plan from the gate — `TenantService` + `app.js`
+- New `BillingService.changePlan(callerUserId, planId)` + `POST /api/v1/tenants/billing/plan` (`hasRole('ADMIN')`) moves the local `plan_id` only — **no destructive Stripe calls** on switch; the next checkout mints/uses the new plan's price. Audits `PLAN_CHANGED`.
+- The gate gains a **Change plan** button opening a glass plan-picker overlay (`GET /tenants/plans`, current plan marked, perks parsed like the landing deck). Picking a free plan lifts the gate; picking another paid plan re-renders it with the new price. The picker sits at a `z-index` above the gate on purpose (the gate is above the modal system); visually identical glass.
+
+### Deploy note
+- Gate + picker are static-only (`app.js` cache-buster → `v=31`, copied to `target/`). The signup redirect and the two new endpoints need a **TenantService rebuild + relaunch**.
+
+## 2026-07-27 — SchoolService: repair the build, lock `/internal/**` to loopback, add auth guards
+
+- **Build repair.** A prior edit called `.hasIpAddress(...)` on the modern `authorizeHttpRequests()` DSL, where that method does not exist — breaking compilation and cascading into phantom "package … does not exist" errors across the IDE. Replaced with an `.access(...)` `AuthorizationManager` that admits only loopback callers (`127.0.0.1`, `::1`, `0:0:0:0:0:0:0:1`), so same-host gateway→school `/internal/**` traffic still passes while the public internet is denied. Added the `AuthorizationDecision` import.
+- **Method-level guards.** `@PreAuthorize("isAuthenticated()")` on `FlagController.raise` and the four `WorkflowController` propose/protest endpoints (imports added). `@EnableMethodSecurity` was already on, so the guards are enforced.
+
 ## 2026-07-27 — Landing footer: desktop app chips get `.soon` badge
 
 - Windows, macOS, and Chrome mini store chips previously only had a `title="Coming soon"` tooltip; they now also carry the `.soon` amber pill, consistent with the mobile Play Store / App Store chips.
