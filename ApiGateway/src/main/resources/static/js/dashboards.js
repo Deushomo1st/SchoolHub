@@ -228,6 +228,75 @@ function roleAccountPane(pane) {
   }
 }
 
+function _bpkStyleOnce() {
+  if (document.getElementById('bpkStyle')) return;
+  var st = document.createElement('style'); st.id = 'bpkStyle';
+  st.textContent = [
+    '.bpk-wrap{width:min(440px,86vw);max-width:86vw;box-sizing:border-box}',
+    '.bpk-kicker{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);margin:0 0 6px}',
+    '.bpk-title{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px;color:var(--ink)}',
+    '.bpk-rule{height:2px;border:0;margin:12px 0 14px;border-radius:2px;background:linear-gradient(90deg,var(--brand),color-mix(in srgb,var(--amber) 60%,transparent),transparent)}',
+    '.bpk-head{font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.55}',
+    '.bpk-list{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto;overflow-x:hidden;padding:2px}',
+    '.bpk-row{position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--card) 55%,transparent);border:1px solid var(--glass-border);transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease}',
+    '.bpk-row>div:first-child{min-width:0;flex:1 1 auto}',
+    '.bpk-row>.btn{flex:0 0 auto}',
+    '.bpk-name,.bpk-desc,.bpk-price,.bpk-head{overflow-wrap:anywhere}',
+    '.bpk-row:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--brand) 45%,var(--glass-border))}',
+    '.bpk-row.current{border-color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}',
+    '.bpk-name{font-size:15px;font-weight:700;color:var(--ink)}',
+    '.bpk-row.current .bpk-name::before{content:"\\2713  ";color:var(--brand);font-weight:800}',
+    '.bpk-cur{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);margin-left:8px}',
+    '.bpk-desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}',
+    '.bpk-price{font-size:13px;color:var(--muted);margin-top:5px}',
+    '.bpk-price b{color:var(--ink);font-size:16px;font-weight:800}',
+    '.bpk-msg{min-height:18px;font-size:13px;margin-top:12px;color:var(--danger,#e5484d)}'
+  ].join('\n');
+  document.head.appendChild(st);
+}
+
+function openBillingPlanPicker(currentPlanName, msgEl, onDone) {
+  _bpkStyleOnce();
+  if (typeof openGlassModal !== 'function') { if (msgEl) showMsg(msgEl, 'Modal system unavailable.', 'err'); return; }
+  api('/api/v1/tenants/plans').then(function (plans) {
+    if (!plans || !plans.length) { if (msgEl) showMsg(msgEl, 'No plans available right now.', 'err'); return; }
+    function perks(d) { return (d || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
+    var rows = plans.map(function (p) {
+      var isCur = (p.name === currentPlanName);
+      var free = (p.priceNaira == null || p.priceNaira <= 0);
+      var pk = perks(p.description).slice(0, 3).join(' \u00b7 ');
+      return '<div class="bpk-row' + (isCur ? ' current' : '') + '">'
+        + '<div><div class="bpk-name">' + esc(p.name) + (isCur ? '<span class="bpk-cur">Current</span>' : '') + '</div>'
+        + (pk ? '<div class="bpk-desc">' + esc(pk) + '</div>' : '')
+        + '<div class="bpk-price">' + (free ? '<b>Free</b>' : (naira(p.priceNaira) + '/month'))
+        + (p.maxStudents ? ' \u00b7 up to ' + p.maxStudents + ' students' : '') + '</div></div>'
+        + (isCur ? '' : '<button class="btn secondary" data-pid="' + p.id + '">Switch</button>')
+        + '</div>';
+    }).join('');
+    var html = '<div class="bpk-wrap">'
+      + '<p class="bpk-kicker">Billing</p>'
+      + '<h2 class="bpk-title">Choose your plan</h2>'
+      + '<hr class="bpk-rule">'
+      + '<p class="bpk-head">Switch any time \u2014 your plan label updates at once. If you already have an active Stripe subscription, it keeps billing on its current plan until you change or cancel it under \u201cManage billing\u201d.</p>'
+      + '<div class="bpk-list sleek-scroll">' + rows + '</div>'
+      + '<div class="bpk-msg" id="bpkMsg"></div>'
+      + '</div>';
+    var m = openGlassModal({ className: 'bpk-modal', html: html });
+    var pmsg = m.panel.querySelector('#bpkMsg');
+    m.panel.querySelectorAll('[data-pid]').forEach(function (btn) {
+      btn.onclick = async function () {
+        btn.disabled = true; pmsg.textContent = 'Switching plan\u2026';
+        try {
+          await api('/api/v1/tenants/billing/plan', { method: 'POST', body: JSON.stringify({ planId: Number(btn.dataset.pid) }) });
+          m.close();
+          if (typeof onDone === 'function') onDone();
+        } catch (e) { pmsg.textContent = e.message; btn.disabled = false; }
+      };
+    });
+  }).catch(function (e) { if (msgEl) showMsg(msgEl, e.message, 'err'); });
+}
+
+
 async function renderBillingCard() {
   var card = document.getElementById('billingCard');
   if (!card) return;
@@ -246,8 +315,8 @@ async function renderBillingCard() {
       + (b.priceNaira != null ? ' · ' + naira(b.priceNaira) + '/month' : '') + ' · ' + statusPill + '</p>'
       + (b.stripeEnabled
           ? (b.subscribed
-              ? '<button class="btn secondary" data-b="portal">Manage billing</button> <button class="btn ghost" data-b="sync" style="margin-left:6px">Refresh status</button>'
-              : '<button class="btn" data-b="checkout">Subscribe on Stripe</button>')
+              ? '<button class="btn secondary" data-b="portal">Manage billing</button> <button class="btn ghost" data-b="sync" style="margin-left:6px">Refresh status</button> <button class="btn ghost" data-planpick style="margin-left:6px">Change plan</button>'
+              : '<button class="btn" data-b="checkout">Subscribe on Stripe</button> <button class="btn ghost" data-planpick style="margin-left:6px">Change plan</button>')
           : '<p class="subtle" style="margin:0">Stripe is not configured on the server.</p>');
     var msg = card.querySelector('#billMsg');
     card.querySelectorAll('[data-b]').forEach(function (btn) {
@@ -261,6 +330,8 @@ async function renderBillingCard() {
         } catch (e) { showMsg(msg, e.message, 'err'); }
       };
     });
+    var pkBtn = card.querySelector('[data-planpick]');
+    if (pkBtn) pkBtn.onclick = function () { openBillingPlanPicker(b.plan, card.querySelector('#billMsg'), renderBillingCard); };
   } catch (e) {
     card.innerHTML = '<h2>School billing</h2><p class="muted">' + esc(e.message) + '</p>';
   }

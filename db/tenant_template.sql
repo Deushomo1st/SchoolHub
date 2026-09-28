@@ -118,7 +118,8 @@ CREATE TABLE IF NOT EXISTS calendar_event (
     description TEXT,
     event_type  VARCHAR(20) NOT NULL DEFAULT 'event'
                 CHECK (event_type IN ('event','announcement','holiday','exam')),
-    audience    VARCHAR(64) NOT NULL DEFAULT 'all',   -- single group or comma list ('staff,students'); validated in EventService
+    audience    VARCHAR(16) NOT NULL DEFAULT 'all'
+                CHECK (audience IN ('all','staff','students','guardians')),
     start_date  DATE NOT NULL,
     end_date    DATE,
     created_by  BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,
@@ -127,6 +128,10 @@ CREATE TABLE IF NOT EXISTS calendar_event (
 CREATE INDEX IF NOT EXISTS idx_event_start ON calendar_event(start_date);
 
 -- ---- Fees: invoices + payments (Bursar) --------------------------------------
+-- A fee_invoice is a general payment obligation for one student. category + compulsory +
+-- cover_image_url + description turn it into the school "resource point" (books etc.).
+-- batch_id groups the per-student rows fanned out from one school-posted item.
+-- status 'draft' = staff-posted, awaiting school-admin approval (then becomes 'unpaid').
 CREATE TABLE IF NOT EXISTS fee_invoice (
     id           BIGSERIAL PRIMARY KEY,
     student_id   BIGINT NOT NULL REFERENCES student(id) ON DELETE CASCADE,
@@ -135,7 +140,7 @@ CREATE TABLE IF NOT EXISTS fee_invoice (
     category     VARCHAR(16) NOT NULL DEFAULT 'fee'
                  CHECK (category IN ('fee','book','participation','other')),
     compulsory   BOOLEAN NOT NULL DEFAULT TRUE,
-    cover_image_url VARCHAR(512),
+    cover_image TEXT,
     description  TEXT,
     batch_id     VARCHAR(36),
     amount_naira INTEGER NOT NULL,
@@ -165,6 +170,19 @@ CREATE INDEX IF NOT EXISTS idx_payment_invoice ON fee_payment(invoice_id);
 -- Partial: only online (paystack) references are constrained - manual cash/transfer refs are free text
 -- a Bursar might legitimately reuse across unrelated receipts, so they stay unconstrained.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_paystack_ref ON fee_payment(reference) WHERE method = 'paystack';
+
+-- ---- Bursar (fee manager appointed by admin) ------------------------------------
+CREATE TABLE IF NOT EXISTS bursar (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT UNIQUE REFERENCES platform.app_user(id) ON DELETE CASCADE,
+    staff_no    VARCHAR(40) UNIQUE NOT NULL,
+    first_name  VARCHAR(64) NOT NULL,
+    last_name   VARCHAR(64) NOT NULL,
+    email       VARCHAR(255),
+    phone       VARCHAR(32),
+    status      VARCHAR(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---- Financial customization (currency, categories, scholarships, installments) -----
 -- Institution-level currency. amount_naira keeps its name (a rename is pure churn for
@@ -477,6 +495,11 @@ ALTER TABLE result ADD COLUMN IF NOT EXISTS penalty NUMERIC(6,2) NOT NULL DEFAUL
 CREATE TABLE IF NOT EXISTS library_staff (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE REFERENCES platform.app_user(id) ON DELETE CASCADE,
+    staff_no VARCHAR(40) UNIQUE,
+    first_name VARCHAR(64),
+    last_name VARCHAR(64),
+    email VARCHAR(255),
+    phone VARCHAR(32),
     status VARCHAR(16) NOT NULL DEFAULT 'active'
         CHECK (status IN ('active','inactive')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -506,6 +529,7 @@ CREATE TABLE IF NOT EXISTS book (
     file_type VARCHAR(16),
     fine_per_day NUMERIC(10,2),
     borrow_days INT,
+    cover_image TEXT,
     uploaded_by BIGINT REFERENCES platform.app_user(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

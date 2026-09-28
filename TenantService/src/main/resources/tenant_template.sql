@@ -143,11 +143,12 @@ CREATE TABLE IF NOT EXISTS fee_invoice (
     category     VARCHAR(16) NOT NULL DEFAULT 'fee'
                  CHECK (category IN ('fee','book','participation','other')),
     compulsory   BOOLEAN NOT NULL DEFAULT TRUE,
-    cover_image_url VARCHAR(512),
+    cover_image TEXT,
     description  TEXT,
     batch_id     VARCHAR(36),
     amount_naira INTEGER NOT NULL,
     due_date     DATE,
+    stripe_invoice_id VARCHAR(64),
     status       VARCHAR(12) NOT NULL DEFAULT 'unpaid'
                  CHECK (status IN ('draft','unpaid','partial','paid','cancelled')),
     created_by   BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,
@@ -161,7 +162,7 @@ CREATE TABLE IF NOT EXISTS fee_payment (
     id           BIGSERIAL PRIMARY KEY,
     invoice_id   BIGINT NOT NULL REFERENCES fee_invoice(id) ON DELETE CASCADE,
     amount_naira INTEGER NOT NULL,
-    method       VARCHAR(16) NOT NULL DEFAULT 'cash' CHECK (method IN ('cash','transfer','paystack')),
+    method       VARCHAR(16) NOT NULL DEFAULT 'cash' CHECK (method IN ('cash','transfer','paystack','stripe')),
     reference    VARCHAR(64),
     recorded_by  BIGINT REFERENCES platform.app_user(id) ON DELETE SET NULL,
     paid_on      DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -172,6 +173,19 @@ CREATE INDEX IF NOT EXISTS idx_payment_invoice ON fee_payment(invoice_id);
 -- Partial: only online (paystack) references are constrained - manual cash/transfer refs are free text
 -- a Bursar might legitimately reuse across unrelated receipts, so they stay unconstrained.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_paystack_ref ON fee_payment(reference) WHERE method = 'paystack';
+
+-- ---- Bursar (fee manager appointed by admin) ------------------------------------
+CREATE TABLE IF NOT EXISTS bursar (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT UNIQUE REFERENCES platform.app_user(id) ON DELETE CASCADE,
+    staff_no    VARCHAR(40) UNIQUE NOT NULL,
+    first_name  VARCHAR(64) NOT NULL,
+    last_name   VARCHAR(64) NOT NULL,
+    email       VARCHAR(255),
+    phone       VARCHAR(32),
+    status      VARCHAR(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---- Financial customization (currency, categories, scholarships, installments) -----
 -- Institution-level currency. amount_naira keeps its name (a rename is pure churn for
@@ -484,6 +498,11 @@ ALTER TABLE result ADD COLUMN IF NOT EXISTS penalty NUMERIC(6,2) NOT NULL DEFAUL
 CREATE TABLE IF NOT EXISTS library_staff (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE REFERENCES platform.app_user(id) ON DELETE CASCADE,
+    staff_no VARCHAR(40) UNIQUE,
+    first_name VARCHAR(64),
+    last_name VARCHAR(64),
+    email VARCHAR(255),
+    phone VARCHAR(32),
     status VARCHAR(16) NOT NULL DEFAULT 'active'
         CHECK (status IN ('active','inactive')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -513,6 +532,7 @@ CREATE TABLE IF NOT EXISTS book (
     file_type VARCHAR(16),
     fine_per_day NUMERIC(10,2),
     borrow_days INT,
+    cover_image TEXT,
     uploaded_by BIGINT REFERENCES platform.app_user(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
